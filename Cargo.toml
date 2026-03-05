@@ -1,0 +1,20 @@
+[package]
+name = "squad-station"
+version = "0.1.0"
+edition = "2021"
+description = "Message routing and orchestration for AI agent squads"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+tokio = { version = "1.37", features = ["full"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "macros", "chrono", "uuid"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ratatui = "0.26"
+crossterm = "0.27"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
