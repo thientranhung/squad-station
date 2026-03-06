@@ -67,6 +67,10 @@ pub enum Commands {
         #[arg(long, default_value = "unknown")]
         provider: String,
     },
+    /// List agents with reconciled status
+    Agents,
+    /// Generate orchestrator context file
+    Context,
 }
 
 /// Task priority level
