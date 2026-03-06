@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-06T05:22:53.990Z"
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-03-06T05:29:46.317Z"
 last_activity: 2026-03-06 — Completed plan 01-04 (list + peek query commands)
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 40
 ---
 
@@ -50,6 +50,7 @@ Progress: [████░░░░░░] 40%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-core-foundation P05 | 4 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 01]: signal retrieves task_id via SELECT after UPDATE rather than RETURNING clause for SQLite compatibility
 - [Phase 01-02]: register does not launch tmux session — DB-only operation, user manages session lifecycle separately
 - [Phase 01-02]: register DB path: squad.yml in cwd preferred, SQUAD_STATION_DB env var fallback — consistent with init's resolution approach
+- [Phase 01-core-foundation]: lib.rs + main.rs split: expose internal modules as library surface for integration test access — standard Rust pattern for testable binaries
+- [Phase 01-core-foundation]: update_status subquery: SQLite does not support UPDATE...ORDER BY...LIMIT without compile flag — use WHERE id = (SELECT id ... LIMIT 1) subquery instead
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T05:22:48.245Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-03-06T05:29:46.315Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None

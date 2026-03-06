@@ -12,7 +12,7 @@ Squad Station is built in three phases that follow a strict dependency chain: fi
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Core Foundation** - Stateless CLI binary with DB schema, agent registration, send/signal messaging, and all safety primitives wired in from day one
+- [x] **Phase 1: Core Foundation** - Stateless CLI binary with DB schema, agent registration, send/signal messaging, and all safety primitives wired in from day one (completed 2026-03-06)
 - [ ] **Phase 2: Lifecycle and Hooks** - Reliable agent liveness detection, provider-agnostic hook scripts for Claude Code and Gemini CLI, orchestrator context file generation
 - [ ] **Phase 3: Views and TUI** - Text status views, interactive ratatui dashboard, and split tmux pane layout for fleet monitoring
 
@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can run `squad-station signal <agent>` from a hook and the orchestrator receives a completion notification; duplicate hook fires do not corrupt state
   4. User can run `squad-station list` and see messages filtered by agent, status, and limit; messages reflect correct priority levels
   5. Concurrent hook signals from multiple agents do not produce SQLite busy errors or lost writes
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Project foundation: Cargo.toml deps, DB schema, config types, CLI skeleton, tmux module, safety primitives
@@ -67,6 +67,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Foundation | 4/5 | In Progress|  |
+| 1. Core Foundation | 5/5 | Complete   | 2026-03-06 |
 | 2. Lifecycle and Hooks | 0/TBD | Not started | - |
 | 3. Views and TUI | 0/TBD | Not started | - |
