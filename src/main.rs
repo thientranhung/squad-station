@@ -1,11 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 
-mod cli;
-mod commands;
-mod config;
-mod db;
-mod tmux;
+// Re-use the library crate's modules so the binary and integration tests share the same code.
+use squad_station::{cli, commands};
 
 #[tokio::main]
 async fn main() {

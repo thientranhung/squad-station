@@ -35,10 +35,18 @@ pub async fn insert_message(
 
 /// Mark the most recent pending message for this agent as completed.
 /// Returns the number of rows affected (0 = already completed, not an error — MSG-03 idempotency).
+///
+/// Uses a subquery to identify the target row because SQLite does not support
+/// `UPDATE ... ORDER BY ... LIMIT` without a compile-time flag (SQLITE_ENABLE_UPDATE_DELETE_LIMIT).
 pub async fn update_status(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<u64> {
     let now = chrono::Utc::now().to_rfc3339();
     let result = sqlx::query(
-        "UPDATE messages SET status = 'completed', updated_at = ? WHERE agent_name = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
+        "UPDATE messages SET status = 'completed', updated_at = ? \
+         WHERE id = (\
+           SELECT id FROM messages \
+           WHERE agent_name = ? AND status = 'pending' \
+           ORDER BY created_at DESC LIMIT 1\
+         )"
     )
     .bind(&now)
     .bind(agent_name)
