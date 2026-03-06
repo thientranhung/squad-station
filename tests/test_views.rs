@@ -198,9 +198,38 @@ async fn test_status_empty_squad() {
 }
 
 #[tokio::test]
-#[ignore] // RED — will pass after Task 3
 async fn test_view_no_live_sessions() {
-    // Agents in DB but no tmux sessions
-    // Assert "No live" message
-    todo!()
+    // Agents in DB but no tmux sessions running in test environment
+    // view command should print "No live agent sessions to display."
+    let tmp = tempfile::TempDir::new().expect("failed to create temp dir");
+    let db_path = tmp.path().join("station.db");
+    let pool = setup_file_db(&db_path).await;
+
+    sqlx::query(
+        "INSERT INTO agents (id, name, provider, role, command, status, status_updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind("id-1").bind("agent-alpha").bind("claude-code").bind("worker")
+    .bind("echo alpha").bind("idle").bind("2026-03-06T00:00:00Z").bind("2026-03-06T00:00:00Z")
+    .execute(&pool).await.expect("insert agent");
+
+    write_squad_yml(tmp.path(), &db_path);
+
+    let bin = env!("CARGO_BIN_EXE_squad-station");
+    let output = std::process::Command::new(bin)
+        .arg("view")
+        .current_dir(tmp.path())
+        .output()
+        .expect("failed to run binary");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "view command should exit 0, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("No live"),
+        "output must contain 'No live', got:\n{}",
+        stdout
+    );
 }

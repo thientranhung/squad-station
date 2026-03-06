@@ -32,6 +32,41 @@ fn launch_args(session_name: &str, command: &str) -> Vec<String> {
     ]
 }
 
+fn list_sessions_args() -> Vec<String> {
+    vec!["list-sessions".into(), "-F".into(), "#{session_name}".into()]
+}
+
+fn kill_window_args(window_name: &str) -> Vec<String> {
+    vec!["kill-window".into(), "-t".into(), window_name.to_string()]
+}
+
+fn new_window_args(window_name: &str, command: &str) -> Vec<String> {
+    vec![
+        "new-window".into(),
+        "-n".into(),
+        window_name.to_string(),
+        command.to_string(),
+    ]
+}
+
+fn split_window_args(target: &str, command: &str) -> Vec<String> {
+    vec![
+        "split-window".into(),
+        "-t".into(),
+        target.to_string(),
+        command.to_string(),
+    ]
+}
+
+fn select_layout_args(target: &str, layout: &str) -> Vec<String> {
+    vec![
+        "select-layout".into(),
+        "-t".into(),
+        target.to_string(),
+        layout.to_string(),
+    ]
+}
+
 // --- Public API ---
 
 /// Send text literally to a tmux target, followed by Enter (SAFE-02)
@@ -63,6 +98,57 @@ pub fn session_exists(session_name: &str) -> bool {
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
+}
+
+/// List all live tmux session names.
+pub fn list_live_session_names() -> Vec<String> {
+    let output = match Command::new("tmux").args(list_sessions_args()).output() {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+/// Kill a tmux window by name (idempotent — ignores errors if window does not exist).
+pub fn kill_window(window_name: &str) -> Result<()> {
+    let _ = Command::new("tmux").args(kill_window_args(window_name)).status();
+    Ok(())
+}
+
+/// Create a view window with tiled panes, one per session, each attaching to that session.
+pub fn create_view_window(window_name: &str, sessions: &[String]) -> Result<()> {
+    if sessions.is_empty() {
+        return Ok(());
+    }
+
+    // First pane: new-window with first session
+    let first_cmd = format!("tmux attach-session -t {}", sessions[0]);
+    let status = Command::new("tmux")
+        .args(new_window_args(window_name, &first_cmd))
+        .status()?;
+    if !status.success() {
+        bail!("tmux new-window failed for window: {}", window_name);
+    }
+
+    // Remaining panes: split-window
+    for session in sessions.iter().skip(1) {
+        let cmd = format!("tmux attach-session -t {}", session);
+        Command::new("tmux")
+            .args(split_window_args(window_name, &cmd))
+            .status()?;
+    }
+
+    // Apply tiled layout
+    Command::new("tmux")
+        .args(select_layout_args(window_name, "tiled"))
+        .status()?;
+
+    Ok(())
 }
 
 /// Launch an agent in a new detached tmux session (SAFE-03)
@@ -113,6 +199,49 @@ mod tests {
             args[4], "claude-code --dangerously-skip-permissions",
             "SAFE-03: command must be passed directly to new-session"
         );
+    }
+
+    #[test]
+    fn test_list_sessions_args() {
+        let args = list_sessions_args();
+        assert_eq!(args[0], "list-sessions");
+        assert_eq!(args[1], "-F");
+        assert_eq!(args[2], "#{session_name}");
+    }
+
+    #[test]
+    fn test_kill_window_args() {
+        let args = kill_window_args("squad-view");
+        assert_eq!(args[0], "kill-window");
+        assert_eq!(args[1], "-t");
+        assert_eq!(args[2], "squad-view");
+    }
+
+    #[test]
+    fn test_new_window_args() {
+        let args = new_window_args("squad-view", "tmux attach-session -t alice");
+        assert_eq!(args[0], "new-window");
+        assert_eq!(args[1], "-n");
+        assert_eq!(args[2], "squad-view");
+        assert_eq!(args[3], "tmux attach-session -t alice");
+    }
+
+    #[test]
+    fn test_split_window_args() {
+        let args = split_window_args("squad-view", "tmux attach-session -t bob");
+        assert_eq!(args[0], "split-window");
+        assert_eq!(args[1], "-t");
+        assert_eq!(args[2], "squad-view");
+        assert_eq!(args[3], "tmux attach-session -t bob");
+    }
+
+    #[test]
+    fn test_select_layout_args() {
+        let args = select_layout_args("squad-view", "tiled");
+        assert_eq!(args[0], "select-layout");
+        assert_eq!(args[1], "-t");
+        assert_eq!(args[2], "squad-view");
+        assert_eq!(args[3], "tiled");
     }
 
     #[test]
