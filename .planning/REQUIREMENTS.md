@@ -7,8 +7,8 @@
 
 ### Session Management
 
-- [ ] **SESS-01**: User can initialize squad from squad.yml — creates DB, registers agents, creates tmux sessions, launches AI tools
-- [ ] **SESS-02**: User can register new agent at runtime without editing squad.yml
+- [x] **SESS-01**: User can initialize squad from squad.yml — creates DB, registers agents, creates tmux sessions, launches AI tools
+- [x] **SESS-02**: User can register new agent at runtime without editing squad.yml
 - [ ] **SESS-03**: Station tracks agent status as idle, busy, or dead based on current activity
 - [ ] **SESS-04**: Station reconciles agent liveness by checking tmux session existence
 - [ ] **SESS-05**: Station auto-generates orchestrator context file listing available agents and usage commands
@@ -70,8 +70,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SESS-01 | Phase 1 | Pending |
-| SESS-02 | Phase 1 | Pending |
+| SESS-01 | Phase 1 | Complete |
+| SESS-02 | Phase 1 | Complete |
 | SESS-03 | Phase 2 | Pending |
 | SESS-04 | Phase 2 | Pending |
 | SESS-05 | Phase 2 | Pending |
