@@ -30,10 +30,10 @@
 
 ### Views
 
-- [ ] **VIEW-01**: User can see squad overview via `squad-station status` (text output)
-- [ ] **VIEW-02**: User can list agents and their status via `squad-station agents`
+- [x] **VIEW-01**: User can see squad overview via `squad-station status` (text output)
+- [x] **VIEW-02**: User can list agents and their status via `squad-station agents`
 - [ ] **VIEW-03**: User can view interactive TUI dashboard via `squad-station ui` (ratatui)
-- [ ] **VIEW-04**: User can view split tmux pane layout of all agents via `squad-station view`
+- [x] **VIEW-04**: User can view split tmux pane layout of all agents via `squad-station view`
 
 ### Safety
 
@@ -84,10 +84,10 @@
 | HOOK-01 | Phase 2 | Complete |
 | HOOK-02 | Phase 2 | Complete |
 | HOOK-03 | Phase 2 | Complete |
-| VIEW-01 | Phase 3 | Pending |
-| VIEW-02 | Phase 3 | Pending |
+| VIEW-01 | Phase 3 | Complete |
+| VIEW-02 | Phase 3 | Complete |
 | VIEW-03 | Phase 3 | Pending |
-| VIEW-04 | Phase 3 | Pending |
+| VIEW-04 | Phase 3 | Complete |
 | SAFE-01 | Phase 1 | Complete (01-01) |
 | SAFE-02 | Phase 1 | Complete (01-01) |
 | SAFE-03 | Phase 1 | Complete (01-01) |
