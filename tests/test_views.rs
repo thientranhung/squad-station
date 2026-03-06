@@ -1,7 +1,111 @@
 mod helpers;
 
+use crossterm::event::KeyCode;
+use squad_station::commands::ui::{App, FocusPanel};
 use squad_station::db;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+
+// ---------------------------------------------------------------------------
+// Helper: mock Agent
+// ---------------------------------------------------------------------------
+
+fn mock_agent(name: &str, status: &str) -> squad_station::db::agents::Agent {
+    squad_station::db::agents::Agent {
+        id: "test-id".into(),
+        name: name.into(),
+        provider: "test".into(),
+        role: "worker".into(),
+        command: "echo".into(),
+        created_at: "2026-01-01T00:00:00Z".into(),
+        status: status.into(),
+        status_updated_at: "2026-01-01T00:00:00Z".into(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TUI app state unit tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_ui_app_new() {
+    let app = App::new();
+    assert!(app.agents.is_empty(), "agents should be empty");
+    assert!(!app.quit, "quit should be false");
+    assert_eq!(app.agent_list_state.selected(), None, "no selection");
+    assert_eq!(app.focus, FocusPanel::AgentPanel, "focus should be AgentPanel");
+}
+
+#[test]
+fn test_ui_navigation_next() {
+    let mut app = App::new();
+    app.agents = vec![
+        mock_agent("a", "idle"),
+        mock_agent("b", "busy"),
+        mock_agent("c", "dead"),
+    ];
+    // First call from None -> 0
+    app.select_next();
+    assert_eq!(app.agent_list_state.selected(), Some(0));
+    app.select_next();
+    assert_eq!(app.agent_list_state.selected(), Some(1));
+    app.select_next();
+    assert_eq!(app.agent_list_state.selected(), Some(2));
+    // Wrap around
+    app.select_next();
+    assert_eq!(app.agent_list_state.selected(), Some(0));
+}
+
+#[test]
+fn test_ui_navigation_prev() {
+    let mut app = App::new();
+    app.agents = vec![
+        mock_agent("a", "idle"),
+        mock_agent("b", "busy"),
+        mock_agent("c", "dead"),
+    ];
+    app.agent_list_state.select(Some(0));
+    // From 0 -> wraps to 2
+    app.select_previous();
+    assert_eq!(app.agent_list_state.selected(), Some(2));
+    app.select_previous();
+    assert_eq!(app.agent_list_state.selected(), Some(1));
+    app.select_previous();
+    assert_eq!(app.agent_list_state.selected(), Some(0));
+}
+
+#[test]
+fn test_ui_quit_key_q() {
+    let mut app = App::new();
+    app.handle_key(KeyCode::Char('q'));
+    assert!(app.quit, "quit should be true after 'q'");
+}
+
+#[test]
+fn test_ui_quit_key_esc() {
+    let mut app = App::new();
+    app.handle_key(KeyCode::Esc);
+    assert!(app.quit, "quit should be true after Esc");
+}
+
+#[test]
+fn test_ui_toggle_focus() {
+    let mut app = App::new();
+    assert_eq!(app.focus, FocusPanel::AgentPanel);
+    app.toggle_focus();
+    assert_eq!(app.focus, FocusPanel::MessagePanel);
+    app.toggle_focus();
+    assert_eq!(app.focus, FocusPanel::AgentPanel);
+}
+
+#[test]
+fn test_ui_navigation_empty() {
+    let mut app = App::new();
+    // Should not panic with empty agents
+    app.select_next();
+    assert_eq!(app.agent_list_state.selected(), None);
+    app.select_previous();
+    assert_eq!(app.agent_list_state.selected(), None);
+}
 
 #[test]
 fn test_views_module_compiles() {
