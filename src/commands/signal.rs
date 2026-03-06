@@ -1,29 +1,61 @@
-use anyhow::bail;
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
 use crate::{config, db, tmux};
 
 pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
-    // 1. Resolve DB path from squad.yml in cwd
-    let config_path = std::path::Path::new("squad.yml");
-    let config = config::load_config(config_path)?;
-    let db_path = config::resolve_db_path(&config)?;
-
-    // 2. Connect to DB
-    let pool = db::connect(&db_path).await?;
-
-    // 3. Validate agent exists in DB
-    let agent_record = db::agents::get_agent(&pool, &agent).await?;
-    if agent_record.is_none() {
-        bail!("Agent not found: {}", agent);
+    // GUARD 1: Not in tmux -- silent exit 0 (HOOK-03)
+    // Cheapest check first: if TMUX_PANE is not set, we are not inside a tmux session.
+    // This catches invocations outside tmux (e.g. unit tests, CI, raw shell).
+    if std::env::var("TMUX_PANE").is_err() {
+        return Ok(());
     }
 
-    // 4. Idempotent status update (MSG-03): only updates the most recent pending message
-    // Returns 0 if no pending message exists — this is NOT an error (duplicate signal silently succeeds)
+    // GUARD 2: Config/DB connection -- warning to stderr + exit 0 on failure
+    // Per locked decision: real errors go to stderr but NEVER fail the provider (exit 0 always).
+    let config_path = std::path::Path::new("squad.yml");
+    let config = match config::load_config(config_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("squad-station: warning: {e}");
+            return Ok(());
+        }
+    };
+    let db_path = match config::resolve_db_path(&config) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("squad-station: warning: {e}");
+            return Ok(());
+        }
+    };
+    let pool = match db::connect(&db_path).await {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("squad-station: warning: DB connection failed: {e}");
+            return Ok(());
+        }
+    };
+
+    // GUARD 3: Agent not registered -- silent exit 0 (HOOK-03)
+    // Unregistered agents must be a silent exit 0 (not an error) in hook context.
+    let agent_record = match db::agents::get_agent(&pool, &agent).await? {
+        Some(r) => r,
+        None => return Ok(()),
+    };
+
+    // GUARD 4: Orchestrator self-signal -- silent exit 0 (HOOK-01)
+    // Prevents infinite loop where the orchestrator's AfterAgent hook signals itself.
+    if agent_record.role == "orchestrator" {
+        return Ok(());
+    }
+
+    // --- Existing signal flow (from Phase 1) ---
+
+    // Idempotent status update (MSG-03): only updates the most recent pending message.
+    // Returns 0 if no pending message exists — this is NOT an error (duplicate signal silently succeeds).
     let rows = db::messages::update_status(&pool, &agent).await?;
 
-    // 5. Retrieve task_id of the message that was just completed (only if state actually changed)
+    // Retrieve task_id of the message that was just completed (only if state actually changed).
     let task_id: Option<String> = if rows > 0 {
         // Query the most recently completed message for this agent
         let result: Option<(String,)> = sqlx::query_as(
@@ -37,7 +69,7 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
         None
     };
 
-    // 6. Find orchestrator and notify (only on actual state change)
+    // Find orchestrator and notify (only on actual state change).
     let orchestrator_notified = if rows > 0 {
         let orchestrator = db::agents::get_orchestrator(&pool).await?;
         if let Some(orch) = orchestrator {
@@ -46,8 +78,8 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
                 "[SIGNAL] agent={} status=completed task_id={}",
                 agent, task_id_str
             );
-            // Only notify if orchestrator tmux session is running
-            // If session is down, signal is persisted in DB — not an error (per user decision)
+            // Only notify if orchestrator tmux session is running.
+            // If session is down, signal is persisted in DB — not an error (per user decision).
             if tmux::session_exists(&orch.name) {
                 tmux::send_keys_literal(&orch.name, &notification)?;
                 true
@@ -55,14 +87,19 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
                 false
             }
         } else {
-            // No orchestrator registered — signal is persisted in DB only
+            // No orchestrator registered — signal is persisted in DB only.
             false
         }
     } else {
         false
     };
 
-    // 7. Output result
+    // After successful signal, set agent status back to idle.
+    if rows > 0 {
+        db::agents::update_agent_status(&pool, &agent, "idle").await?;
+    }
+
+    // Output result
     if json {
         let out = serde_json::json!({
             "signaled": true,

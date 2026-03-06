@@ -31,6 +31,9 @@ pub async fn run(agent: String, task: String, priority: cli::Priority, json: boo
     let priority_str = priority.to_string();
     let msg_id = db::messages::insert_message(&pool, &agent, &task, &priority_str).await?;
 
+    // 5b. Mark agent as busy now that a task has been sent
+    db::agents::update_agent_status(&pool, &agent, "busy").await?;
+
     // 6. Inject task into agent tmux session (literal send-keys, SAFE-02)
     tmux::send_keys_literal(&agent, &task)?;
 
