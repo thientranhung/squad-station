@@ -281,3 +281,39 @@ async fn test_peek_nonexistent_agent() {
     let result = messages::peek_message(&pool, "ghost-agent").await.unwrap();
     assert!(result.is_none(), "unknown agent → peek returns None (not error)");
 }
+
+// ============================================================
+// Agent status tests — SESS-03, SESS-04
+// ============================================================
+
+#[tokio::test]
+async fn test_update_agent_status() {
+    // SESS-03: update_agent_status writes new status to DB
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "test-agent", "claude", "worker", "echo").await.unwrap();
+    agents::update_agent_status(&pool, "test-agent", "busy").await.unwrap();
+    let agent = agents::get_agent(&pool, "test-agent").await.unwrap().unwrap();
+    assert_eq!(agent.status, "busy");
+}
+
+#[tokio::test]
+async fn test_agent_default_status_is_idle() {
+    // SESS-03: newly inserted agent has status = "idle" by default
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "test-agent", "claude", "worker", "echo").await.unwrap();
+    let agent = agents::get_agent(&pool, "test-agent").await.unwrap().unwrap();
+    assert_eq!(agent.status, "idle");
+}
+
+#[tokio::test]
+async fn test_update_agent_status_updates_timestamp() {
+    // SESS-03: update_agent_status also updates status_updated_at
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "test-agent", "claude", "worker", "echo").await.unwrap();
+    let before = agents::get_agent(&pool, "test-agent").await.unwrap().unwrap();
+    // Small delay to ensure timestamp differs
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    agents::update_agent_status(&pool, "test-agent", "busy").await.unwrap();
+    let after = agents::get_agent(&pool, "test-agent").await.unwrap().unwrap();
+    assert_ne!(before.status_updated_at, after.status_updated_at);
+}
