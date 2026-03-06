@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-06T06:35:09.592Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-06T06:55:39.987Z"
 last_activity: 2026-03-06 — Completed plan 01-04 (list + peek query commands)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
   percent: 40
 ---
 
@@ -51,6 +51,7 @@ Progress: [████░░░░░░] 40%
 
 *Updated after each plan completion*
 | Phase 01-core-foundation P05 | 4 | 2 tasks | 6 files |
+| Phase 02-lifecycle-and-hooks P01 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Recent decisions affecting current work:
 - [Phase 01-02]: register DB path: squad.yml in cwd preferred, SQUAD_STATION_DB env var fallback — consistent with init's resolution approach
 - [Phase 01-core-foundation]: lib.rs + main.rs split: expose internal modules as library surface for integration test access — standard Rust pattern for testable binaries
 - [Phase 01-core-foundation]: update_status subquery: SQLite does not support UPDATE...ORDER BY...LIMIT without compile flag — use WHERE id = (SELECT id ... LIMIT 1) subquery instead
+- [Phase 02-lifecycle-and-hooks]: Guard order in signal.rs: TMUX_PANE first (cheapest), then config/DB, agent lookup, orchestrator role check
+- [Phase 02-lifecycle-and-hooks]: Unregistered agent in signal returns Ok(()) silently — bail! replaced for hook context compatibility (HOOK-03)
+- [Phase 02-lifecycle-and-hooks]: Orchestrator self-signal guard (role == 'orchestrator') prevents AfterAgent hook infinite loop (HOOK-01)
+- [Phase 02-lifecycle-and-hooks]: Agent status updated in send (busy) and signal (idle) to maintain accurate lifecycle state across send->signal arc
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-06T06:35:09.590Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-lifecycle-and-hooks/02-CONTEXT.md
+Last session: 2026-03-06T06:55:39.985Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
