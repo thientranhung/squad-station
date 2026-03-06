@@ -37,10 +37,10 @@
 
 ### Safety
 
-- [ ] **SAFE-01**: SQLite uses WAL mode with busy_timeout to handle concurrent writes from multiple agent signals
-- [ ] **SAFE-02**: tmux send-keys uses literal mode (-l) to prevent special character injection
-- [ ] **SAFE-03**: tmux send-keys waits for shell readiness before injecting prompt
-- [ ] **SAFE-04**: SIGPIPE handler installed at binary startup
+- [x] **SAFE-01**: SQLite uses WAL mode with busy_timeout to handle concurrent writes from multiple agent signals
+- [x] **SAFE-02**: tmux send-keys uses literal mode (-l) to prevent special character injection
+- [x] **SAFE-03**: tmux send-keys waits for shell readiness before injecting prompt
+- [x] **SAFE-04**: SIGPIPE handler installed at binary startup
 
 ## v2 Requirements
 
@@ -88,10 +88,10 @@
 | VIEW-02 | Phase 3 | Pending |
 | VIEW-03 | Phase 3 | Pending |
 | VIEW-04 | Phase 3 | Pending |
-| SAFE-01 | Phase 1 | Pending |
-| SAFE-02 | Phase 1 | Pending |
-| SAFE-03 | Phase 1 | Pending |
-| SAFE-04 | Phase 1 | Pending |
+| SAFE-01 | Phase 1 | Complete (01-01) |
+| SAFE-02 | Phase 1 | Complete (01-01) |
+| SAFE-03 | Phase 1 | Complete (01-01) |
+| SAFE-04 | Phase 1 | Complete (01-01) |
 
 **Coverage:**
 - v1 requirements: 22 total

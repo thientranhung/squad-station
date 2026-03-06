@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 5 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project foundation: Cargo.toml deps, DB schema, config types, CLI skeleton, tmux module, safety primitives
+- [x] 01-01-PLAN.md — Project foundation: Cargo.toml deps, DB schema, config types, CLI skeleton, tmux module, safety primitives
 - [ ] 01-02-PLAN.md — Session management: init from squad.yml and runtime agent registration
 - [ ] 01-03-PLAN.md — Core messaging: send task to agent and signal completion to orchestrator
 - [ ] 01-04-PLAN.md — Query commands: list messages with filters and peek for pending tasks
@@ -67,6 +67,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Foundation | 0/5 | Planning complete | - |
+| 1. Core Foundation | 1/5 | In progress | - |
 | 2. Lifecycle and Hooks | 0/TBD | Not started | - |
 | 3. Views and TUI | 0/TBD | Not started | - |
