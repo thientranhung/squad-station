@@ -32,7 +32,7 @@
 
 - [x] **Phase 7: CI/CD Pipeline** - GitHub Actions cross-compiles binaries for all 4 targets and publishes GitHub Releases (completed 2026-03-08)
 - [x] **Phase 8: npm Package** - npm package detects platform and installs the correct binary on `npm install -g squad-station` (completed 2026-03-08)
-- [ ] **Phase 9: Install Script and Docs** - curl | sh install alternative and README documenting all installation methods
+- [x] **Phase 9: Install Script and Docs** - curl | sh install alternative and README documenting all installation methods (completed 2026-03-08)
 
 ## Phase Details
 
@@ -90,4 +90,4 @@ Plans:
 | 6. Documentation | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 7. CI/CD Pipeline | v1.2 | 1/1 | Complete | 2026-03-08 |
 | 8. npm Package | v1.2 | 2/2 | Complete | 2026-03-08 |
-| 9. Install Script and Docs | 1/2 | In Progress|  | - |
+| 9. Install Script and Docs | 2/2 | Complete   | 2026-03-08 | - |

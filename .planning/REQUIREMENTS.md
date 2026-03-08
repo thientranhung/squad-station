@@ -28,9 +28,9 @@ Requirements for v1.2 Distribution milestone. Each maps to roadmap phases.
 
 ### Documentation
 
-- [ ] **DOC-01**: README.md documents all installation methods (npm, curl, build from source)
-- [ ] **DOC-02**: README.md includes a quickstart — first steps after install (init, send, signal)
-- [ ] **DOC-03**: README.md includes project description, architecture overview, and link to PLAYBOOK.md
+- [x] **DOC-01**: README.md documents all installation methods (npm, curl, build from source)
+- [x] **DOC-02**: README.md includes a quickstart — first steps after install (init, send, signal)
+- [x] **DOC-03**: README.md includes project description, architecture overview, and link to PLAYBOOK.md
 
 ## Future Requirements
 
@@ -69,9 +69,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-01 | Phase 9 | Complete |
 | INST-02 | Phase 9 | Complete |
 | INST-03 | Phase 9 | Complete |
-| DOC-01 | Phase 9 | Pending |
-| DOC-02 | Phase 9 | Pending |
-| DOC-03 | Phase 9 | Pending |
+| DOC-01 | Phase 9 | Complete |
+| DOC-02 | Phase 9 | Complete |
+| DOC-03 | Phase 9 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 13 total
