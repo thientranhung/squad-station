@@ -22,9 +22,9 @@ Requirements for v1.2 Distribution milestone. Each maps to roadmap phases.
 
 ### Install Script
 
-- [ ] **INST-01**: `curl -fsSL https://... | sh` installs the binary to `/usr/local/bin` (or `~/.local/bin` fallback)
-- [ ] **INST-02**: Install script detects platform + arch, downloads correct binary from GitHub Releases
-- [ ] **INST-03**: Install script verifies download succeeded and binary is executable
+- [x] **INST-01**: `curl -fsSL https://... | sh` installs the binary to `/usr/local/bin` (or `~/.local/bin` fallback)
+- [x] **INST-02**: Install script detects platform + arch, downloads correct binary from GitHub Releases
+- [x] **INST-03**: Install script verifies download succeeded and binary is executable
 
 ### Documentation
 
@@ -66,9 +66,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NPM-02 | Phase 8 | Complete |
 | NPM-03 | Phase 8 | Complete |
 | NPM-04 | Phase 8 | Complete |
-| INST-01 | Phase 9 | Pending |
-| INST-02 | Phase 9 | Pending |
-| INST-03 | Phase 9 | Pending |
+| INST-01 | Phase 9 | Complete |
+| INST-02 | Phase 9 | Complete |
+| INST-03 | Phase 9 | Complete |
 | DOC-01 | Phase 9 | Pending |
 | DOC-02 | Phase 9 | Pending |
 | DOC-03 | Phase 9 | Pending |

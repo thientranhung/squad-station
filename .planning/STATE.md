@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Distribution
 status: executing
-stopped_at: Completed 08-02-PLAN.md (Phase 8 Plan 2 complete — npm install verified)
-last_updated: "2026-03-08T16:32:33.415Z"
+stopped_at: Completed 09-01-PLAN.md (Phase 9 Plan 1 complete — install.sh created)
+last_updated: "2026-03-08T17:07:30.771Z"
 last_activity: "2026-03-08 — Phase 7 Plan 1: release workflow created (.github/workflows/release.yml)"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
   percent: 5
 ---
 
@@ -48,6 +48,7 @@ Progress: [#░░░░░░░░░] 5%
 | Phase 07-ci-cd-pipeline P01 | 45 | 2 tasks | 1 files |
 | Phase 08-npm-package P01 | 1 | 2 tasks | 3 files |
 | Phase 08-npm-package P02 | 5 | 2 tasks | 0 files |
+| Phase 09-install-script-and-docs P01 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions table.
 - [Phase 08-npm-package]: npm package uses JS shim (bin/run.js) because npm requires JS entry points in bin field; raw native binary causes failures
 - [Phase 08-npm-package]: archMap x64->x86_64 in postinstall.js: Node.js reports process.arch as x64 but Phase 7 binaries use x86_64 naming
 - [Phase 08-npm-package]: postinstall.js zero external dependencies: uses only built-in https, fs, path — no npm install needed before postinstall runs
+- [Phase 09-install-script-and-docs]: BASE_URL uses literal thientranhung/squad-station string for grep-pattern verifiability in install.sh
+- [Phase 09-install-script-and-docs]: install.sh uses mktemp+trap EXIT for safe temp file cleanup without external dependencies
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08T16:29:44.307Z
-Stopped at: Completed 08-02-PLAN.md (Phase 8 Plan 2 complete — npm install verified)
+Last session: 2026-03-08T17:07:23.426Z
+Stopped at: Completed 09-01-PLAN.md (Phase 9 Plan 1 complete — install.sh created)
 Resume file: None
