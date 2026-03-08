@@ -40,7 +40,7 @@
 Plans:
 - [x] 04-01-PLAN.md — Config refactor: SquadConfig.project→String, AgentConfig tool/model/description, remove command, update squad.yml
 - [x] 04-02-PLAN.md — Messages schema migration: 0003_v11.sql, messages.rs struct/CRUD, test_db.rs message tests
-- [ ] 04-03-PLAN.md — Agents schema migration + command callers: agents.rs struct/CRUD, init/register/send/signal/agents/list/status wired
+- [x] 04-03-PLAN.md — Agents schema migration + command callers: agents.rs struct/CRUD, init/register/send/signal/agents/list/status wired
 
 ### Phase 5: Feature Completion
 **Goal**: All user-facing behavioral changes land — new hooks ship, CLI syntax is correct, naming is enforced, signal format is standard
@@ -53,11 +53,11 @@ Plans:
   4. Running `init` with a squad.yml agent named `backend` auto-registers it as `<project>-<tool>-backend` in the DB
   5. Running `context` outputs `model` and `description` per agent alongside existing fields
   6. Signal notification sent to orchestrator uses the format `"<agent> completed <msg-id>"`
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Notification hooks (`claude-code-notify.sh` + `gemini-cli-notify.sh`)
-- [ ] 05-02: CLI send flag syntax (`--body`), agent auto-prefix on init, context output update, signal format standardization
+- [ ] 05-01-PLAN.md — Notification hooks: hooks/claude-code-notify.sh (HOOK-01) + hooks/gemini-cli-notify.sh (HOOK-02)
+- [ ] 05-02-PLAN.md — CLI send --body flag (CLI-01), init auto-prefix naming (CLI-02), context model/description output (CLI-03), signal format (SIG-01)
 
 ### Phase 6: Documentation
 **Goal**: All docs and planning files accurately describe the refactored system — no stale references to removed fields or old CLI syntax
@@ -79,6 +79,6 @@ Plans:
 | 1. Core Foundation | v1.0 | 5/5 | Complete | 2026-03-06 |
 | 2. Lifecycle and Hooks | v1.0 | 3/3 | Complete | 2026-03-06 |
 | 3. Views and TUI | v1.0 | 2/2 | Complete | 2026-03-06 |
-| 4. Schema and Config Refactor | 3/3 | Complete   | 2026-03-08 | - |
+| 4. Schema and Config Refactor | v1.1 | 3/3 | Complete | 2026-03-08 |
 | 5. Feature Completion | v1.1 | 0/2 | Not started | - |
 | 6. Documentation | v1.1 | 0/2 | Not started | - |
