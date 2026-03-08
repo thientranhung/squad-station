@@ -17,7 +17,7 @@ Requires Node.js 14+. Postinstall downloads the native binary for your platform.
 ### curl
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/thientranhung/squad-station/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/thientranhung/squad-station/master/install.sh | sh
 ```
 
 Installs to `/usr/local/bin` (falls back to `~/.local/bin`). Supports macOS and Linux.
