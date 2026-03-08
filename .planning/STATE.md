@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Design Compliance
 status: executing
-stopped_at: Completed 04-03-PLAN.md (schema integration wave — agents DB + command wiring)
-last_updated: "2026-03-08T11:36:43.677Z"
-last_activity: 2026-03-08 — 04-03 schema integration wave complete (AGNT-01/02/03, 124/124 tests green)
+stopped_at: Completed 05-01-PLAN.md (notification hooks — HOOK-01 and HOOK-02)
+last_updated: "2026-03-08T12:04:00Z"
+last_activity: 2026-03-08 — 05-01 notification hooks complete (claude-code-notify.sh + gemini-cli-notify.sh)
 progress:
   total_phases: 3
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** Routing messages reliably between Orchestrator and agents — send task to right agent, receive completion signal, notify Orchestrator — all via stateless CLI commands, no daemon
-**Current focus:** Phase 4 — Schema and Config Refactor
+**Current focus:** Phase 5 — Feature Completion
 
 ## Current Position
 
-Phase: 4 of 6 (Schema and Config Refactor)
-Plan: 3 of 3 in current phase (04-03 complete — Phase 4 DONE)
+Phase: 5 of 6 (Feature Completion)
+Plan: 1 of N in current phase (05-01 complete — HOOK-01 and HOOK-02 done)
 Status: In Progress
-Last activity: 2026-03-08 — 04-03 schema integration wave complete (AGNT-01/02/03, 124/124 tests green)
+Last activity: 2026-03-08 — 05-01 notification hooks complete (claude-code-notify.sh + gemini-cli-notify.sh)
 
 Progress: [████░░░░░░] 43%
 
@@ -78,6 +78,12 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table.
 - current_task FK lifecycle handled inline in send/signal with raw sqlx::query — keeps db::agents API minimal
 - list.rs FROM/TO columns replace AGENT column — directional routing surfaced in default table output
 
+**05-01 execution decisions:**
+- Both notify hooks share identical implementation body — only header comments differ (provider-specific registration instructions)
+- python3 used for JSON parsing inline — consistent with existing project hooks, no new dependencies
+- Orchestrator discovered at runtime via `squad-station agents --json` — keeps hooks stateless
+- Message format `[NOTIFY] <agent> needs permission: <message>` — prefix enables orchestrator pattern-matching
+
 ### Pending Todos
 
 None.
@@ -89,5 +95,5 @@ None — all design decisions resolved, ready to build.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 04-03-PLAN.md (schema integration wave — agents DB + command wiring)
+Stopped at: Completed 05-01-PLAN.md (notification hooks — HOOK-01 and HOOK-02)
 Resume file: None

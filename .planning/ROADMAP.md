@@ -80,5 +80,5 @@ Plans:
 | 2. Lifecycle and Hooks | v1.0 | 3/3 | Complete | 2026-03-06 |
 | 3. Views and TUI | v1.0 | 2/2 | Complete | 2026-03-06 |
 | 4. Schema and Config Refactor | v1.1 | 3/3 | Complete | 2026-03-08 |
-| 5. Feature Completion | v1.1 | 0/2 | Not started | - |
+| 5. Feature Completion | 1/2 | In Progress|  | - |
 | 6. Documentation | v1.1 | 0/2 | Not started | - |

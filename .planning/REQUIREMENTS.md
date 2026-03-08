@@ -29,8 +29,8 @@ Requirements for v1.1 Design Compliance milestone. Closes all 10 gaps vs `docs/S
 
 ### Hooks (HOOK)
 
-- [ ] **HOOK-01**: User can register Notification hook for Claude Code
-- [ ] **HOOK-02**: User can register Notification hook for Gemini CLI
+- [x] **HOOK-01**: User can register Notification hook for Claude Code
+- [x] **HOOK-02**: User can register Notification hook for Gemini CLI
 
 ### CLI (CLI)
 
@@ -82,8 +82,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-01 | Phase 4 | Complete |
 | AGNT-02 | Phase 4 | Complete |
 | AGNT-03 | Phase 4 | Complete |
-| HOOK-01 | Phase 5 | Pending |
-| HOOK-02 | Phase 5 | Pending |
+| HOOK-01 | Phase 5 | Complete |
+| HOOK-02 | Phase 5 | Complete |
 | CLI-01 | Phase 5 | Pending |
 | CLI-02 | Phase 5 | Pending |
 | CLI-03 | Phase 5 | Pending |
