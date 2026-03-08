@@ -9,9 +9,9 @@ Requirements for v1.2 Distribution milestone. Each maps to roadmap phases.
 
 ### CI/CD
 
-- [ ] **CICD-01**: GitHub Actions workflow builds Rust binary for 4 targets: `darwin-arm64`, `darwin-x86_64`, `linux-arm64`, `linux-x86_64`
-- [ ] **CICD-02**: Workflow triggers on git tag push (`v*`) and creates a GitHub Release
-- [ ] **CICD-03**: GitHub Release has 4 pre-built binary assets attached (one per target)
+- [x] **CICD-01**: GitHub Actions workflow builds Rust binary for 4 targets: `darwin-arm64`, `darwin-x86_64`, `linux-arm64`, `linux-x86_64`
+- [x] **CICD-02**: Workflow triggers on git tag push (`v*`) and creates a GitHub Release
+- [x] **CICD-03**: GitHub Release has 4 pre-built binary assets attached (one per target)
 
 ### npm Package
 
@@ -59,9 +59,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CICD-01 | Phase 7 | Pending |
-| CICD-02 | Phase 7 | Pending |
-| CICD-03 | Phase 7 | Pending |
+| CICD-01 | Phase 7 | Complete |
+| CICD-02 | Phase 7 | Complete |
+| CICD-03 | Phase 7 | Complete |
 | NPM-01 | Phase 8 | Pending |
 | NPM-02 | Phase 8 | Pending |
 | NPM-03 | Phase 8 | Pending |
