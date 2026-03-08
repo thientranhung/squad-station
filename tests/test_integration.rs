@@ -1,7 +1,7 @@
 mod helpers;
 
-use squad_station::db;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use squad_station::db;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,7 +23,10 @@ agents: []
 /// Create a Command for the binary with SQUAD_STATION_DB set to point at the test DB.
 fn cmd_with_db(db_path: &std::path::Path) -> std::process::Command {
     let mut c = std::process::Command::new(bin());
-    c.env("SQUAD_STATION_DB", db_path.to_str().expect("db path must be valid UTF-8"));
+    c.env(
+        "SQUAD_STATION_DB",
+        db_path.to_str().expect("db path must be valid UTF-8"),
+    );
     c
 }
 
@@ -61,17 +64,28 @@ fn test_register_text_output() {
 
     let output = cmd_with_db(&db_file)
         .args([
-            "register", "my-worker",
-            "--role", "worker",
-            "--tool", "claude-code",
+            "register",
+            "my-worker",
+            "--role",
+            "worker",
+            "--tool",
+            "claude-code",
         ])
         .current_dir(tmp.path())
         .output()
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    assert!(stdout.contains("Registered agent 'my-worker'"), "got: {}", stdout);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("Registered agent 'my-worker'"),
+        "got: {}",
+        stdout
+    );
     assert!(stdout.contains("role=worker"), "got: {}", stdout);
     assert!(stdout.contains("tool=claude-code"), "got: {}", stdout);
 }
@@ -83,16 +97,17 @@ fn test_register_json_output() {
     write_squad_yml(tmp.path(), &db_file);
 
     let output = cmd_with_db(&db_file)
-        .args([
-            "register", "my-worker",
-            "--json",
-        ])
+        .args(["register", "my-worker", "--json"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("must be valid JSON");
     assert_eq!(parsed["registered"], true);
@@ -107,9 +122,12 @@ fn test_register_idempotent() {
     write_squad_yml(tmp.path(), &db_file);
 
     let args = [
-        "register", "dup-agent",
-        "--role", "worker",
-        "--tool", "test",
+        "register",
+        "dup-agent",
+        "--role",
+        "worker",
+        "--tool",
+        "test",
     ];
 
     // First registration
@@ -193,9 +211,29 @@ async fn test_list_text_output_with_messages() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "implement feature X", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "fix bug Y", "high").await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "implement feature X",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "fix bug Y",
+        "high",
+    )
+    .await
+    .unwrap();
 
     // Close the pool before running the binary (single-writer)
     pool.close().await;
@@ -209,17 +247,53 @@ async fn test_list_text_output_with_messages() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     // Table header
-    assert!(stdout.contains("ID"), "table must have ID column, got:\n{}", stdout);
-    assert!(stdout.contains("TO"), "table must have TO column, got:\n{}", stdout);
-    assert!(stdout.contains("STATUS"), "table must have STATUS column, got:\n{}", stdout);
-    assert!(stdout.contains("PRIORITY"), "table must have PRIORITY column, got:\n{}", stdout);
-    assert!(stdout.contains("TASK"), "table must have TASK column, got:\n{}", stdout);
+    assert!(
+        stdout.contains("ID"),
+        "table must have ID column, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("TO"),
+        "table must have TO column, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("STATUS"),
+        "table must have STATUS column, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("PRIORITY"),
+        "table must have PRIORITY column, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("TASK"),
+        "table must have TASK column, got:\n{}",
+        stdout
+    );
     // Data
-    assert!(stdout.contains("worker-1"), "must contain agent name, got:\n{}", stdout);
-    assert!(stdout.contains("implement feature X"), "must contain task text, got:\n{}", stdout);
-    assert!(stdout.contains("fix bug Y"), "must contain task text, got:\n{}", stdout);
+    assert!(
+        stdout.contains("worker-1"),
+        "must contain agent name, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("implement feature X"),
+        "must contain task text, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("fix bug Y"),
+        "must contain task text, got:\n{}",
+        stdout
+    );
 }
 
 #[tokio::test]
@@ -228,8 +302,19 @@ async fn test_list_json_output() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "test task", "urgent").await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "test task",
+        "urgent",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -241,7 +326,11 @@ async fn test_list_json_output() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("must be valid JSON");
     assert!(parsed.is_array(), "JSON output must be an array");
@@ -282,10 +371,32 @@ async fn test_list_filter_by_agent() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "alpha", "claude", "worker", None, None).await.unwrap();
-    db::agents::insert_agent(&pool, "beta", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "alpha", "task_request", "alpha task", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "beta", "task_request", "beta task", "normal").await.unwrap();
+    db::agents::insert_agent(&pool, "alpha", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::agents::insert_agent(&pool, "beta", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "alpha",
+        "task_request",
+        "alpha task",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "beta",
+        "task_request",
+        "beta task",
+        "normal",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -311,9 +422,29 @@ async fn test_list_filter_by_status() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker", "task_request", "task 1", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker", "task_request", "task 2", "normal").await.unwrap();
+    db::agents::insert_agent(&pool, "worker", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker",
+        "task_request",
+        "task 1",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker",
+        "task_request",
+        "task 2",
+        "normal",
+    )
+    .await
+    .unwrap();
     // Complete the most recent one
     db::messages::update_status(&pool, "worker").await.unwrap();
     pool.close().await;
@@ -341,11 +472,20 @@ async fn test_list_with_limit() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "worker", "claude", "worker", None, None)
+        .await
+        .unwrap();
     for i in 0..10u32 {
-        db::messages::insert_message(&pool, "orchestrator", "worker", "task_request", &format!("task {}", i), "normal")
-            .await
-            .unwrap();
+        db::messages::insert_message(
+            &pool,
+            "orchestrator",
+            "worker",
+            "task_request",
+            &format!("task {}", i),
+            "normal",
+        )
+        .await
+        .unwrap();
     }
     pool.close().await;
 
@@ -375,10 +515,19 @@ async fn test_peek_text_with_pending_task() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "do something important", "high")
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
         .await
         .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "do something important",
+        "high",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -390,9 +539,17 @@ async fn test_peek_text_with_pending_task() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(stdout.contains("do something important"), "got: {}", stdout);
-    assert!(stdout.contains("high"), "must show priority, got: {}", stdout);
+    assert!(
+        stdout.contains("high"),
+        "must show priority, got: {}",
+        stdout
+    );
 }
 
 #[tokio::test]
@@ -401,8 +558,19 @@ async fn test_peek_json_with_pending_task() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "json task", "urgent").await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "json task",
+        "urgent",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -429,7 +597,9 @@ async fn test_peek_no_pending_text() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -442,11 +612,7 @@ async fn test_peek_no_pending_text() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
-    assert!(
-        stdout.contains("No pending tasks"),
-        "got: {}",
-        stdout
-    );
+    assert!(stdout.contains("No pending tasks"), "got: {}", stdout);
 }
 
 #[tokio::test]
@@ -455,7 +621,9 @@ async fn test_peek_no_pending_json() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -481,10 +649,39 @@ async fn test_peek_priority_ordering() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "normal task", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "high task", "high").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "worker-1", "task_request", "urgent task", "urgent").await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "normal task",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "high task",
+        "high",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-1",
+        "task_request",
+        "urgent task",
+        "urgent",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -499,7 +696,10 @@ async fn test_peek_priority_ordering() {
     assert!(output.status.success());
 
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(parsed["priority"], "urgent", "peek must return urgent task first");
+    assert_eq!(
+        parsed["priority"], "urgent",
+        "peek must return urgent task first"
+    );
     assert_eq!(parsed["task"], "urgent task");
 }
 
@@ -540,7 +740,9 @@ async fn test_send_no_tmux_session() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "offline-agent", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "offline-agent", "claude", "worker", None, None)
+        .await
+        .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -572,17 +774,37 @@ async fn test_signal_completes_message_and_resets_status() {
     // Full signal flow: insert agent + message, signal, verify message completed + agent idle
     let pool = helpers::setup_test_db().await;
 
-    db::agents::insert_agent(&pool, "sig-agent", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "sig-agent", "task_request", "a task", "normal").await.unwrap();
-    db::agents::update_agent_status(&pool, "sig-agent", "busy").await.unwrap();
+    db::agents::insert_agent(&pool, "sig-agent", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "sig-agent",
+        "task_request",
+        "a task",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::agents::update_agent_status(&pool, "sig-agent", "busy")
+        .await
+        .unwrap();
 
     // Signal: complete the message
-    let rows = db::messages::update_status(&pool, "sig-agent").await.unwrap();
+    let rows = db::messages::update_status(&pool, "sig-agent")
+        .await
+        .unwrap();
     assert_eq!(rows, 1, "one message should be completed");
 
     // After signal, agent should be reset to idle
-    db::agents::update_agent_status(&pool, "sig-agent", "idle").await.unwrap();
-    let agent = db::agents::get_agent(&pool, "sig-agent").await.unwrap().unwrap();
+    db::agents::update_agent_status(&pool, "sig-agent", "idle")
+        .await
+        .unwrap();
+    let agent = db::agents::get_agent(&pool, "sig-agent")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(agent.status, "idle");
 
     // Message should be completed
@@ -598,13 +820,44 @@ async fn test_signal_multiple_messages_completes_most_recent() {
     // Signal should complete only the most recent pending message
     let pool = helpers::setup_test_db().await;
 
-    db::agents::insert_agent(&pool, "multi-agent", "claude", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "multi-agent", "task_request", "task 1", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "multi-agent", "task_request", "task 2", "normal").await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "multi-agent", "task_request", "task 3", "normal").await.unwrap();
+    db::agents::insert_agent(&pool, "multi-agent", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "multi-agent",
+        "task_request",
+        "task 1",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "multi-agent",
+        "task_request",
+        "task 2",
+        "normal",
+    )
+    .await
+    .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "multi-agent",
+        "task_request",
+        "task 3",
+        "normal",
+    )
+    .await
+    .unwrap();
 
     // Signal once — should complete only 1 message
-    let rows = db::messages::update_status(&pool, "multi-agent").await.unwrap();
+    let rows = db::messages::update_status(&pool, "multi-agent")
+        .await
+        .unwrap();
     assert_eq!(rows, 1);
 
     let pending = db::messages::list_messages(&pool, Some("multi-agent"), Some("processing"), 100)
@@ -627,8 +880,19 @@ async fn test_signal_orchestrator_self_signal_guard() {
     let pool = setup_file_db(&db_path).await;
 
     // Register as orchestrator
-    db::agents::insert_agent(&pool, "orch-test", "claude", "orchestrator", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "orch-test", "task_request", "orch task", "normal").await.unwrap();
+    db::agents::insert_agent(&pool, "orch-test", "claude", "orchestrator", None, None)
+        .await
+        .unwrap();
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "orch-test",
+        "task_request",
+        "orch task",
+        "normal",
+    )
+    .await
+    .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -693,8 +957,12 @@ async fn test_agents_json_output() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "agent-1", "claude", "worker", None, None).await.unwrap();
-    db::agents::insert_agent(&pool, "agent-2", "gemini", "orchestrator", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "agent-1", "claude", "worker", None, None)
+        .await
+        .unwrap();
+    db::agents::insert_agent(&pool, "agent-2", "gemini", "orchestrator", None, None)
+        .await
+        .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -706,7 +974,11 @@ async fn test_agents_json_output() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("must be valid JSON");
     assert!(parsed.is_array());
@@ -738,11 +1010,7 @@ async fn test_agents_empty_squad() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
-    assert!(
-        stdout.contains("No agents registered"),
-        "got: {}",
-        stdout
-    );
+    assert!(stdout.contains("No agents registered"), "got: {}", stdout);
 }
 
 // ============================================================
@@ -755,7 +1023,9 @@ async fn test_context_lists_registered_agents() {
     let db_path = tmp.path().join("station.db");
     let pool = setup_file_db(&db_path).await;
 
-    db::agents::insert_agent(&pool, "ctx-worker", "claude-code", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "ctx-worker", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
     pool.close().await;
 
     write_squad_yml(tmp.path(), &db_path);
@@ -768,8 +1038,16 @@ async fn test_context_lists_registered_agents() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
-    assert!(stdout.contains("ctx-worker"), "context must list registered agent, got:\n{}", stdout);
-    assert!(stdout.contains("worker"), "context must show role, got:\n{}", stdout);
+    assert!(
+        stdout.contains("ctx-worker"),
+        "context must list registered agent, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("worker"),
+        "context must show role, got:\n{}",
+        stdout
+    );
 }
 
 // ============================================================
@@ -782,37 +1060,62 @@ async fn test_full_workflow_register_send_peek_signal() {
     let pool = helpers::setup_test_db().await;
 
     // 1. Register agent
-    db::agents::insert_agent(&pool, "e2e-agent", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "e2e-agent", "claude", "worker", None, None)
+        .await
+        .unwrap();
     let agent = db::agents::get_agent(&pool, "e2e-agent").await.unwrap();
     assert!(agent.is_some());
     assert_eq!(agent.unwrap().status, "idle");
 
     // 2. Send task (DB operations only, skip tmux)
-    let msg_id = db::messages::insert_message(&pool, "orchestrator", "e2e-agent", "task_request", "build the feature", "high")
+    let msg_id = db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "e2e-agent",
+        "task_request",
+        "build the feature",
+        "high",
+    )
+    .await
+    .unwrap();
+    assert_eq!(msg_id.len(), 36); // UUID
+    db::agents::update_agent_status(&pool, "e2e-agent", "busy")
         .await
         .unwrap();
-    assert_eq!(msg_id.len(), 36); // UUID
-    db::agents::update_agent_status(&pool, "e2e-agent", "busy").await.unwrap();
 
     // 3. Peek — should return the task
-    let peeked = db::messages::peek_message(&pool, "e2e-agent").await.unwrap();
+    let peeked = db::messages::peek_message(&pool, "e2e-agent")
+        .await
+        .unwrap();
     assert!(peeked.is_some());
     assert_eq!(peeked.unwrap().task, "build the feature");
 
     // 4. Agent is busy
-    let agent = db::agents::get_agent(&pool, "e2e-agent").await.unwrap().unwrap();
+    let agent = db::agents::get_agent(&pool, "e2e-agent")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(agent.status, "busy");
 
     // 5. Signal completion
-    let rows = db::messages::update_status(&pool, "e2e-agent").await.unwrap();
+    let rows = db::messages::update_status(&pool, "e2e-agent")
+        .await
+        .unwrap();
     assert_eq!(rows, 1);
-    db::agents::update_agent_status(&pool, "e2e-agent", "idle").await.unwrap();
+    db::agents::update_agent_status(&pool, "e2e-agent", "idle")
+        .await
+        .unwrap();
 
     // 6. Verify final state
-    let agent = db::agents::get_agent(&pool, "e2e-agent").await.unwrap().unwrap();
+    let agent = db::agents::get_agent(&pool, "e2e-agent")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(agent.status, "idle");
 
-    let peeked = db::messages::peek_message(&pool, "e2e-agent").await.unwrap();
+    let peeked = db::messages::peek_message(&pool, "e2e-agent")
+        .await
+        .unwrap();
     assert!(peeked.is_none(), "no pending tasks after signal");
 
     let completed = db::messages::list_messages(&pool, Some("e2e-agent"), Some("completed"), 10)

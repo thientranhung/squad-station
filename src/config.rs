@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 /// Top-level squad configuration
 #[derive(Deserialize, Debug)]
 pub struct SquadConfig {
-    pub project: String,              // CONF-01: plain string (not a nested struct)
+    pub project: String, // CONF-01: plain string (not a nested struct)
     pub orchestrator: AgentConfig,
     pub agents: Vec<AgentConfig>,
 }
@@ -13,13 +13,13 @@ pub struct SquadConfig {
 /// Agent configuration (used for both orchestrator and worker agents)
 #[derive(Deserialize, Debug)]
 pub struct AgentConfig {
-    pub name: Option<String>,         // optional; orchestrator name auto-derived in Phase 5
-    pub tool: String,                 // CONF-04: renamed from provider
+    pub name: Option<String>, // optional; orchestrator name auto-derived in Phase 5
+    pub tool: String,         // CONF-04: renamed from provider
     #[serde(default = "default_role")]
     pub role: String,
-    pub model: Option<String>,        // CONF-02: optional model override
-    pub description: Option<String>,  // CONF-02: optional description
-    // command field is REMOVED (CONF-03: tool infers launch command)
+    pub model: Option<String>, // CONF-02: optional model override
+    pub description: Option<String>, // CONF-02: optional description
+                               // command field is REMOVED (CONF-03: tool infers launch command)
 }
 
 fn default_role() -> String {
@@ -41,7 +41,7 @@ pub fn resolve_db_path(config: &SquadConfig) -> Result<PathBuf> {
     } else {
         let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
         home.join(".agentic-squad")
-            .join(&config.project)   // config.project is now a String directly
+            .join(&config.project) // config.project is now a String directly
             .join("station.db")
     };
 

@@ -34,10 +34,7 @@ pub async fn run(
         });
         println!("{}", serde_json::to_string(&output)?);
     } else {
-        println!(
-            "Registered agent '{}' (role={}, tool={})",
-            name, role, tool
-        );
+        println!("Registered agent '{}' (role={}, tool={})", name, role, tool);
     }
 
     Ok(())

@@ -88,7 +88,9 @@ pub async fn run() -> anyhow::Result<()> {
     println!();
     println!("## Notes");
     println!();
-    println!("- Agents with status \"dead\" have no active tmux session -- they cannot receive tasks");
+    println!(
+        "- Agents with status \"dead\" have no active tmux session -- they cannot receive tasks"
+    );
     println!("- Send only to agents with status \"idle\" for best results");
     println!("- Signal is handled automatically by provider hook scripts");
 

@@ -23,7 +23,10 @@ agents:
 
     let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(config.project, "test-squad");
-    assert_eq!(config.orchestrator.name.as_deref(), Some("test-orchestrator"));
+    assert_eq!(
+        config.orchestrator.name.as_deref(),
+        Some("test-orchestrator")
+    );
     assert_eq!(config.orchestrator.tool, "claude-code");
     assert_eq!(config.agents.len(), 1);
     assert_eq!(config.agents[0].name.as_deref(), Some("frontend"));
@@ -68,7 +71,10 @@ agents:
 "#;
 
     let result: Result<SquadConfig, _> = serde_saphyr::from_str(yaml);
-    assert!(result.is_err(), "missing required field should return Err, not panic");
+    assert!(
+        result.is_err(),
+        "missing required field should return Err, not panic"
+    );
 }
 
 // ============================================================
@@ -112,16 +118,26 @@ fn test_sigpipe_binary_starts() {
         .output()
         .expect("failed to run squad-station binary");
 
-    assert!(output.status.success(), "squad-station --help must exit 0, got: {:?}", output.status);
+    assert!(
+        output.status.success(),
+        "squad-station --help must exit 0, got: {:?}",
+        output.status
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Verify all 6 subcommands are shown in help text
     assert!(stdout.contains("init"), "help must list 'init' subcommand");
     assert!(stdout.contains("send"), "help must list 'send' subcommand");
-    assert!(stdout.contains("signal"), "help must list 'signal' subcommand");
+    assert!(
+        stdout.contains("signal"),
+        "help must list 'signal' subcommand"
+    );
     assert!(stdout.contains("list"), "help must list 'list' subcommand");
     assert!(stdout.contains("peek"), "help must list 'peek' subcommand");
-    assert!(stdout.contains("register"), "help must list 'register' subcommand");
+    assert!(
+        stdout.contains("register"),
+        "help must list 'register' subcommand"
+    );
 }
 
 // ============================================================
@@ -134,15 +150,22 @@ async fn test_init_agent_name_prefix() {
     // Register an agent the same way init.rs would, using the auto-prefix logic
     db::agents::insert_agent(
         &db,
-        "myapp-claude-code-backend",  // pre-computed as init.rs would produce
+        "myapp-claude-code-backend", // pre-computed as init.rs would produce
         "claude-code",
         "worker",
         None,
         None,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
-    let agent = db::agents::get_agent(&db, "myapp-claude-code-backend").await.unwrap();
-    assert!(agent.is_some(), "Agent with prefixed name must be registered");
+    let agent = db::agents::get_agent(&db, "myapp-claude-code-backend")
+        .await
+        .unwrap();
+    assert!(
+        agent.is_some(),
+        "Agent with prefixed name must be registered"
+    );
     let agent = agent.unwrap();
     assert_eq!(agent.name, "myapp-claude-code-backend");
     assert_eq!(agent.tool, "claude-code");
@@ -160,9 +183,18 @@ fn test_signal_notification_format() {
     let task_id_str = "msg-a1b2c3";
     let notification = format!("{} completed {}", agent, task_id_str);
     assert_eq!(notification, "myapp-claude-implement completed msg-a1b2c3");
-    assert!(!notification.contains("[SIGNAL]"), "Must not contain old [SIGNAL] prefix");
-    assert!(!notification.contains("agent="), "Must not contain old key=value format");
-    assert!(!notification.contains("task_id="), "Must not contain old task_id= format");
+    assert!(
+        !notification.contains("[SIGNAL]"),
+        "Must not contain old [SIGNAL] prefix"
+    );
+    assert!(
+        !notification.contains("agent="),
+        "Must not contain old key=value format"
+    );
+    assert!(
+        !notification.contains("task_id="),
+        "Must not contain old task_id= format"
+    );
 }
 
 // ============================================================
@@ -181,10 +213,18 @@ async fn test_context_includes_model_and_description() {
         "worker",
         Some("Claude Sonnet"),
         Some("Developer agent. Writes code."),
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     let agents = db::agents::list_agents(&db).await.unwrap();
-    let agent = agents.iter().find(|a| a.name == "myapp-claude-implement").unwrap();
+    let agent = agents
+        .iter()
+        .find(|a| a.name == "myapp-claude-implement")
+        .unwrap();
     assert_eq!(agent.model.as_deref(), Some("Claude Sonnet"));
-    assert_eq!(agent.description.as_deref(), Some("Developer agent. Writes code."));
+    assert_eq!(
+        agent.description.as_deref(),
+        Some("Developer agent. Writes code.")
+    );
 }

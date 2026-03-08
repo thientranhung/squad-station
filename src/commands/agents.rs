@@ -80,8 +80,14 @@ fn format_status_with_duration(status: &str, status_updated_at: &str) -> String 
 /// Colorize the status word (not the full status+duration string).
 fn colorize_agent_status(status: &str) -> String {
     match status {
-        "idle" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.green())),
-        "busy" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.yellow())),
+        "idle" => format!(
+            "{}",
+            status.if_supports_color(Stream::Stdout, |s| s.green())
+        ),
+        "busy" => format!(
+            "{}",
+            status.if_supports_color(Stream::Stdout, |s| s.yellow())
+        ),
         "dead" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.red())),
         _ => status.to_string(),
     }

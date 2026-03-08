@@ -37,7 +37,10 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
     tmux::create_view_window("squad-view", &live_agent_names)?;
 
     if json {
-        println!(r#"{{"message":"Created squad-view with {} panes","panes":{}}}"#, n, n);
+        println!(
+            r#"{{"message":"Created squad-view with {} panes","panes":{}}}"#,
+            n, n
+        );
     } else {
         println!("Created squad-view with {} panes", n);
     }

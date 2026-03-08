@@ -96,7 +96,8 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
         // AGNT-02: clear current_task FK on the signaling agent
         sqlx::query("UPDATE agents SET current_task = NULL WHERE name = ?")
             .bind(&agent)
-            .execute(&pool).await?;
+            .execute(&pool)
+            .await?;
         db::agents::update_agent_status(&pool, &agent, "idle").await?;
     }
 
@@ -119,7 +120,10 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
                 task_id_str
             );
         } else {
-            println!("Signaled completion for {} (task_id={})", agent, task_id_str);
+            println!(
+                "Signaled completion for {} (task_id={})",
+                agent, task_id_str
+            );
         }
     } else {
         // rows == 0: duplicate signal — silently succeed (MSG-03)

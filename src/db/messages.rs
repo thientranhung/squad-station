@@ -3,13 +3,13 @@ use sqlx::SqlitePool;
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct Message {
     pub id: String,
-    pub agent_name: String,           // legacy column — kept for transition (nullable after migration)
-    pub from_agent: Option<String>,   // MSGS-01
-    pub to_agent: Option<String>,     // MSGS-01
+    pub agent_name: String, // legacy column — kept for transition (nullable after migration)
+    pub from_agent: Option<String>, // MSGS-01
+    pub to_agent: Option<String>, // MSGS-01
     #[sqlx(rename = "type")]
-    pub msg_type: String,             // MSGS-02: "task_request" | "task_completed" | "notify"
-    pub task: String,                 // keep field name (body is column alias — keep task column)
-    pub status: String,               // MSGS-03: default is now 'processing'
+    pub msg_type: String, // MSGS-02: "task_request" | "task_completed" | "notify"
+    pub task: String,       // keep field name (body is column alias — keep task column)
+    pub status: String,     // MSGS-03: default is now 'processing'
     pub priority: String,
     pub created_at: String,
     pub updated_at: String,
@@ -18,10 +18,10 @@ pub struct Message {
 
 pub async fn insert_message(
     pool: &SqlitePool,
-    from_agent: &str,   // MSGS-01
-    to_agent: &str,     // MSGS-01
-    msg_type: &str,     // MSGS-02 ("task_request")
-    body: &str,         // task content (stored in `task` column for now)
+    from_agent: &str, // MSGS-01
+    to_agent: &str,   // MSGS-01
+    msg_type: &str,   // MSGS-02 ("task_request")
+    body: &str,       // task content (stored in `task` column for now)
     priority: &str,
 ) -> anyhow::Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -58,7 +58,7 @@ pub async fn update_status(pool: &SqlitePool, agent_name: &str) -> anyhow::Resul
            SELECT id FROM messages \
            WHERE agent_name = ? AND status = 'processing' \
            ORDER BY created_at DESC LIMIT 1\
-         )"
+         )",
     )
     .bind(&now)
     .bind(&now)

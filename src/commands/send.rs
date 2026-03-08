@@ -4,7 +4,12 @@ use std::io::IsTerminal;
 
 use crate::{cli, config, db, tmux};
 
-pub async fn run(agent: String, body: String, priority: cli::Priority, json: bool) -> anyhow::Result<()> {
+pub async fn run(
+    agent: String,
+    body: String,
+    priority: cli::Priority,
+    json: bool,
+) -> anyhow::Result<()> {
     // 1. Resolve DB path from squad.yml in cwd
     let config_path = std::path::Path::new("squad.yml");
     let config = config::load_config(config_path)?;
@@ -29,13 +34,22 @@ pub async fn run(agent: String, body: String, priority: cli::Priority, json: boo
 
     // 5. Write message to DB with priority
     let priority_str = priority.to_string();
-    let msg_id = db::messages::insert_message(&pool, "orchestrator", &agent, "task_request", &body, &priority_str).await?;
+    let msg_id = db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        &agent,
+        "task_request",
+        &body,
+        &priority_str,
+    )
+    .await?;
 
     // 5b. AGNT-02: set current_task FK on the target agent
     sqlx::query("UPDATE agents SET current_task = ? WHERE name = ?")
         .bind(&msg_id)
         .bind(&agent)
-        .execute(&pool).await?;
+        .execute(&pool)
+        .await?;
 
     // 5c. Mark agent as busy now that a task has been sent
     db::agents::update_agent_status(&pool, &agent, "busy").await?;
@@ -61,7 +75,10 @@ pub async fn run(agent: String, body: String, priority: cli::Priority, json: boo
             priority_str
         );
     } else {
-        println!("Sent task to {} (id={}, priority={})", agent, msg_id, priority_str);
+        println!(
+            "Sent task to {} (id={}, priority={})",
+            agent, msg_id, priority_str
+        );
     }
 
     Ok(())

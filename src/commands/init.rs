@@ -13,8 +13,15 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     let pool = db::connect(&db_path).await?;
 
     // 4. Register orchestrator with hardcoded role="orchestrator"
-    let orch_role = config.orchestrator.name.as_deref().unwrap_or("orchestrator");
-    let orch_name = format!("{}-{}-{}", config.project, config.orchestrator.tool, orch_role);
+    let orch_role = config
+        .orchestrator
+        .name
+        .as_deref()
+        .unwrap_or("orchestrator");
+    let orch_name = format!(
+        "{}-{}-{}",
+        config.project, config.orchestrator.tool, orch_role
+    );
     db::agents::insert_agent(
         &pool,
         &orch_name,

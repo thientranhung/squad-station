@@ -23,13 +23,19 @@ async fn run(cli: cli::Cli) -> Result<()> {
     use cli::Commands::*;
     match cli.command {
         Init { config } => commands::init::run(config, cli.json).await,
-        Send { agent, body, priority } => commands::send::run(agent, body, priority, cli.json).await,
+        Send {
+            agent,
+            body,
+            priority,
+        } => commands::send::run(agent, body, priority, cli.json).await,
         Signal { agent } => commands::signal::run(agent, cli.json).await,
-        List { agent, status, limit } => commands::list::run(agent, status, limit, cli.json).await,
+        List {
+            agent,
+            status,
+            limit,
+        } => commands::list::run(agent, status, limit, cli.json).await,
         Peek { agent } => commands::peek::run(agent, cli.json).await,
-        Register { name, role, tool } => {
-            commands::register::run(name, role, tool, cli.json).await
-        }
+        Register { name, role, tool } => commands::register::run(name, role, tool, cli.json).await,
         Agents => commands::agents::run(cli.json).await,
         Context => commands::context::run().await,
         Status => commands::status::run(cli.json).await,

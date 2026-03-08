@@ -33,7 +33,11 @@ fn launch_args(session_name: &str, command: &str) -> Vec<String> {
 }
 
 fn list_sessions_args() -> Vec<String> {
-    vec!["list-sessions".into(), "-F".into(), "#{session_name}".into()]
+    vec![
+        "list-sessions".into(),
+        "-F".into(),
+        "#{session_name}".into(),
+    ]
 }
 
 fn kill_window_args(window_name: &str) -> Vec<String> {
@@ -116,7 +120,9 @@ pub fn list_live_session_names() -> Vec<String> {
 
 /// Kill a tmux window by name (idempotent — ignores errors if window does not exist).
 pub fn kill_window(window_name: &str) -> Result<()> {
-    let _ = Command::new("tmux").args(kill_window_args(window_name)).status();
+    let _ = Command::new("tmux")
+        .args(kill_window_args(window_name))
+        .status();
     Ok(())
 }
 
@@ -173,7 +179,10 @@ mod tests {
         assert_eq!(args[0], "send-keys");
         assert_eq!(args[1], "-t");
         assert_eq!(args[2], "my-session");
-        assert_eq!(args[3], "-l", "SAFE-02: -l flag must be present to prevent key interpretation");
+        assert_eq!(
+            args[3], "-l",
+            "SAFE-02: -l flag must be present to prevent key interpretation"
+        );
         assert_eq!(args[4], "hello world");
     }
 
@@ -183,14 +192,23 @@ mod tests {
         assert_eq!(args[0], "send-keys");
         assert_eq!(args[1], "-t");
         assert_eq!(args[2], "my-session");
-        assert_eq!(args[3], "Enter", "Enter must be sent without -l so it is interpreted as a key");
+        assert_eq!(
+            args[3], "Enter",
+            "Enter must be sent without -l so it is interpreted as a key"
+        );
         assert!(args.len() == 4, "No -l flag in Enter call");
-        assert!(!args.contains(&"-l".to_string()), "Enter call must NOT have -l flag");
+        assert!(
+            !args.contains(&"-l".to_string()),
+            "Enter call must NOT have -l flag"
+        );
     }
 
     #[test]
     fn test_launch_args_use_direct_command() {
-        let args = launch_args("agent-session", "claude-code --dangerously-skip-permissions");
+        let args = launch_args(
+            "agent-session",
+            "claude-code --dangerously-skip-permissions",
+        );
         assert_eq!(args[0], "new-session");
         assert_eq!(args[1], "-d");
         assert_eq!(args[2], "-s");
@@ -249,7 +267,10 @@ mod tests {
         // Verify -l flag is always present even with special characters
         let special = "task: [urgent] fix the API\nDo it now";
         let args = send_keys_args("target", special);
-        assert_eq!(args[3], "-l", "SAFE-02: -l flag required even with special chars like [, newlines");
+        assert_eq!(
+            args[3], "-l",
+            "SAFE-02: -l flag required even with special chars like [, newlines"
+        );
         assert_eq!(args[4], special);
     }
 }

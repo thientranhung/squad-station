@@ -148,7 +148,9 @@ fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>
     Terminal::new(CrosstermBackend::new(std::io::stdout())).map_err(Into::into)
 }
 
-fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
+fn restore_terminal(
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+) -> anyhow::Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;

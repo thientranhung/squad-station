@@ -63,7 +63,7 @@ pub enum Commands {
         role: String,
         /// Agent tool label (e.g. claude-code, gemini)
         #[arg(long, default_value = "unknown")]
-        tool: String,                         // CONF-04: renamed from provider
+        tool: String, // CONF-04: renamed from provider
     },
     /// List agents with reconciled status
     Agents,

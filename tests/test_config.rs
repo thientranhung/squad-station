@@ -23,7 +23,11 @@ fn test_model_description_optional() {
 fn test_no_command_field() {
     let yaml = "project: p\norchestrator:\n  tool: claude-code\nagents:\n  - tool: gemini\n    name: worker1";
     let result: Result<SquadConfig, _> = serde_saphyr::from_str(yaml);
-    assert!(result.is_ok(), "Should parse without command field: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Should parse without command field: {:?}",
+        result.err()
+    );
 }
 
 #[test]

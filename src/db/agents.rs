@@ -4,16 +4,16 @@ use sqlx::SqlitePool;
 pub struct Agent {
     pub id: String,
     pub name: String,
-    pub tool: String,                    // AGNT-03: renamed from provider
+    pub tool: String, // AGNT-03: renamed from provider
     pub role: String,
     #[allow(dead_code)]
-    pub command: Option<String>,         // legacy column; schema has NOT NULL but we ignore value
+    pub command: Option<String>, // legacy column; schema has NOT NULL but we ignore value
     pub created_at: String,
     pub status: String,
     pub status_updated_at: String,
-    pub model: Option<String>,           // AGNT-01
-    pub description: Option<String>,     // AGNT-01
-    pub current_task: Option<String>,    // AGNT-02: FK to messages.id
+    pub model: Option<String>,        // AGNT-01
+    pub description: Option<String>,  // AGNT-01
+    pub current_task: Option<String>, // AGNT-02: FK to messages.id
 }
 
 pub async fn insert_agent(
@@ -60,11 +60,10 @@ pub async fn list_agents(pool: &SqlitePool) -> anyhow::Result<Vec<Agent>> {
 
 /// Find the orchestrator agent (role = 'orchestrator') for notification purposes.
 pub async fn get_orchestrator(pool: &SqlitePool) -> anyhow::Result<Option<Agent>> {
-    let agent = sqlx::query_as::<_, Agent>(
-        "SELECT * FROM agents WHERE role = 'orchestrator' LIMIT 1"
-    )
-    .fetch_optional(pool)
-    .await?;
+    let agent =
+        sqlx::query_as::<_, Agent>("SELECT * FROM agents WHERE role = 'orchestrator' LIMIT 1")
+            .fetch_optional(pool)
+            .await?;
     Ok(agent)
 }
 
@@ -75,13 +74,11 @@ pub async fn update_agent_status(
     status: &str,
 ) -> anyhow::Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE agents SET status = ?, status_updated_at = ? WHERE name = ?"
-    )
-    .bind(status)
-    .bind(&now)
-    .bind(name)
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE agents SET status = ?, status_updated_at = ? WHERE name = ?")
+        .bind(status)
+        .bind(&now)
+        .bind(name)
+        .execute(pool)
+        .await?;
     Ok(())
 }

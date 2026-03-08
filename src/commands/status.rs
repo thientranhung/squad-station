@@ -48,9 +48,10 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
     // 5. Count pending messages per agent
     let mut summaries: Vec<AgentStatusSummary> = Vec::new();
     for agent in &agents {
-        let pending = db::messages::list_messages(&pool, Some(&agent.name), Some("processing"), 9999)
-            .await?
-            .len();
+        let pending =
+            db::messages::list_messages(&pool, Some(&agent.name), Some("processing"), 9999)
+                .await?
+                .len();
         summaries.push(AgentStatusSummary {
             name: agent.name.clone(),
             role: agent.role.clone(),
@@ -90,7 +91,10 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
         let duration_part = &raw_status[a.status.len()..];
         let colored_full = format!("{}{}", colored_status_word, duration_part);
         let status_cell = pad_colored(&raw_status, &colored_full, 20);
-        println!("  {}: {}  |  {} pending", a.name, status_cell, a.pending_messages);
+        println!(
+            "  {}: {}  |  {} pending",
+            a.name, status_cell, a.pending_messages
+        );
     }
 
     Ok(())
@@ -114,8 +118,14 @@ fn format_status_with_duration(status: &str, status_updated_at: &str) -> String 
 
 fn colorize_agent_status(status: &str) -> String {
     match status {
-        "idle" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.green())),
-        "busy" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.yellow())),
+        "idle" => format!(
+            "{}",
+            status.if_supports_color(Stream::Stdout, |s| s.green())
+        ),
+        "busy" => format!(
+            "{}",
+            status.if_supports_color(Stream::Stdout, |s| s.yellow())
+        ),
         "dead" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.red())),
         _ => status.to_string(),
     }

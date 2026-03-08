@@ -49,7 +49,11 @@ fn print_table_header() {
 
 fn print_table_row(msg: &db::messages::Message) {
     // ID: first 8 chars of UUID
-    let id_short = if msg.id.len() >= 8 { &msg.id[..8] } else { &msg.id };
+    let id_short = if msg.id.len() >= 8 {
+        &msg.id[..8]
+    } else {
+        &msg.id
+    };
 
     // TASK: truncate to 40 chars with '...' suffix if longer
     let task_display = if msg.task.len() > 40 {
@@ -110,10 +114,7 @@ fn colorize_status(status: &str) -> String {
             "{}",
             status.if_supports_color(Stream::Stdout, |s| s.green())
         ),
-        "failed" => format!(
-            "{}",
-            status.if_supports_color(Stream::Stdout, |s| s.red())
-        ),
+        "failed" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.red())),
         _ => status.to_string(),
     }
 }

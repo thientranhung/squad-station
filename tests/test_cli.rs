@@ -125,11 +125,13 @@ fn test_cli_send_body_flag_accepted() {
     // Clap must parse successfully; failure must be due to missing squad.yml, not parse error
     assert!(
         !stderr.contains("error: the following required arguments were not provided"),
-        "--body flag must be accepted by clap, got: {}", stderr
+        "--body flag must be accepted by clap, got: {}",
+        stderr
     );
     assert!(
         !stderr.contains("unexpected argument"),
-        "--body flag must not be rejected as unexpected, got: {}", stderr
+        "--body flag must not be rejected as unexpected, got: {}",
+        stderr
     );
 }
 
