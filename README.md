@@ -80,10 +80,10 @@ See [docs/PLAYBOOK.md](docs/PLAYBOOK.md) for the complete workflow guide.
 
 Squad Station is a stateless Rust CLI. There is no background daemon. Every command opens the SQLite database, reads or writes, and exits.
 
-- `agents` table — registered agents with provider, role, command, status
-- `messages` table — tasks routed to agents, with priority (urgent > high > normal) and status lifecycle
+- `agents` table — registered agents with `tool` (e.g. `claude-code`, `gemini`), role, command, status
+- `messages` table — tasks routed to agents with bidirectional `from_agent`/`to_agent` fields, priority (urgent > high > normal), and a full status lifecycle: `pending → processing → done` (or `failed`)
 - tmux sessions — each agent runs in its own named session; `send-keys -l` prevents shell injection
-- Hooks in `hooks/` detect task completion per provider and call `squad-station signal`
+- Hooks in `hooks/` detect task completion per tool and call `squad-station signal`
 
 ## Requirements
 
