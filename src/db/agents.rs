@@ -4,32 +4,39 @@ use sqlx::SqlitePool;
 pub struct Agent {
     pub id: String,
     pub name: String,
-    #[sqlx(rename = "tool")]
-    pub provider: String,  // DB column renamed to 'tool' in migration 0003; Rust field kept as 'provider' for compatibility until Plan 03
+    pub tool: String,                    // AGNT-03: renamed from provider
     pub role: String,
-    pub command: String,
+    #[allow(dead_code)]
+    pub command: Option<String>,         // legacy column; schema has NOT NULL but we ignore value
     pub created_at: String,
     pub status: String,
     pub status_updated_at: String,
+    pub model: Option<String>,           // AGNT-01
+    pub description: Option<String>,     // AGNT-01
+    pub current_task: Option<String>,    // AGNT-02: FK to messages.id
 }
 
 pub async fn insert_agent(
     pool: &SqlitePool,
     name: &str,
-    provider: &str,
+    tool: &str,
     role: &str,
-    command: &str,
+    model: Option<&str>,
+    description: Option<&str>,
 ) -> anyhow::Result<()> {
     let id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT OR IGNORE INTO agents (id, name, tool, role, command, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT OR IGNORE INTO agents (id, name, tool, role, command, model, description, created_at) \
+         VALUES (?, ?, ?, ?, '', ?, ?, ?)"
     )
     .bind(id)
     .bind(name)
-    .bind(provider)
+    .bind(tool)
     .bind(role)
-    .bind(command)
+    // command = '' — legacy column; value is empty string placeholder
+    .bind(model)
+    .bind(description)
     .bind(created_at)
     .execute(pool)
     .await?;

@@ -182,7 +182,7 @@ fn test_signal_no_tmux_pane_exits_zero() {
 async fn test_update_agent_status_dead_to_idle() {
     // SESS-04: agent can be revived from dead to idle (simulates tmux session reappearing)
     let pool = helpers::setup_test_db().await;
-    db::agents::insert_agent(&pool, "agent-1", "claude", "worker", "echo").await.unwrap();
+    db::agents::insert_agent(&pool, "agent-1", "claude", "worker", None, None).await.unwrap();
     // Set to dead
     db::agents::update_agent_status(&pool, "agent-1", "dead").await.unwrap();
     let agent = db::agents::get_agent(&pool, "agent-1").await.unwrap().unwrap();
@@ -201,7 +201,7 @@ async fn test_update_agent_status_dead_to_idle() {
 async fn test_orchestrator_has_orchestrator_role() {
     // HOOK-01: get_orchestrator returns the agent with role = "orchestrator"
     let pool = helpers::setup_test_db().await;
-    db::agents::insert_agent(&pool, "orch", "claude", "orchestrator", "echo").await.unwrap();
+    db::agents::insert_agent(&pool, "orch", "claude", "orchestrator", None, None).await.unwrap();
     let orch = db::agents::get_orchestrator(&pool).await.unwrap().unwrap();
     assert_eq!(orch.role, "orchestrator");
     assert_eq!(orch.name, "orch");
@@ -211,7 +211,7 @@ async fn test_orchestrator_has_orchestrator_role() {
 async fn test_get_orchestrator_returns_none_when_no_orchestrator() {
     // HOOK-01: get_orchestrator returns None if no orchestrator is registered
     let pool = helpers::setup_test_db().await;
-    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", "echo").await.unwrap();
+    db::agents::insert_agent(&pool, "worker-1", "claude", "worker", None, None).await.unwrap();
     let result = db::agents::get_orchestrator(&pool).await.unwrap();
     assert!(result.is_none(), "no orchestrator registered → get_orchestrator returns None");
 }
@@ -224,8 +224,8 @@ async fn test_get_orchestrator_returns_none_when_no_orchestrator() {
 async fn test_list_agents_includes_status() {
     // SESS-04: list_agents returns status for each agent
     let pool = helpers::setup_test_db().await;
-    db::agents::insert_agent(&pool, "a1", "claude", "worker", "echo").await.unwrap();
-    db::agents::insert_agent(&pool, "a2", "gemini", "worker", "echo").await.unwrap();
+    db::agents::insert_agent(&pool, "a1", "claude", "worker", None, None).await.unwrap();
+    db::agents::insert_agent(&pool, "a2", "gemini", "worker", None, None).await.unwrap();
     db::agents::update_agent_status(&pool, "a2", "busy").await.unwrap();
     let agents = db::agents::list_agents(&pool).await.unwrap();
     assert_eq!(agents.len(), 2);
