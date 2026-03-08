@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Distribution
 status: executing
-stopped_at: Completed 07-01-PLAN.md (Phase 7 Plan 1 complete)
-last_updated: "2026-03-08T15:55:25.483Z"
+stopped_at: Completed 08-01-PLAN.md (Phase 8 Plan 1 complete)
+last_updated: "2026-03-08T16:15:48.202Z"
 last_activity: "2026-03-08 — Phase 7 Plan 1: release workflow created (.github/workflows/release.yml)"
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
   percent: 5
 ---
 
@@ -46,6 +46,7 @@ Progress: [#░░░░░░░░░] 5%
 | 8. npm Package | TBD | - | - |
 | 9. Install Script and Docs | TBD | - | - |
 | Phase 07-ci-cd-pipeline P01 | 45 | 2 tasks | 1 files |
+| Phase 08-npm-package P01 | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ All v1.0 and v1.1 decisions logged in PROJECT.md Key Decisions table.
 - [Phase 07-ci-cd-pipeline]: musl over gnu for Linux targets: fully static binaries for Phase 9 install script portability
 - [Phase 07-ci-cd-pipeline]: Binary naming convention squad-station-{os}-{arch}: Phases 8 and 9 depend on this exact pattern
 - [Phase 07-ci-cd-pipeline]: musl-tools apt install required for x86_64-unknown-linux-musl: Rust musl target needs musl-gcc linker not present by default on ubuntu-latest
+- [Phase 08-npm-package]: npm package uses JS shim (bin/run.js) because npm requires JS entry points in bin field; raw native binary causes failures
+- [Phase 08-npm-package]: archMap x64->x86_64 in postinstall.js: Node.js reports process.arch as x64 but Phase 7 binaries use x86_64 naming
+- [Phase 08-npm-package]: postinstall.js zero external dependencies: uses only built-in https, fs, path — no npm install needed before postinstall runs
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08T15:41:21.954Z
-Stopped at: Completed 07-01-PLAN.md (Phase 7 Plan 1 complete)
+Last session: 2026-03-08T16:15:48.200Z
+Stopped at: Completed 08-01-PLAN.md (Phase 8 Plan 1 complete)
 Resume file: None

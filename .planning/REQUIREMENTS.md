@@ -15,10 +15,10 @@ Requirements for v1.2 Distribution milestone. Each maps to roadmap phases.
 
 ### npm Package
 
-- [ ] **NPM-01**: `npm install -g squad-station` installs the binary globally
-- [ ] **NPM-02**: Postinstall script detects OS + CPU architecture and downloads the correct binary from GitHub Releases
-- [ ] **NPM-03**: Binary is placed in the npm bin directory and is executable without extra steps
-- [ ] **NPM-04**: `package.json` is correctly configured (`bin`, `version`, `repository`, `engines`)
+- [x] **NPM-01**: `npm install -g squad-station` installs the binary globally
+- [x] **NPM-02**: Postinstall script detects OS + CPU architecture and downloads the correct binary from GitHub Releases
+- [x] **NPM-03**: Binary is placed in the npm bin directory and is executable without extra steps
+- [x] **NPM-04**: `package.json` is correctly configured (`bin`, `version`, `repository`, `engines`)
 
 ### Install Script
 
@@ -62,10 +62,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CICD-01 | Phase 7 | Complete |
 | CICD-02 | Phase 7 | Complete |
 | CICD-03 | Phase 7 | Complete |
-| NPM-01 | Phase 8 | Pending |
-| NPM-02 | Phase 8 | Pending |
-| NPM-03 | Phase 8 | Pending |
-| NPM-04 | Phase 8 | Pending |
+| NPM-01 | Phase 8 | Complete |
+| NPM-02 | Phase 8 | Complete |
+| NPM-03 | Phase 8 | Complete |
+| NPM-04 | Phase 8 | Complete |
 | INST-01 | Phase 9 | Pending |
 | INST-02 | Phase 9 | Pending |
 | INST-03 | Phase 9 | Pending |

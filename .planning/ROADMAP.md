@@ -86,5 +86,5 @@ Plans:
 | 5. Feature Completion | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 6. Documentation | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 7. CI/CD Pipeline | v1.2 | 1/1 | Complete | 2026-03-08 |
-| 8. npm Package | v1.2 | 0/2 | Not started | - |
+| 8. npm Package | 1/2 | In Progress|  | - |
 | 9. Install Script and Docs | v1.2 | 0/? | Not started | - |
