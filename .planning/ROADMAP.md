@@ -45,7 +45,9 @@
   2. The workflow produces four binaries: `darwin-arm64`, `darwin-x86_64`, `linux-arm64`, `linux-x86_64`
   3. A GitHub Release is created automatically with all four binaries attached as downloadable assets
   4. A developer can download a platform-specific binary directly from the GitHub Releases page
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 07-01-PLAN.md — Cross-platform release workflow (GitHub Actions matrix build + GitHub Release creation)
 
 ### Phase 8: npm Package
 **Goal**: Developers install Squad Station globally via npm and the correct binary lands in their PATH
@@ -80,6 +82,6 @@
 | 4. Schema and Config Refactor | v1.1 | 3/3 | Complete | 2026-03-08 |
 | 5. Feature Completion | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 6. Documentation | v1.1 | 2/2 | Complete | 2026-03-08 |
-| 7. CI/CD Pipeline | v1.2 | 0/? | Not started | - |
+| 7. CI/CD Pipeline | v1.2 | 0/1 | Not started | - |
 | 8. npm Package | v1.2 | 0/? | Not started | - |
 | 9. Install Script and Docs | v1.2 | 0/? | Not started | - |
