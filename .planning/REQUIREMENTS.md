@@ -9,10 +9,10 @@ Requirements for v1.1 Design Compliance milestone. Closes all 10 gaps vs `docs/S
 
 ### Config (CONF)
 
-- [ ] **CONF-01**: User can configure project using `project: myapp` string format in squad.yml
-- [ ] **CONF-02**: User can specify `model` and `description` for each agent and orchestrator in squad.yml
-- [ ] **CONF-03**: squad.yml no longer requires `command` field (tool infers launch command)
-- [ ] **CONF-04**: squad.yml and DB use `tool` field instead of `provider`
+- [x] **CONF-01**: User can configure project using `project: myapp` string format in squad.yml
+- [x] **CONF-02**: User can specify `model` and `description` for each agent and orchestrator in squad.yml
+- [x] **CONF-03**: squad.yml no longer requires `command` field (tool infers launch command)
+- [x] **CONF-04**: squad.yml and DB use `tool` field instead of `provider`
 
 ### Messages Schema (MSGS)
 
@@ -71,10 +71,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONF-01 | Phase 4 | Pending |
-| CONF-02 | Phase 4 | Pending |
-| CONF-03 | Phase 4 | Pending |
-| CONF-04 | Phase 4 | Pending |
+| CONF-01 | Phase 4 | Complete |
+| CONF-02 | Phase 4 | Complete |
+| CONF-03 | Phase 4 | Complete |
+| CONF-04 | Phase 4 | Complete |
 | MSGS-01 | Phase 4 | Pending |
 | MSGS-02 | Phase 4 | Pending |
 | MSGS-03 | Phase 4 | Pending |

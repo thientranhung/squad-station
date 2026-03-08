@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Design Compliance
 status: in_progress
-stopped_at: roadmap created, ready to plan phase 4
+stopped_at: "04-01-PLAN.md complete"
 last_updated: "2026-03-08"
-last_activity: 2026-03-08 — Roadmap created for v1.1 (3 phases, 19 requirements mapped)
+last_activity: 2026-03-08 — Completed 04-01 config schema refactor (4/4 tests green)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 7
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 14
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 4 of 6 (Schema and Config Refactor)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-08 — Roadmap created for v1.1
+Plan: 1 of 3 in current phase (04-01 complete)
+Status: In Progress
+Last activity: 2026-03-08 — 04-01 config schema refactor complete (4/4 CONF requirements)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
 
@@ -62,6 +62,11 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table.
 - Agent naming → auto-prefix `<project>-<tool>-<role>` on init
 - CONF-04 and AGNT-03 (provider→tool) land in same phase to keep DB + config in sync
 
+**04-01 execution decisions:**
+- SQUAD_STATION_DB env var check moved into resolve_db_path so all commands benefit without individual changes
+- init.rs uses minimal stubs (TODO: Plan 03) — agent name auto-derived from project+tool+role pattern
+- All integration test helpers updated to use cmd_with_db() for test DB injection
+
 ### Pending Todos
 
 None.
@@ -73,5 +78,5 @@ None — all design decisions resolved, ready to build.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Roadmap created, 19/19 requirements mapped across phases 4-6
+Stopped at: Completed 04-01-PLAN.md (config schema refactor)
 Resume file: None
