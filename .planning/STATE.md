@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Design Compliance
 status: executing
-stopped_at: Completed 05-02-PLAN.md (CLI-01, CLI-02, CLI-03, SIG-01)
-last_updated: "2026-03-08T12:07:56.781Z"
+stopped_at: Completed 06-01-PLAN.md (DOCS-01)
+last_updated: "2026-03-08T12:27:35.106Z"
 last_activity: 2026-03-08 — 05-01 notification hooks complete (claude-code-notify.sh + gemini-cli-notify.sh)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
   percent: 43
 ---
 
@@ -47,6 +47,7 @@ Progress: [████░░░░░░] 43%
 | 2. Lifecycle and Hooks | 3/3 | Complete |
 | 3. Views and TUI | 2/2 | Complete |
 | Phase 05-feature-completion P02 | 239 | 2 tasks | 11 files |
+| Phase 06-documentation P01 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table.
 - [Phase 05-02]: CLI-02: init.rs enforces <project>-<tool>-<role> naming; squad.yml name field acts as role suffix
 - [Phase 05-02]: CLI-03: context output uses Markdown ## headings with model/description per agent, not table format
 - [Phase 05-02]: SIG-01: Signal notification format is '<agent> completed <msg-id>' — pattern-matchable by orchestrator
+- [Phase 06-01]: Removed 'not rusqlite' contrast phrase to meet zero-rusqlite-occurrences done criterion; document is self-evidently about sqlx
+- [Phase 06-01]: Added explicit src/tmux.rs reference in Overview for grep-based verification to work (tree diagram alone lacked src/ prefix)
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None — all design decisions resolved, ready to build.
 
 ## Session Continuity
 
-Last session: 2026-03-08T12:04:53.052Z
-Stopped at: Completed 05-02-PLAN.md (CLI-01, CLI-02, CLI-03, SIG-01)
+Last session: 2026-03-08T12:27:35.104Z
+Stopped at: Completed 06-01-PLAN.md (DOCS-01)
 Resume file: None
