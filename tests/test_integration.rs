@@ -516,7 +516,7 @@ async fn test_send_agent_not_found() {
     write_squad_yml(tmp.path(), &db_path);
 
     let output = cmd_with_db(&db_path)
-        .args(["send", "nonexistent-agent", "do something"])
+        .args(["send", "nonexistent-agent", "--body", "do something"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
@@ -546,7 +546,7 @@ async fn test_send_no_tmux_session() {
     write_squad_yml(tmp.path(), &db_path);
 
     let output = cmd_with_db(&db_path)
-        .args(["send", "offline-agent", "do something"])
+        .args(["send", "offline-agent", "--body", "do something"])
         .current_dir(tmp.path())
         .output()
         .unwrap();

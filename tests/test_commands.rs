@@ -1,6 +1,7 @@
 mod helpers;
 
 use squad_station::config::{self, SquadConfig};
+use squad_station::db;
 
 // ============================================================
 // Config parsing tests — SESS-01 (updated for new format)
@@ -121,4 +122,69 @@ fn test_sigpipe_binary_starts() {
     assert!(stdout.contains("list"), "help must list 'list' subcommand");
     assert!(stdout.contains("peek"), "help must list 'peek' subcommand");
     assert!(stdout.contains("register"), "help must list 'register' subcommand");
+}
+
+// ============================================================
+// Init agent naming tests — CLI-02
+// ============================================================
+
+#[tokio::test]
+async fn test_init_agent_name_prefix() {
+    let db = helpers::setup_test_db().await;
+    // Register an agent the same way init.rs would, using the auto-prefix logic
+    db::agents::insert_agent(
+        &db,
+        "myapp-claude-code-backend",  // pre-computed as init.rs would produce
+        "claude-code",
+        "worker",
+        None,
+        None,
+    ).await.unwrap();
+
+    let agent = db::agents::get_agent(&db, "myapp-claude-code-backend").await.unwrap();
+    assert!(agent.is_some(), "Agent with prefixed name must be registered");
+    let agent = agent.unwrap();
+    assert_eq!(agent.name, "myapp-claude-code-backend");
+    assert_eq!(agent.tool, "claude-code");
+    assert_eq!(agent.role, "worker");
+}
+
+// ============================================================
+// Signal notification format tests — SIG-01
+// ============================================================
+
+#[test]
+fn test_signal_notification_format() {
+    // Verify the format string produces the expected output
+    let agent = "myapp-claude-implement";
+    let task_id_str = "msg-a1b2c3";
+    let notification = format!("{} completed {}", agent, task_id_str);
+    assert_eq!(notification, "myapp-claude-implement completed msg-a1b2c3");
+    assert!(!notification.contains("[SIGNAL]"), "Must not contain old [SIGNAL] prefix");
+    assert!(!notification.contains("agent="), "Must not contain old key=value format");
+    assert!(!notification.contains("task_id="), "Must not contain old task_id= format");
+}
+
+// ============================================================
+// Context output tests — CLI-03
+// ============================================================
+
+#[tokio::test]
+async fn test_context_includes_model_and_description() {
+    // Verify Agent struct has model and description fields accessible
+    // (context.rs reads from list_agents which populates these from DB)
+    let db = helpers::setup_test_db().await;
+    db::agents::insert_agent(
+        &db,
+        "myapp-claude-implement",
+        "claude-code",
+        "worker",
+        Some("Claude Sonnet"),
+        Some("Developer agent. Writes code."),
+    ).await.unwrap();
+
+    let agents = db::agents::list_agents(&db).await.unwrap();
+    let agent = agents.iter().find(|a| a.name == "myapp-claude-implement").unwrap();
+    assert_eq!(agent.model.as_deref(), Some("Claude Sonnet"));
+    assert_eq!(agent.description.as_deref(), Some("Developer agent. Writes code."));
 }

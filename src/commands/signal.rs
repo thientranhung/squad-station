@@ -74,10 +74,7 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
         let orchestrator = db::agents::get_orchestrator(&pool).await?;
         if let Some(orch) = orchestrator {
             let task_id_str = task_id.as_deref().unwrap_or("unknown");
-            let notification = format!(
-                "[SIGNAL] agent={} status=completed task_id={}",
-                agent, task_id_str
-            );
+            let notification = format!("{} completed {}", agent, task_id_str);
             // Only notify if orchestrator tmux session is running.
             // If session is down, signal is persisted in DB — not an error (per user decision).
             if tmux::session_exists(&orch.name) {

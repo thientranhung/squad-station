@@ -13,12 +13,8 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     let pool = db::connect(&db_path).await?;
 
     // 4. Register orchestrator with hardcoded role="orchestrator"
-    // TODO: Plan 03 will complete this — orchestrator name auto-derived from project+tool+role
-    let orch_name = config
-        .orchestrator
-        .name
-        .clone()
-        .unwrap_or_else(|| format!("{}-{}-orchestrator", config.project, config.orchestrator.tool));
+    let orch_role = config.orchestrator.name.as_deref().unwrap_or("orchestrator");
+    let orch_name = format!("{}-{}-{}", config.project, config.orchestrator.tool, orch_role);
     db::agents::insert_agent(
         &pool,
         &orch_name,
@@ -33,7 +29,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     let orch_launched = if tmux::session_exists(&orch_name) {
         false
     } else {
-        tmux::launch_agent(&orch_name, &config.orchestrator.tool)?; // TODO: Plan 03 — real command
+        tmux::launch_agent(&orch_name, &config.orchestrator.tool)?;
         true
     };
     let orch_skipped = !orch_launched;
@@ -49,11 +45,8 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     }
 
     for agent in &config.agents {
-        // TODO: Plan 03 will complete this — full agent name + command derivation
-        let agent_name = agent
-            .name
-            .clone()
-            .unwrap_or_else(|| format!("{}-{}-worker", config.project, agent.tool));
+        let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
+        let agent_name = format!("{}-{}-{}", config.project, agent.tool, role_suffix);
         if let Err(e) = db::agents::insert_agent(
             &pool,
             &agent_name,
@@ -74,7 +67,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             continue; // Idempotent: skip already-running agents
         }
 
-        match tmux::launch_agent(&agent_name, &agent.tool) { // TODO: Plan 03 — real command
+        match tmux::launch_agent(&agent_name, &agent.tool) {
             Ok(()) => launched += 1,
             Err(e) => failed.push((agent_name.clone(), format!("{e:#}"))),
         }

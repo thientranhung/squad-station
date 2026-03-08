@@ -77,7 +77,7 @@ fn test_cli_send_priority_flag_accepts_valid_values() {
     let bin = env!("CARGO_BIN_EXE_squad-station");
     for priority in &["normal", "high", "urgent"] {
         let output = std::process::Command::new(bin)
-            .args(["send", "agent", "task", "--priority", priority])
+            .args(["send", "agent", "--body", "task", "--priority", priority])
             .current_dir(std::env::temp_dir()) // no squad.yml — will fail after parsing
             .output()
             .expect("failed to run binary");
@@ -97,7 +97,7 @@ fn test_cli_send_priority_flag_accepts_valid_values() {
 fn test_cli_send_priority_flag_rejects_invalid() {
     let bin = env!("CARGO_BIN_EXE_squad-station");
     let output = std::process::Command::new(bin)
-        .args(["send", "agent", "task", "--priority", "critical"])
+        .args(["send", "agent", "--body", "task", "--priority", "critical"])
         .output()
         .expect("failed to run binary");
 
@@ -110,6 +110,41 @@ fn test_cli_send_priority_flag_rejects_invalid() {
         stderr.contains("invalid value"),
         "clap should report invalid value for priority, got: {}",
         stderr
+    );
+}
+
+#[test]
+fn test_cli_send_body_flag_accepted() {
+    let bin = env!("CARGO_BIN_EXE_squad-station");
+    let output = std::process::Command::new(bin)
+        .args(["send", "myagent", "--body", "do some work"])
+        .current_dir(std::env::temp_dir())
+        .output()
+        .expect("failed to run binary");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Clap must parse successfully; failure must be due to missing squad.yml, not parse error
+    assert!(
+        !stderr.contains("error: the following required arguments were not provided"),
+        "--body flag must be accepted by clap, got: {}", stderr
+    );
+    assert!(
+        !stderr.contains("unexpected argument"),
+        "--body flag must not be rejected as unexpected, got: {}", stderr
+    );
+}
+
+#[test]
+fn test_cli_send_positional_rejected() {
+    let bin = env!("CARGO_BIN_EXE_squad-station");
+    let output = std::process::Command::new(bin)
+        .args(["send", "myagent", "positional-task"])
+        .current_dir(std::env::temp_dir())
+        .output()
+        .expect("failed to run binary");
+    // Positional arg must fail at clap parse level (exit non-zero)
+    assert!(
+        !output.status.success(),
+        "positional task arg must be rejected by clap"
     );
 }
 

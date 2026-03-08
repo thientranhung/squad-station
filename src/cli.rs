@@ -25,8 +25,9 @@ pub enum Commands {
     Send {
         /// Agent name
         agent: String,
-        /// Task description to send
-        task: String,
+        /// Task body to send
+        #[arg(long)]
+        body: String,
         /// Task priority
         #[arg(long, value_enum, default_value = "normal")]
         priority: Priority,
