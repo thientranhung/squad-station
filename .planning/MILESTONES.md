@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.2 Distribution (Shipped: 2026-03-08)
+
+**Phases completed:** 3 phases, 5 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.1 Design Compliance (Shipped: 2026-03-08)
 
 **Phases:** 4-6 | **Plans:** 7 | **Files changed:** 47

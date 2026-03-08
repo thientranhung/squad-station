@@ -98,6 +98,53 @@
 
 ---
 
+## Milestone: v1.2 — Distribution
+
+**Shipped:** 2026-03-09
+**Phases:** 3 (7-9) | **Plans:** 5 | **Files changed:** 24 (+2,955 lines)
+
+### What Was Built
+- GitHub Actions matrix workflow: 4-target cross-compilation (darwin-arm64, darwin-x86_64, linux-x86_64, linux-arm64) with musl static Linux binaries
+- npm package `squad-station` with zero-dependency postinstall binary downloader (platform/arch detection, redirect following)
+- npm end-to-end verified on darwin-arm64: `npm install -g` from packed tarball, binary in PATH, all 11 commands accessible
+- POSIX sh curl-pipe-sh installer: OS/arch detection via `uname`, GitHub Releases download, `/usr/local/bin` install with `~/.local/bin` fallback
+- GitHub landing page README: npm/curl/source install methods, 5-step quickstart, architecture overview, PLAYBOOK link
+
+### What Worked
+- Binary naming convention `squad-station-{os}-{arch}` established in Phase 7 consumed by Phase 8 and 9 — zero coordination overhead
+- musl static binaries chosen upfront for Linux: no glibc compatibility issues at install time
+- `softprops/action-gh-release@v2` idempotent asset upload: 4 parallel matrix jobs don't race on release creation
+- `fail-fast: false` in matrix: all 4 targets attempted even on partial failure — useful for diagnosing platform-specific issues
+- POSIX sh for install script (not bash): runs on Alpine, macOS, and minimal Linux distros without issues
+- Phase dependency structure (CI/CD → npm + install) was clean: npm and install script could be developed in parallel after binaries existed
+
+### What Was Inefficient
+- No milestone audit before completion — skipped v1.2-MILESTONE-AUDIT.md (pattern from v1.1 repeated)
+- SUMMARY `one_liner` frontmatter field returned `None` — milestone tools can't extract accomplishments automatically; must be filled manually
+- Phase 8 plan 2 (npm E2E verify) was largely a human checkpoint — could have been scoped as a task within plan 1
+
+### Patterns Established
+- GitHub Actions release: push v* tag → 4 parallel matrix jobs → single GitHub Release with binary assets
+- Musl Linux builds: `musl-tools` apt install for x86_64; `cross` (Docker) for aarch64
+- npm postinstall binary download: `https.get` with redirect following, platform map, `chmodSync`
+- JS bin shim: `spawn` with `stdio: 'inherit'` + `process.exit(code)` for transparent passthrough
+- curl install script: detect → download → verify executable → move to PATH
+- `SQLX_OFFLINE=true`: required for CI builds where no DATABASE_URL is available
+
+### Key Lessons
+1. Establish binary naming convention in the CI/CD phase — downstream phases (npm, install script) consume it directly with no flexibility to change later
+2. musl for Linux CI/CD is the right default — glibc-linked binaries will silently fail on Alpine or older distros
+3. Fill SUMMARY `one_liner` field during plan execution — for the third milestone in a row, this was empty
+4. npm E2E verification phase is valuable but a single `npm pack && npm install -g` from a packed tarball is sufficient human verification; a full dedicated plan adds overhead
+5. `softprops/action-gh-release@v2` with `fail-fast: false` is the correct pattern for multi-platform release pipelines
+
+### Cost Observations
+- Model mix: ~80% sonnet, ~20% haiku
+- Sessions: ~4 execution sessions
+- Notable: Distribution layer (CI/CD + npm + install + docs) shipped in 1 day
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -106,6 +153,7 @@
 |-----------|--------|-------|-------|------------|
 | v1.0 | 3 | 10 | 58 | Initial process — strict phase dependencies, Nyquist validation |
 | v1.1 | 3 | 7 | 58+ | Schema-first migration, TDD for shell scripts, gap-analysis-driven scope |
+| v1.2 | 3 | 5 | 58+ | Distribution layer — CI/CD, npm, curl installer, no new Rust code |
 
 ### Cumulative Quality
 
@@ -113,10 +161,12 @@
 |-----------|-------|----------|-----------------|
 | v1.0 | 58 | 0 | 6 (all non-critical) |
 | v1.1 | 58+ | 0 | 0 (clean close) |
+| v1.2 | 58+ | 0 | 0 (audit skipped) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Safety-first architecture: wire all safety primitives in the foundation phase
 2. Stateless CLI + SQLite WAL = simple, testable, concurrent-safe
 3. Atomic schema migrations with clear before/after states — clean upgrade path, no data loss
-4. Fill SUMMARY one_liner during execution — milestone tooling depends on it
+4. Fill SUMMARY one_liner during execution — milestone tooling depends on it (3 milestones in a row with empty field)
+5. Run milestone audit before completion — skipped for v1.1 and v1.2; creates unknown-gap risk

@@ -44,15 +44,16 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 - ✓ Signal format standardized to `"<agent> completed <msg-id>"` — v1.1
 - ✓ ARCHITECTURE.md updated to reflect actual sqlx + flat module structure — v1.1
 - ✓ PLAYBOOK.md rewritten with correct CLI syntax and config format — v1.1
+- ✓ GitHub Actions CI/CD cross-compiles Rust binary for 4 targets (darwin-arm64, darwin-x86_64, linux-arm64, linux-x86_64) and creates GitHub Release — v1.2
+- ✓ npm package detects platform and downloads correct binary on postinstall — v1.2
+- ✓ curl | sh install script as npm-free alternative to install binary — v1.2
+- ✓ README.md documents all installation methods with usage quickstart — v1.2
 
 ### Active
 
-<!-- v1.2 Distribution — building toward these -->
+<!-- v1.3 or next milestone — add requirements here -->
 
-- [ ] GitHub Actions CI/CD cross-compiles Rust binary for all targets and creates GitHub Release
-- [ ] npm package detects platform and downloads correct binary on postinstall
-- [ ] curl | sh install script as alternative to npm
-- [ ] README.md documents all installation methods with usage quickstart
+(None yet — define with /gsd:new-milestone)
 
 ### Out of Scope
 
@@ -66,13 +67,13 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 
 ## Context
 
-Shipped v1.1 Design Compliance with 4,367 LOC Rust (+1,373 from v1.0), 47 files changed.
+Shipped v1.2 Distribution with 4,367 LOC Rust, 24 files changed (+2,955 lines in v1.2).
 Tech stack: Rust, SQLite (sqlx 0.8), clap 4, ratatui 0.26, serde-saphyr, owo-colors 3.
-Architecture: Stateless CLI → SQLite WAL → tmux sessions. No daemon, no background process.
-Hook system: 4 provider hooks (Stop/Notification for Claude Code, AfterAgent/Notification for Gemini CLI).
-Agent identity: auto-prefixed `<project>-<tool>-<role>` on init; stored as tmux session name.
-Messages: bidirectional routing (`from_agent`/`to_agent`), typed (`task_request`/`task_completed`/`notify`), `processing` lifecycle.
-TUI: connect-per-refresh strategy drops read-only pool after each fetch to prevent WAL starvation.
+Distribution: npm package + curl | sh installer, both download pre-built binaries from GitHub Releases.
+CI/CD: GitHub Actions matrix workflow produces 4 musl/darwin binaries on v* tag push.
+Binary format: fully static musl binaries for Linux (no glibc), native darwin binaries.
+npm postinstall: zero-dependency JS downloader with platform/arch detection and 301/302 redirect following.
+Install methods: `npm install -g squad-station` or `curl -fsSL <url> | sh` or build from source.
 
 ## Constraints
 
@@ -91,7 +92,7 @@ TUI: connect-per-refresh strategy drops read-only pool after each fetch to preve
 | Stateless CLI, không daemon | Đơn giản, dễ debug, event-driven qua hook chain | ✓ Good — no process management complexity |
 | SQLite embedded per project | Isolation giữa projects, không cần external DB | ✓ Good — WAL mode handles concurrent writes |
 | Agent name = tmux session name | Đơn giản hóa lookup, hook tự detect qua TMUX_PANE | ✓ Good — zero-config agent identity |
-| npm wrapper distribution | Target audience là developers đã có Node.js | ◆ In progress (v1.2) |
+| npm wrapper distribution | Target audience là developers đã có Node.js | ✓ Good — npm + curl | sh both shipped v1.2 |
 | Provider-agnostic design | Không lock-in vào Claude Code hay Gemini CLI | ✓ Good — hooks work for both providers |
 | Hook-driven completion | Agent passive, không cần modify agent behavior | ✓ Good — clean separation of concerns |
 | sqlx over rusqlite | Already in Cargo.toml, async-native, compile-time SQL checks | ✓ Good — migration system worked well |
@@ -105,17 +106,11 @@ TUI: connect-per-refresh strategy drops read-only pool after each fetch to preve
 | Notification hooks separate from Stop hooks | Notification fires on permission prompts, not task completion — distinct behavior | ✓ Good — both hook types needed |
 | Signal format `"<agent> completed <msg-id>"` | Pattern-matchable string, no JSON parsing needed in orchestrator | ✓ Good — simple, grep-friendly |
 | SQUAD_STATION_DB env var in resolve_db_path | Single injection point benefits all commands without per-command changes | ✓ Good — cleaner test isolation |
-
-## Current Milestone: v1.2 Distribution
-
-**Goal:** Make Squad Station installable by any developer in one command — `npm install -g squad-station` or `curl | sh`.
-
-**Target features:**
-- GitHub Actions CI/CD cross-compiling Rust binaries for darwin/linux × arm64/x86_64
-- GitHub Releases with pre-built binaries attached as assets
-- npm package (`squad-station`) with postinstall platform-detection + binary download
-- curl | sh install script as npm-free alternative
-- README.md with installation instructions and usage quickstart
+| musl over gnu for Linux targets | Produces fully static binaries, no glibc dependency — required for install script portability | ✓ Good — runs on any Linux distro |
+| cross tool only for linux-arm64 | aarch64-musl requires cross-compilation; native cargo sufficient for darwin and linux-x86_64 | ✓ Good — minimal Docker overhead |
+| softprops/action-gh-release@v2 | Idempotent — creates release if absent, appends assets if present; safe for 4 parallel matrix uploads | ✓ Good — race-condition-free releases |
+| curl | sh as npm alternative | Targets users without Node.js; POSIX sh for max portability | ✓ Good — covers non-Node environments |
+| Binary naming `squad-station-{os}-{arch}` | Consistent convention consumed by npm postinstall and install script | ✓ Good — both distribution paths aligned |
 
 ---
-*Last updated: 2026-03-08 after v1.2 milestone start*
+*Last updated: 2026-03-09 after v1.2 milestone*
