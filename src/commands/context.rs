@@ -27,19 +27,34 @@ pub async fn run() -> anyhow::Result<()> {
     println!();
     println!("## Available Agents");
     println!();
-    println!("| Agent | Role | Status | Send Command |");
-    println!("|-------|------|--------|--------------|");
 
     if agents.is_empty() {
-        println!("| (none) | — | — | — |");
-        println!();
         println!("No agents currently registered. Run `squad-station init` with a squad.yml to set up the squad.");
     } else {
         for agent in &agents {
-            println!(
-                "| {} | {} | {} | `squad-station send {} \"<task>\"` |",
-                agent.name, agent.role, agent.status, agent.name
-            );
+            // Heading: ## agentname (Model) or ## agentname
+            if let Some(ref model) = agent.model {
+                println!("## {} ({})", agent.name, model);
+            } else {
+                println!("## {}", agent.name);
+            }
+            println!();
+
+            // Description if available
+            if let Some(ref description) = agent.description {
+                println!("{}", description);
+                println!();
+            }
+
+            // Role and status line
+            println!("Role: {} | Status: {}", agent.role, agent.status);
+            println!();
+
+            // Send command with --body flag
+            println!("→ squad-station send {} --body \"...\"", agent.name);
+            println!();
+            println!("---");
+            println!();
         }
     }
 
@@ -48,7 +63,7 @@ pub async fn run() -> anyhow::Result<()> {
     println!();
     println!("Send a task to an agent:");
     println!("```");
-    println!("squad-station send <agent> \"<task description>\"");
+    println!("squad-station send <agent> --body \"<task description>\"");
     println!("```");
     println!();
     println!("Check agent status:");

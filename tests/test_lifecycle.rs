@@ -30,7 +30,7 @@ fn cmd_with_db(db_path: &std::path::Path) -> std::process::Command {
 #[test]
 fn test_context_output_contains_agents() {
     // SESS-05: context command outputs Markdown roster starting with "# Squad Station -- Agent Roster"
-    // and contains the agent table header, even when no agents are registered.
+    // and contains the "## Available Agents" section heading.
     let tmp = tempfile::TempDir::new().expect("failed to create temp dir");
     let db_file = tmp.path().join("station.db");
     write_squad_yml(tmp.path(), &db_file);
@@ -54,8 +54,8 @@ fn test_context_output_contains_agents() {
         stdout
     );
     assert!(
-        stdout.contains("| Agent | Role | Status | Send Command |"),
-        "context output must contain the agent table header, got:\n{}",
+        stdout.contains("## Available Agents"),
+        "context output must contain '## Available Agents' section, got:\n{}",
         stdout
     );
 }
