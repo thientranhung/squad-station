@@ -31,7 +31,7 @@
 **Milestone Goal:** Make Squad Station installable by any developer in one command — `npm install -g squad-station` or `curl | sh`.
 
 - [x] **Phase 7: CI/CD Pipeline** - GitHub Actions cross-compiles binaries for all 4 targets and publishes GitHub Releases (completed 2026-03-08)
-- [ ] **Phase 8: npm Package** - npm package detects platform and installs the correct binary on `npm install -g squad-station`
+- [x] **Phase 8: npm Package** - npm package detects platform and installs the correct binary on `npm install -g squad-station` (completed 2026-03-08)
 - [ ] **Phase 9: Install Script and Docs** - curl | sh install alternative and README documenting all installation methods
 
 ## Phase Details
@@ -86,5 +86,5 @@ Plans:
 | 5. Feature Completion | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 6. Documentation | v1.1 | 2/2 | Complete | 2026-03-08 |
 | 7. CI/CD Pipeline | v1.2 | 1/1 | Complete | 2026-03-08 |
-| 8. npm Package | 1/2 | In Progress|  | - |
+| 8. npm Package | 2/2 | Complete   | 2026-03-08 | - |
 | 9. Install Script and Docs | v1.2 | 0/? | Not started | - |
