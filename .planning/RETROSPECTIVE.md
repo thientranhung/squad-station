@@ -145,6 +145,53 @@
 
 ---
 
+## Milestone: v1.3 — Antigravity & Hooks Optimization
+
+**Shipped:** 2026-03-09
+**Phases:** 4 (10-13) | **Plans:** 8 | **Requirements:** 15/15
+
+### What Was Built
+- `signal $TMUX_PANE` inline hook — no shell scripts, any provider, zero-arg hook registration
+- `antigravity` provider: DB-only orchestrator skips all tmux operations (no session, no notify)
+- `context` generates `.agent/workflows/` with 3 files: squad-delegate.md, squad-monitor.md, squad-roster.md
+- `init` safely merges hooks into existing `settings.json` with `.bak` backup + fallback instructions
+- `inject_body` via `load-buffer`/`paste-buffer` + uuid temp file for safe multiline body injection
+- PLAYBOOK.md v1.3 fully rewritten — canonical guide for inline hooks, Antigravity mode, Notification hooks
+
+### What Worked
+- Milestone audit run BEFORE completion (v1.3 is first milestone with formal audit) — all gaps surfaced before archiving
+- Strict phase dependency chain (10→11→12→13) prevented integration issues; each phase cleanly scoped
+- TDD pattern established in v1.0 and v1.1 held — new commands (context rewrite, init merge) fully integration-tested
+- `is_db_only()` helper centralized provider check — downstream guards use one function, not string comparisons
+- Phase 13 merged two concerns (safe injection + docs) efficiently — single phase, clean boundary
+
+### What Was Inefficient
+- SUMMARY frontmatter `one_liner` still not populated — milestone tools returned empty accomplishments (4th milestone in a row)
+- ROADMAP.md progress table rows for phases 11-13 had broken column alignment — minor but accumulated across milestone
+- Phase 12 removed tmux reconciliation from `context` — good decision, but could have been scoped in phase 11 when antigravity guard was added
+
+### Patterns Established
+- Pane ID detection: `starts_with('%')` — unambiguous tmux pane vs session name dispatch
+- DB-only provider guard: `is_db_only()` on `AgentConfig` — single canonical check, not string comparison at call site
+- Read-only command pattern: `context` writes files without touching DB or tmux
+- JSON mode guard: suppress human-readable stdout when `--json` active — composable CLI output
+- `inject_body` pattern: uuid temp file → `load-buffer` → `paste-buffer` → delete temp — safe concurrent multi-agent sends
+- Hook merge: `merge_hook_entry` with command-field dedup, graceful fallback on malformed JSON, `.json.bak` backup
+
+### Key Lessons
+1. Run milestone audit before completion — v1.3 first to do this; `passed` with only tech debt items, no blocking gaps
+2. Fill SUMMARY `one_liner` during plan execution — 4 milestones in a row with empty field; tooling can't help otherwise
+3. `inject_body` uuid temp file is the right pattern for concurrent agent sends — prevents buffer clobbering
+4. DB-only provider is a clean abstraction — no tmux dependency, testable in isolation, no live tmux needed for tests
+5. PLAYBOOK rewrite as a dedicated plan (13-02) was high value — documentation debt from v1.0-v1.2 fully cleared
+
+### Cost Observations
+- Model mix: ~85% sonnet, ~15% haiku
+- Sessions: ~5 execution sessions
+- Notable: 15 requirements, 4 phases, 8 plans shipped in 1 day with formal milestone audit
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -154,6 +201,7 @@
 | v1.0 | 3 | 10 | 58 | Initial process — strict phase dependencies, Nyquist validation |
 | v1.1 | 3 | 7 | 58+ | Schema-first migration, TDD for shell scripts, gap-analysis-driven scope |
 | v1.2 | 3 | 5 | 58+ | Distribution layer — CI/CD, npm, curl installer, no new Rust code |
+| v1.3 | 4 | 8 | 58+ | Provider abstraction, safe injection, first formal milestone audit |
 
 ### Cumulative Quality
 
@@ -162,11 +210,12 @@
 | v1.0 | 58 | 0 | 6 (all non-critical) |
 | v1.1 | 58+ | 0 | 0 (clean close) |
 | v1.2 | 58+ | 0 | 0 (audit skipped) |
+| v1.3 | 58+ | 0 | 3 (cosmetic: stale comments, 1 edge case, 1 stale doc section) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Safety-first architecture: wire all safety primitives in the foundation phase
 2. Stateless CLI + SQLite WAL = simple, testable, concurrent-safe
 3. Atomic schema migrations with clear before/after states — clean upgrade path, no data loss
-4. Fill SUMMARY one_liner during execution — milestone tooling depends on it (3 milestones in a row with empty field)
-5. Run milestone audit before completion — skipped for v1.1 and v1.2; creates unknown-gap risk
+4. Fill SUMMARY one_liner during execution — milestone tooling depends on it (4 milestones in a row with empty field)
+5. Run milestone audit before completion — v1.3 first to do this; caught only tech debt (no blocking gaps)

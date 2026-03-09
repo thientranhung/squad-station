@@ -48,22 +48,16 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 - ✓ npm package detects platform and downloads correct binary on postinstall — v1.2
 - ✓ curl | sh install script as npm-free alternative to install binary — v1.2
 - ✓ README.md documents all installation methods with usage quickstart — v1.2
-
-## Current Milestone: v1.3 Antigravity & Hooks Optimization
-
-**Goal:** Add Antigravity IDE orchestrator support and centralize the hook system into a single CLI command with safe tmux injection.
-
-**Target features:**
-- Centralized hooks via `squad-station signal $TMUX_PANE` (no shell scripts)
-- Antigravity provider in config + conditional skip-notify in signal.rs
-- `.agent/workflows/` context generation for IDE orchestrators
-- Safe settings.json merge on init
-- Safe multiline tmux injection via load-buffer/paste-buffer
-- PLAYBOOK.md rewrite
+- ✓ `signal` accepts `$TMUX_PANE` env var — zero-arg inline hook, hook shell scripts deprecated — v1.3
+- ✓ `antigravity` provider: DB-only orchestrator skips tmux session creation and send-keys notification — v1.3
+- ✓ `context` generates `.agent/workflows/squad-delegate.md`, `squad-monitor.md`, `squad-roster.md` — v1.3
+- ✓ `init` safely merges hooks into existing `settings.json` with `.bak` backup; fallback instructions when absent — v1.3
+- ✓ `inject_body` via `load-buffer`/`paste-buffer` for safe multiline task body delivery — v1.3
+- ✓ PLAYBOOK.md rewritten as authoritative v1.3 guide (inline hooks, Antigravity mode, Notification hooks) — v1.3
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
+<!-- Next milestone scope will be defined via /gsd:new-milestone -->
 
 ### Out of Scope
 
@@ -77,13 +71,14 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 
 ## Context
 
-Shipped v1.2 Distribution with 4,367 LOC Rust, 24 files changed (+2,955 lines in v1.2).
-Tech stack: Rust, SQLite (sqlx 0.8), clap 4, ratatui 0.26, serde-saphyr, owo-colors 3.
+Shipped v1.3 Antigravity & Hooks Optimization with ~78k LOC Rust total (codebase + tests).
+Tech stack: Rust, SQLite (sqlx 0.8), clap 4, ratatui 0.26, serde-saphyr, owo-colors 3, uuid (temp file naming).
 Distribution: npm package + curl | sh installer, both download pre-built binaries from GitHub Releases.
 CI/CD: GitHub Actions matrix workflow produces 4 musl/darwin binaries on v* tag push.
-Binary format: fully static musl binaries for Linux (no glibc), native darwin binaries.
-npm postinstall: zero-dependency JS downloader with platform/arch detection and 301/302 redirect following.
-Install methods: `npm install -g squad-station` or `curl -fsSL <url> | sh` or build from source.
+Providers supported: claude-code, gemini-cli, antigravity (DB-only IDE orchestrator).
+Hook registration: inline `squad-station signal $TMUX_PANE` command (scripts in hooks/ deprecated).
+Context generation: `.agent/workflows/` with 3 markdown files for IDE orchestrator guidance.
+Safe injection: load-buffer/paste-buffer pattern for multiline task bodies (no shell-injection artifacts).
 
 ## Constraints
 
@@ -119,8 +114,16 @@ Install methods: `npm install -g squad-station` or `curl -fsSL <url> | sh` or bu
 | musl over gnu for Linux targets | Produces fully static binaries, no glibc dependency — required for install script portability | ✓ Good — runs on any Linux distro |
 | cross tool only for linux-arm64 | aarch64-musl requires cross-compilation; native cargo sufficient for darwin and linux-x86_64 | ✓ Good — minimal Docker overhead |
 | softprops/action-gh-release@v2 | Idempotent — creates release if absent, appends assets if present; safe for 4 parallel matrix uploads | ✓ Good — race-condition-free releases |
-| curl | sh as npm alternative | Targets users without Node.js; POSIX sh for max portability | ✓ Good — covers non-Node environments |
+| curl \| sh as npm alternative | Targets users without Node.js; POSIX sh for max portability | ✓ Good — covers non-Node environments |
 | Binary naming `squad-station-{os}-{arch}` | Consistent convention consumed by npm postinstall and install script | ✓ Good — both distribution paths aligned |
+| Pane ID detection via `starts_with('%')` | tmux pane IDs always use `%` prefix, session names cannot — zero-ambiguity detection | ✓ Good — clean signal arg dispatch |
+| `signal` exits 0 silently on pane resolution failure | Hook context — providers must never see errors from hooks (infinite loop risk) | ✓ Good — safe hook behavior |
+| `is_db_only()` checks `tool == "antigravity"` | Open string — unknown providers remain tmux providers by default, no config migration needed | ✓ Good — forward-compatible |
+| Inline `orch.tool == "antigravity"` in signal.rs | Agent DB struct should not couple to config domain knowledge; check at call site | ✓ Good — clean domain boundaries |
+| `context` command is read-only | Removed tmux reconciliation from `context`; DB state only → less side effects | ✓ Good — predictable, idempotent |
+| JSON mode guard in `init.rs` | Hook instructions suppressed from stdout when `--json` active — preserves machine-parseable output | ✓ Good — composable CLI |
+| `inject_body` uses uuid-named temp file | Prevents concurrent `send` calls from clobbering each other's buffer; cleanup on all code paths | ✓ Good — safe concurrent usage |
+| PLAYBOOK.md inline hook as canonical | Shell scripts in `hooks/` deprecated — single install path reduces user confusion | ✓ Good — clearer onboarding |
 
 ---
-*Last updated: 2026-03-09 after v1.2 milestone*
+*Last updated: 2026-03-09 after v1.3 milestone*

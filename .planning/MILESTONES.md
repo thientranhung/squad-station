@@ -1,11 +1,31 @@
 # Milestones
 
-## v1.2 Distribution (Shipped: 2026-03-08)
+## v1.3 Antigravity & Hooks Optimization (Shipped: 2026-03-09)
 
-**Phases completed:** 3 phases, 5 plans, 0 tasks
+**Phases:** 10-13 | **Plans:** 8 | **Timeline:** 1 day (2026-03-09)
+**Git range:** feat(10-01) signal pane detection → docs(phase-13): complete phase execution
 
 **Key accomplishments:**
-- (none recorded)
+- `signal` accepts `$TMUX_PANE` env var — zero-arg inline hook command, shell scripts deprecated
+- `antigravity` provider: DB-only orchestrator skips all tmux interaction (no sessions, no send-keys)
+- `context` generates `.agent/workflows/` with 3 files: squad-delegate.md, squad-monitor.md, squad-roster.md
+- `init` safely merges hooks into existing `settings.json` with `.bak` backup; prints instructions when absent
+- `inject_body` via `load-buffer`/`paste-buffer` + temp file — safe multiline task body delivery
+- PLAYBOOK.md rewritten as authoritative v1.3 guide covering inline hooks, Antigravity mode, Notification hooks
+
+**Archives:** [v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) | [v1.3-REQUIREMENTS.md](milestones/v1.3-REQUIREMENTS.md) | [v1.3-MILESTONE-AUDIT.md](milestones/v1.3-MILESTONE-AUDIT.md)
+
+---
+
+## v1.2 Distribution (Shipped: 2026-03-09)
+
+**Phases:** 7-9 | **Plans:** 5 | **Files changed:** 24 (+2,955 lines) | **Timeline:** 1 day (2026-03-09)
+
+**Key accomplishments:**
+- GitHub Actions matrix CI/CD: 4-target cross-compilation (darwin-arm64, darwin-x86_64, linux-x86_64, linux-arm64) with musl static Linux binaries
+- npm package `squad-station` with zero-dependency postinstall binary downloader (platform/arch detection, redirect following)
+- POSIX sh curl-pipe-sh installer: OS/arch detection via `uname`, GitHub Releases download, `/usr/local/bin` install with `~/.local/bin` fallback
+- GitHub landing page README: npm/curl/source install methods, 5-step quickstart, architecture overview, PLAYBOOK link
 
 ---
 
