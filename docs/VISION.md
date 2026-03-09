@@ -1,6 +1,7 @@
 # Squad Station — Vision & Scope
 
 > Source of truth. Based on Obsidian `01. Vision & Scope.md` + confirmed decisions.
+> Updated: incorporates `04. Upgrade Design — Antigravity & Hooks Optimization`.
 
 ---
 
@@ -14,7 +15,20 @@ The user only interacts with **a single orchestrator**. The orchestrator reasons
 
 ### 2.1 Orchestrator — Agents Model
 
-**Provider-agnostic:** Both Orchestrator and Agents can be **any AI tool** — Claude Code, Gemini CLI, Codex, Aider, etc. No hard-coding of Gemini = orchestrator or Claude = agent.
+**Provider-agnostic:** Both Orchestrator and Agents can be **any AI tool** — Claude Code, Gemini CLI, Codex, Aider, Antigravity IDE, etc. No hard-coding of Gemini = orchestrator or Claude = agent.
+
+#### Two Orchestrator Modes
+
+| Mode | Runtime | Communication | Examples |
+|------|---------|---------------|----------|
+| **CLI-based** | Orchestrator lives inside a tmux session | Event-driven: Station notifies via `tmux send-keys` | Gemini CLI, Claude Code |
+| **IDE-based** | Orchestrator runs natively inside an IDE | Polling: IDE monitors tmux worker panes directly | Antigravity (Manager View) |
+
+When the orchestrator is **IDE-based** (e.g. Antigravity):
+- The IDE has a built-in **Manager View / Mission Control** that can spawn, poll, and monitor multiple agents.
+- **No tmux session is created for the Orchestrator itself** — only for worker agents.
+- **No notification back to Orchestrator** — the IDE actively polls tmux worker panes and detects completion autonomously.
+- Squad Station's role is simplified to a **Bootstrapper + State Registry** (DB tracking only).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -84,7 +98,8 @@ The user only interacts with **a single orchestrator**. The orchestrator reasons
 ```
 
 **Key points:**
-- Orchestrator **does not poll** agent screens. Orchestrator receives notifications via the messaging system.
+- **CLI Orchestrator** does not poll agent screens — it receives notifications via the messaging system (`tmux send-keys`).
+- **IDE Orchestrator** (Antigravity) actively polls worker tmux panes — Station only updates DB state, no notification sent.
 - Agent **does not send tmux keystrokes** directly to orchestrator. Agent writes message to the messaging system, the system handles notification.
 - Each exchange needs a way to **link request ↔ response** to distinguish work streams.
 
@@ -106,7 +121,12 @@ Each provider must declare **2 hook events**:
                           ▼                   ▼
                      YES (orchestrator)    NO (agent)
                      → exit 0, silent      → signal Station
-                     → PREVENT LOOP        → notify Orchestrator
+                     → PREVENT LOOP              │
+                                        ┌────────┴────────┐
+                                        ▼                 ▼
+                                   CLI Orch           IDE Orch
+                                   → tmux send-keys   → DB update only
+                                     (notify)           (no notify)
 ```
 
 ## 3. Problems to Solve
@@ -146,15 +166,18 @@ Prompt instructions weaken over long conversations. This is a fundamental LLM li
 - Session registry and lifecycle management
 - Multi-project concurrency on same machine
 - Distinguish orchestrated workflow vs independent usage
+- **IDE Orchestrator support** (Antigravity) — conditional notification skip, DB-only state tracking
+- **Centralized hook handling** — single `squad-station signal` command replaces per-project shell scripts
 
 **Out of scope:**
 - Task management / workflow logic (orchestrator's responsibility)
-- Orchestration decisions (Gemini/Claude's responsibility)
+- Orchestration decisions (Gemini/Claude/Antigravity's responsibility)
 - File sync, code sharing between agents
-- Web UI / browser dashboard
+- Web UI / browser dashboard (note: Antigravity Manager View is an IDE feature, not Station's)
 - Git conflict resolution
 - Agent-to-agent direct messaging
 
 ---
 *Source: Obsidian/1-Projects/Agentic-Coding-Squad/01. Vision & Scope.md*
 *Confirmed decisions from: 03. Tech Stack Decision*
+*Updated with: 04. Upgrade Design — Antigravity & Hooks Optimization*

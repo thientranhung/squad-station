@@ -2,6 +2,7 @@
 
 > Source of truth. Based on Obsidian `03. Tech Stack Decision - Squad Station.md`.
 > Decision: **Rust** over Go.
+> Updated with: `04. Upgrade Design — Antigravity & Hooks Optimization`.
 
 ---
 
@@ -86,8 +87,8 @@ squad-station/
 │   │   └── migrations/
 │   └── lib.rs
 ├── hooks/
-│   ├── claude-code.sh       ← Stop event handler
-│   └── gemini-cli.sh        ← AfterAgent event handler
+│   ├── claude-code.sh       ← DEPRECATED: replaced by centralized `squad-station signal $TMUX_PANE`
+│   └── gemini-cli.sh        ← DEPRECATED: kept as reference only
 ├── Cargo.toml
 ├── squad.yml                ← User config
 └── tests/
@@ -105,7 +106,7 @@ cli → commands → db + tmux + config
 ```
 Phase 1                    Phase 2                    Phase 3
 CORE FOUNDATION            LIFECYCLE & HOOKS          VIEWS & TUI
-━━━━━━━━━━━━━━━━          ━━━━━━━━━━━━━━━━          ━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━          ━━━━━━━━━━━━━━━━━━          ━━━━━━━━━━━━━
 
 ┌────────────────┐        ┌────────────────┐        ┌────────────────┐
 │ • DB schema    │        │ • Agent status │        │ • status cmd   │
@@ -117,6 +118,24 @@ CORE FOUNDATION            LIFECYCLE & HOOKS          VIEWS & TUI
 │ • Idempotency  │        │ • Orch skip    │        │                │
 │ • WAL + safety │        │ • Context gen  │        │                │
 └────────────────┘        └────────────────┘        └────────────────┘
+                                                            │
+                                                            ▼
+Phase 4
+ANTIGRAVITY & HOOKS OPT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+┌──────────────────────┐
+│ • Centralized hooks    │
+│   (no shell scripts)  │
+│ • Antigravity provider │
+│ • Conditional notify   │
+│   skip in signal.rs   │
+│ • .agent/workflows/    │
+│   context generation  │
+│ • Safe tmux injection  │
+│   (Rust adapter)      │
+│ • Setup-hooks merge    │
+└──────────────────────┘
 ```
 
 ## 5. Safety Checklist
@@ -131,6 +150,8 @@ CORE FOUNDATION            LIFECYCLE & HOOKS          VIEWS & TUI
 | 6 | SIGPIPE handler at main() | Panic on pipe | MEDIUM |
 | 7 | Migration on every open | Schema drift between versions | MEDIUM |
 | 8 | Idempotent send (INSERT OR IGNORE) | Double-dispatch from duplicate hooks | HIGH |
+| 9 | Safe multiline tmux injection | Shell escaping breaks with long prompts; use `load-buffer`/`paste-buffer` | HIGH |
+| 10 | Antigravity skip-notify in `signal.rs` | IDE Orchestrator does not receive `tmux send-keys`; must check provider at runtime | HIGH |
 
 ## 6. Confirmed Decisions
 
@@ -144,7 +165,12 @@ CORE FOUNDATION            LIFECYCLE & HOOKS          VIEWS & TUI
 | Provider-agnostic design | No lock-in | ✓ Confirmed |
 | Hook-driven completion | Agent passive, clean separation | ✓ Confirmed |
 | Dedicated repo for binary | `squad-station` dedicated repo | ✓ Confirmed |
+| Centralized hooks via CLI | `squad-station signal $TMUX_PANE` replaces shell scripts | ✓ Confirmed |
+| Antigravity IDE support | IDE-based orchestrator with polling, no notify | ✓ Confirmed |
+| Context via `.agent/workflows/` | For IDE orchestrators (Antigravity); CLI uses .md | ✓ Confirmed |
+| Safe tmux injection in Rust | `tmux::adapter` with `load-buffer`/`paste-buffer` | ✓ Confirmed |
 
 ---
 *Source: Obsidian/1-Projects/Agentic-Coding-Squad/03. Tech Stack Decision - Squad Station.md*
 *Supersedes Go references in 02. Solution Design (sections 13, 15)*
+*Updated with: 04. Upgrade Design — Antigravity & Hooks Optimization*

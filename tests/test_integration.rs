@@ -133,7 +133,7 @@ fn test_register_idempotent() {
 
     // First registration
     let out1 = cmd_with_db(&db_file)
-        .args(&args)
+        .args(args)
         .current_dir(tmp.path())
         .output()
         .unwrap();
@@ -141,7 +141,7 @@ fn test_register_idempotent() {
 
     // Second registration — same name, should succeed (INSERT OR IGNORE)
     let out2 = cmd_with_db(&db_file)
-        .args(&args)
+        .args(args)
         .current_dir(tmp.path())
         .output()
         .unwrap();
@@ -1755,7 +1755,7 @@ fn test_init_hook_merge_gemini() {
 async fn test_signal_via_tmux_pane() {
     // HOOK-01: signal with TMUX_PANE set and no agent arg resolves session
     // Requires live tmux -- skip when not available
-    if std::process::Command::new("tmux").args(["list-sessions"]).output().map(|o| o.status.success()).unwrap_or(false) == false {
+    if !std::process::Command::new("tmux").args(["list-sessions"]).output().map(|o| o.status.success()).unwrap_or(false) {
         eprintln!("test_signal_via_tmux_pane: tmux not running, skipping");
         return;
     }
@@ -1768,7 +1768,7 @@ async fn test_signal_via_tmux_pane() {
 async fn test_signal_pane_id_as_arg() {
     // HOOK-01: signal %3 (pane ID as arg) must resolve to session name and signal
     // Requires live tmux -- skip when not available
-    if std::process::Command::new("tmux").args(["list-sessions"]).output().map(|o| o.status.success()).unwrap_or(false) == false {
+    if !std::process::Command::new("tmux").args(["list-sessions"]).output().map(|o| o.status.success()).unwrap_or(false) {
         eprintln!("test_signal_pane_id_as_arg: tmux not running, skipping");
         return;
     }

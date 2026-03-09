@@ -12,8 +12,9 @@
 | 1 | [VISION.md](./VISION.md) | Vision, architecture overview, scope, problems to solve | **Start here** |
 | 2 | [SOLUTION-DESIGN.md](./SOLUTION-DESIGN.md) | Detailed design: config format, data model, hooks, CLI, scenarios, naming conventions | Core reference |
 | 3 | [TECH-STACK.md](./TECH-STACK.md) | Rust stack decisions, module structure, safety checklist, roadmap | Implementation guide |
-| 4 | [GAP-ANALYSIS.md](./GAP-ANALYSIS.md) | 10 gaps between design specs and current codebase | **Action items** |
+| 4 | [GAP-ANALYSIS.md](./GAP-ANALYSIS.md) | 17 gaps between design specs and current codebase (all decisions resolved ✅) | **Action items** |
 | 5 | [PLAYBOOK.md](./PLAYBOOK.md) | ⚠️ **STALE** — User-facing guide, needs rewrite after gaps are fixed | Do not trust |
+| 6 | [FEEDBACK-04-UPGRADE.md](./FEEDBACK-04-UPGRADE.md) | 🟡 Feedback for Obsidian Doc Writer — 4 fixes needed in source doc #04 | Task tracking |
 
 ## Document Hierarchy
 
@@ -35,6 +36,7 @@ All documents are derived from the original Obsidian design notes:
 | SOLUTION-DESIGN.md | `02. Solution Design - Squad Station.md` |
 | TECH-STACK.md | `03. Tech Stack Decision - Squad Station.md` |
 | GAP-ANALYSIS.md | Cross-reference analysis (Obsidian vs codebase) |
+| *Upgrade #04* | `04. Upgrade Design - Antigravity & Hooks Optimization.md` |
 
 ## Key Decisions (Quick Reference)
 
@@ -44,10 +46,16 @@ All documents are derived from the original Obsidian design notes:
 | DB Library | **sqlx** (async, compile-time SQL) | TECH-STACK.md |
 | Architecture | **Stateless CLI** — no daemon | VISION.md |
 | DB | **SQLite WAL** — 1 file per project | SOLUTION-DESIGN.md |
-| Config | `squad.yml` with `project` (string), `model`, `description` fields | SOLUTION-DESIGN.md |
-| Agent Naming | `<project>-<provider>-<role>` | SOLUTION-DESIGN.md |
-| Hooks | **2 per provider**: Stop + Notification | SOLUTION-DESIGN.md |
+| Config | `squad.yml` with `project` (string), `model`, `description`, `command` fields | SOLUTION-DESIGN.md |
+| Agent Naming | `<project>-<provider>-<role>` (using `provider`, not `tool`) | SOLUTION-DESIGN.md |
+| Hooks | **Centralized CLI**: `squad-station signal $TMUX_PANE` (no shell scripts) | SOLUTION-DESIGN.md §04 |
+| CLI Send | **`--body "..."`** named flag (not positional arg) | GAP-ANALYSIS.md |
+| Signal Format | **`"<agent> completed <id>"`** (short, AI-parseable) | GAP-ANALYSIS.md |
 | Messages Schema | **2-directional**: `from_agent` → `to_agent`, status: processing/completed/failed | SOLUTION-DESIGN.md |
+| Orchestrator Modes | **CLI-based** (event-driven) + **IDE-based** (polling, e.g. Antigravity) | VISION.md §04 |
+| IDE Context | **`.agent/workflows/`** for IDE orchestrators | SOLUTION-DESIGN.md §04 |
+| Tmux Injection | **Rust-native** `tmux::adapter` with `load-buffer`/`paste-buffer` | TECH-STACK.md §04 |
+| Skip Notify | **In `signal.rs`** — runtime provider check from DB | SOLUTION-DESIGN.md §04 |
 
 ---
-*Last updated: 2026-03-08*
+*Last updated: 2026-03-09*

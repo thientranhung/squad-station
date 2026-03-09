@@ -2,6 +2,7 @@
 
 > Source of truth. Based on Obsidian `02. Solution Design - Squad Station.md`.
 > Confirmed decisions: **Rust** (not Go), **sqlx** (not rusqlite).
+> Updated with: `04. Upgrade Design — Antigravity & Hooks Optimization`.
 > Go-specific sections replaced by `TECH-STACK.md`.
 
 ---
@@ -45,6 +46,7 @@ User only communicates with **Orchestrator**. Orchestrator reasons, makes decisi
 - **Hook** is an external layer on the agent, auto-detects Stop/AfterAgent events → reports to Station
 - Orchestrator **captures output** from agent session (`tmux capture-pane -t <agent> -p`)
 - Station is a **stateless CLI** — exits after completion, no background process
+- **IDE Orchestrator mode** (e.g. Antigravity): Station only tracks state in DB; the IDE polls tmux workers directly and does not need `tmux send-keys` notification
 
 ### Two-directional communication
 
@@ -54,9 +56,11 @@ User only communicates with **Orchestrator**. Orchestrator reasons, makes decisi
                      (save DB)   (inject prompt)
 
   INBOUND (report completion):
-    Agent done ──► Hook auto-fires ──► Station ──► notify Orchestrator
-                   (agent is unaware)  (save DB)   (tmux send-keys)
-                                                        │
+    Agent done ──► Hook auto-fires ──► Station ──► (conditional) notify Orchestrator
+                   (agent is unaware)  (save DB)   │
+                                                    ├─ CLI Orch: tmux send-keys
+                                                    └─ IDE Orch: skip (DB update only)
+                                                         │
                                           Orchestrator ──► tmux capture-pane
                                           (reads raw output from agent session)
 ```
@@ -72,6 +76,13 @@ orchestrator:
   description: >
     Main orchestrator. Receives requests from user, reasons,
     delegates tasks to agents, reads results, synthesizes.
+
+# Alternative: IDE-based Orchestrator
+# orchestrator:
+#   provider: antigravity
+#   description: >
+#     Orchestrator running inside Antigravity IDE.
+#     Uses Manager View to poll and monitor tmux worker agents.
 
 agents:
   - name: implement
@@ -102,7 +113,7 @@ agents:
 |-------|------|-------------|
 | `project` | string | Project name, used for DB path + agent name prefix |
 | `orchestrator` | object | Exactly 1 orchestrator per squad |
-| `orchestrator.provider` | string | AI tool label |
+| `orchestrator.provider` | string | AI tool label (`claude`, `gemini`, `antigravity`, etc.) |
 | `orchestrator.model` | string | AI model name |
 | `orchestrator.description` | string | Role description, used for context generation |
 | `agents` | array | List of worker agents |
@@ -128,13 +139,20 @@ agents:
       │   myapp-claude-test            role=worker
       │
       ├── Create tmux sessions + launch AI tools
+      │   └── If orchestrator.provider = antigravity:
+      │       → SKIP tmux session for orchestrator (IDE manages itself)
+      │       → Only create tmux sessions for worker agents
       │
-      └── Generate orchestrator context file
+      └── Generate orchestrator context
+          ├── CLI Orchestrator: write context .md file
+          └── IDE Orchestrator: generate .agent/workflows/ files
 ```
 
 ### Orchestrator context — auto-generated
 
 Station creates a context file so orchestrator knows its available agents:
+
+**For CLI Orchestrators** — generates a Markdown context file:
 
 ```
   # Squad Agents
@@ -157,6 +175,20 @@ Station creates a context file so orchestrator knows its available agents:
   4. tmux capture-pane -t <agent> -p to read result
   5. Reasoning → continue or report to user
 ```
+
+**For IDE Orchestrators (Antigravity)** — generates `.agent/workflows/` files:
+
+```
+  .agent/workflows/
+  ├── squad-delegate.md       ← Workflow: how to delegate tasks to agents
+  ├── squad-monitor.md        ← Workflow: how to poll/monitor worker sessions
+  └── squad-roster.md         ← Agent list with names, models, descriptions
+```
+
+Workflow files include **behavioral rules** that reinforce orchestrator discipline:
+- Remind the IDE agent to delegate rather than do work itself
+- Survive context compression by placing rules at the top of workflow files
+- Provide exact `squad-station send` and `tmux capture-pane` commands
 
 ## 3. Distinguishing Squad Agent vs Independent Agent
 
@@ -281,42 +313,106 @@ Station creates a context file so orchestrator knows its available agents:
       │                             │  UPDATE msg → completed     │
       │                             │  UPDATE agent → idle        │
       │                             │                             │
-      │  ⑥ tmux send-keys ◄─────  │                             │
-      │  "<agent> completed         │                             │
-      │   <message_id>"             │                             │
+      │                             │  Check: orchestrator.provider│
+      │                             │  ├─ CLI: tmux send-keys     │
+      │  ① tmux send-keys ◄─────  │  │  (notify orchestrator)    │
+      │  "<agent> completed         │  │                           │
+      │   <message_id>"             │  │                           │
+      │                             │  └─ IDE (Antigravity):       │
+      │                             │     skip notify             │
+      │                             │     (IDE polls tmux)        │
       │                             │                             │
-      │  ⑦ tmux capture-pane      │                             │
+      │  ② tmux capture-pane      │                             │
       │    (read raw output)       │                             │
-      │  ⑧ Reasoning/summarize    │                             │
+      │  ③ Reasoning/summarize    │                             │
 ```
 
 ## 6. Hook System
 
-### 6.1 Each provider needs 2 hooks
+### 6.1 Centralized Hook Architecture
+
+All hook logic is centralized in the `squad-station signal` CLI command. Provider hook configs declare a **single command** — no external shell scripts needed.
+
+```json
+// .claude/settings.json or .gemini/settings.json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "squad-station signal $TMUX_PANE"
+      }
+    ]
+  }
+}
+```
+
+When the hook fires, `squad-station signal` handles **all** logic:
+1. Detect tmux session name from `$TMUX_PANE`
+2. Look up agent in SQLite DB
+3. Guard: not in DB → exit 0 (not a squad agent)
+4. Guard: role = orchestrator → exit 0 (prevent loop)
+5. Guard: no task processing → exit 0 (agent chatting freely)
+6. Update message status → completed, agent status → idle
+7. **Check orchestrator provider** (runtime, in `signal.rs`):
+   - CLI provider → `tmux send-keys` to notify orchestrator
+   - IDE provider (antigravity) → skip notification (DB update only)
+
+### 6.2 Each provider needs 2 hook events
 
 | Event | Claude Code | Gemini CLI | Purpose |
 |-------|-------------|------------|---------|
 | **Stop / AfterAgent** | `Stop` | `AfterAgent` | Task completed → signal Station |
 | **Notification** | `Notification` (matcher: `permission_prompt`) | `Notification` | Agent needs approval → forward to Orchestrator |
 
-### 6.2 Hook auto-detects agent
-
-`.claude/settings.json` or `.gemini/settings.json` declares **1 hook command** per event. Hook auto-detects tmux session name → that is the agent name.
-
-```bash
-#!/bin/bash
-# squad-on-stop.sh
-AGENT_NAME=$(tmux display-message -p '#S' 2>/dev/null) || exit 0
-squad-station signal "$AGENT_NAME" 2>/dev/null || exit 0
-```
-
-### 6.3 Orchestrator skip guard
+### 6.3 Orchestrator skip guard (in `signal.rs`)
 
 ```
   Station checks DB:
     SELECT role FROM agents WHERE name = $AGENT_NAME
     → role = 'orchestrator' → SKIP, exit 0
-    → role = 'worker'       → UPDATE completed, notify orch
+    → role = 'worker'       → UPDATE completed
+                                     │
+                            SELECT provider FROM orchestrator
+                            ├─ CLI  → tmux send-keys (notify)
+                            └─ IDE  → return Ok(()) (no notify)
+```
+
+### 6.4 Setup Hooks Strategy
+
+The `squad-station init` command (or a future `setup-hooks` subcommand) handles hook configuration:
+
+```
+  squad-station init
+      │
+      ├── For each provider (claude, gemini):
+      │   ├── Check if settings.json exists
+      │   │   ├─ YES: Parse existing JSON
+      │   │   │       ├─ hooks key exists? Merge/append squad-station hook
+      │   │   │       └─ Create backup: settings.json.bak
+      │   │   └─ NO:  Print instructions to stdout:
+      │   │           "Add this to .claude/settings.json: {...}"
+      │   │
+      │   └── Never overwrite user settings — only merge hook entries
+```
+
+### 6.5 Safe Tmux Injection (Multiline)
+
+Sending long prompts/context via `tmux send-keys` is error-prone (shell escaping, special chars, multiline).
+
+**Solution:** Rust-native `tmux::adapter` module handles safe injection:
+- Write prompt content to a temp file
+- Use `tmux load-buffer` + `tmux paste-buffer` for safe multiline transfer
+- Or use heredoc-style injection via `tmux send-keys`
+- `squad-station send` automatically uses the safe adapter
+
+```
+  squad-station send <agent> --body "long multiline prompt..."
+      │
+      ├── Write body to /tmp/squad-station-msg-<uuid>
+      ├── tmux load-buffer /tmp/squad-station-msg-<uuid>
+      ├── tmux paste-buffer -t <agent-session>
+      └── Cleanup temp file
 ```
 
 ## 7. Station is a Stateless CLI
@@ -471,3 +567,4 @@ methodology: bmad          # bmad | superpower | speckit | openspec | none
 ---
 *Source: Obsidian/1-Projects/Agentic-Coding-Squad/02. Solution Design - Squad Station.md*
 *Updated: Rust confirmed (supersedes Go references in original)*
+*Updated with: 04. Upgrade Design — Antigravity & Hooks Optimization*
