@@ -85,10 +85,11 @@ Plans:
   3. `squad-station context` generates `.agent/workflows/squad-roster.md` listing all registered agents with names, models, and descriptions
   4. `squad-station init` on a project with an existing `settings.json` merges hook entries and creates a `.bak` backup before modifying the file
   5. `squad-station init` on a project without `settings.json` prints human-readable hook setup instructions to stdout
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Rewrite `context.rs` to generate 3 `.agent/workflows/` files (AGNT-04, AGNT-05, AGNT-06)
+- [ ] 12-02-PLAN.md — Extend `init.rs` with settings.json merge + backup + fallback instructions (HOOK-03, HOOK-04)
 
 ### Phase 13: Safe Injection & Documentation
 **Goal**: Multiline task bodies are delivered safely via tmux buffer pattern; PLAYBOOK documents the complete v1.3 workflow
@@ -119,5 +120,5 @@ Plans:
 | 9. Install Script and Docs | v1.2 | 2/2 | Complete | 2026-03-09 |
 | 10. Centralized Hooks | v1.3 | 2/2 | Complete | 2026-03-09 |
 | 11. Antigravity Provider Core | 2/2 | Complete    | 2026-03-09 | - |
-| 12. IDE Context & Hook Setup | v1.3 | 0/? | Not started | - |
+| 12. IDE Context & Hook Setup | v1.3 | 0/2 | Not started | - |
 | 13. Safe Injection & Documentation | v1.3 | 0/? | Not started | - |
