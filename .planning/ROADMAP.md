@@ -43,7 +43,7 @@
 - [x] **Phase 10: Centralized Hooks** — signal reads `$TMUX_PANE`; shell scripts marked deprecated (completed 2026-03-09)
 - [x] **Phase 11: Antigravity Provider Core** — provider enum + conditional skip-notify + skip-init behavior (completed 2026-03-09)
 - [x] **Phase 12: IDE Context & Hook Setup** — `.agent/workflows/` generation + safe settings.json merge (completed 2026-03-09)
-- [ ] **Phase 13: Safe Injection & Documentation** — load-buffer/paste-buffer + PLAYBOOK rewrite
+- [x] **Phase 13: Safe Injection & Documentation** — load-buffer/paste-buffer + PLAYBOOK rewrite (completed 2026-03-09)
 
 ## Phase Details
 
@@ -122,4 +122,4 @@ Plans:
 | 10. Centralized Hooks | v1.3 | 2/2 | Complete | 2026-03-09 |
 | 11. Antigravity Provider Core | 2/2 | Complete    | 2026-03-09 | - |
 | 12. IDE Context & Hook Setup | 2/2 | Complete    | 2026-03-09 | - |
-| 13. Safe Injection & Documentation | 1/2 | In Progress|  | - |
+| 13. Safe Injection & Documentation | 2/2 | Complete   | 2026-03-09 | - |

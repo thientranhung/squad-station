@@ -33,9 +33,9 @@ Requirements for v1.3: Antigravity & Hooks Optimization. Each maps to roadmap ph
 
 ### Documentation
 
-- [ ] **DOCS-01**: `PLAYBOOK.md` rewritten with centralized hook setup documenting `squad-station signal $TMUX_PANE` inline command
-- [ ] **DOCS-02**: `PLAYBOOK.md` documents Antigravity provider and IDE orchestrator mode
-- [ ] **DOCS-03**: `PLAYBOOK.md` covers notification hook registration (deferred since GAP-04)
+- [x] **DOCS-01**: `PLAYBOOK.md` rewritten with centralized hook setup documenting `squad-station signal $TMUX_PANE` inline command
+- [x] **DOCS-02**: `PLAYBOOK.md` documents Antigravity provider and IDE orchestrator mode
+- [x] **DOCS-03**: `PLAYBOOK.md` covers notification hook registration (deferred since GAP-04)
 
 ## v1.2 Requirements (Shipped)
 
@@ -104,9 +104,9 @@ Requirements for v1.3: Antigravity & Hooks Optimization. Each maps to roadmap ph
 | AGNT-06 | Phase 12 | Complete |
 | TMUX-01 | Phase 13 | Complete |
 | TMUX-02 | Phase 13 | Complete |
-| DOCS-01 | Phase 13 | Pending |
-| DOCS-02 | Phase 13 | Pending |
-| DOCS-03 | Phase 13 | Pending |
+| DOCS-01 | Phase 13 | Complete |
+| DOCS-02 | Phase 13 | Complete |
+| DOCS-03 | Phase 13 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 15 total

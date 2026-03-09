@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Antigravity & Hooks Optimization
 status: planning
-stopped_at: Completed 13-safe-injection-and-documentation-01-PLAN.md
-last_updated: "2026-03-09T08:33:44.784Z"
+stopped_at: Completed 13-safe-injection-and-documentation-02-PLAN.md
+last_updated: "2026-03-09T08:37:06.359Z"
 last_activity: 2026-03-09 — v1.3 roadmap created, 4 phases mapped to 15 requirements
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [Phase 12-ide-context-hook-setup]: JSON mode guard in init.rs: hook instructions suppressed from stdout when --json flag active to preserve machine-parseable output
 - [Phase 12-ide-context-hook-setup]: HOOK-03/04: merge_hook_entry uses dedup on command field, graceful fallback on malformed JSON, .json.bak backup via path.with_extension
 - [Phase 13-safe-injection-and-documentation]: inject_body uses load-buffer/paste-buffer with uuid-named temp file; -t flag not -p for paste-buffer; temp cleanup on all paths
+- [Phase 13-safe-injection-and-documentation]: PLAYBOOK.md v1.3: inline hook command is canonical (hooks/claude-code.sh deprecated), Notification hook uses permission_prompt matcher, Antigravity polling is expected behavior
 
 ### Pending Todos
 
@@ -65,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T08:33:44.782Z
-Stopped at: Completed 13-safe-injection-and-documentation-01-PLAN.md
+Last session: 2026-03-09T08:37:06.357Z
+Stopped at: Completed 13-safe-injection-and-documentation-02-PLAN.md
 Resume file: None
