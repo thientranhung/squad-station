@@ -49,11 +49,21 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 - ✓ curl | sh install script as npm-free alternative to install binary — v1.2
 - ✓ README.md documents all installation methods with usage quickstart — v1.2
 
+## Current Milestone: v1.3 Antigravity & Hooks Optimization
+
+**Goal:** Add Antigravity IDE orchestrator support and centralize the hook system into a single CLI command with safe tmux injection.
+
+**Target features:**
+- Centralized hooks via `squad-station signal $TMUX_PANE` (no shell scripts)
+- Antigravity provider in config + conditional skip-notify in signal.rs
+- `.agent/workflows/` context generation for IDE orchestrators
+- Safe settings.json merge on init
+- Safe multiline tmux injection via load-buffer/paste-buffer
+- PLAYBOOK.md rewrite
+
 ### Active
 
-<!-- v1.3 or next milestone — add requirements here -->
-
-(None yet — define with /gsd:new-milestone)
+<!-- Current scope. Building toward these. -->
 
 ### Out of Scope
 
