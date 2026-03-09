@@ -32,8 +32,8 @@ fn cmd_with_db(db_path: &std::path::Path) -> std::process::Command {
 
 #[test]
 fn test_context_output_contains_agents() {
-    // SESS-05: context command outputs Markdown roster starting with "# Squad Station -- Agent Roster"
-    // and contains the "## Available Agents" section heading.
+    // SESS-05 (updated): context command writes .agent/workflows/ files and prints a 1-line summary.
+    // The old stdout roster format has been replaced by file generation (AGNT-04, AGNT-05, AGNT-06).
     let tmp = tempfile::TempDir::new().expect("failed to create temp dir");
     let db_file = tmp.path().join("station.db");
     write_squad_yml(tmp.path(), &db_file);
@@ -51,21 +51,23 @@ fn test_context_output_contains_agents() {
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
+    // New behavior: 1-line summary to stdout
     assert!(
-        stdout.contains("# Squad Station -- Agent Roster"),
-        "context output must start with the roster heading, got:\n{}",
+        stdout.contains("Generated .agent/workflows/"),
+        "context output must contain 1-line summary, got:\n{}",
         stdout
     );
+    // Roster file must exist
     assert!(
-        stdout.contains("## Available Agents"),
-        "context output must contain '## Available Agents' section, got:\n{}",
-        stdout
+        tmp.path().join(".agent/workflows/squad-roster.md").exists(),
+        ".agent/workflows/squad-roster.md must be created"
     );
 }
 
 #[test]
 fn test_context_output_has_usage() {
-    // SESS-05: context command output includes a "## Usage" section with squad-station send examples.
+    // SESS-05 (updated): context command writes .agent/workflows/ files.
+    // Delegation instructions are now in squad-delegate.md (not stdout).
     let tmp = tempfile::TempDir::new().expect("failed to create temp dir");
     let db_file = tmp.path().join("station.db");
     write_squad_yml(tmp.path(), &db_file);
@@ -76,22 +78,25 @@ fn test_context_output_has_usage() {
         .output()
         .expect("failed to run binary");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         output.status.success(),
         "context command should exit 0, got: {:?}\nstderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
+    // Delegation/usage is now in squad-delegate.md
+    let delegate_path = tmp.path().join(".agent/workflows/squad-delegate.md");
+    assert!(delegate_path.exists(), ".agent/workflows/squad-delegate.md must be created");
+    let delegate = std::fs::read_to_string(&delegate_path).unwrap();
     assert!(
-        stdout.contains("## Usage"),
-        "context output must contain '## Usage' section, got:\n{}",
-        stdout
+        delegate.contains("squad-station send"),
+        "squad-delegate.md must include 'squad-station send' example, got:\n{}",
+        delegate
     );
     assert!(
-        stdout.contains("squad-station send"),
-        "context output '## Usage' section must include 'squad-station send' example, got:\n{}",
-        stdout
+        delegate.contains("How to Delegate"),
+        "squad-delegate.md must contain 'How to Delegate' section, got:\n{}",
+        delegate
     );
 }
 
