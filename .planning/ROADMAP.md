@@ -69,10 +69,11 @@ Plans:
   1. `config.rs` parses `provider: antigravity` from `squad.yml` without error and integration tests cover this path
   2. When orchestrator provider is `antigravity`, `squad-station signal` updates the DB record but does not call `tmux send-keys` to deliver the notification
   3. When orchestrator provider is `antigravity`, `squad-station init` skips tmux session creation for the orchestrator and prints a clear log message explaining DB-only registration
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — Add `is_db_only()` helper to `AgentConfig` and AGNT-01 config tests (AGNT-01)
+- [ ] 11-02-PLAN.md — Guard `signal.rs` and `init.rs` for antigravity provider with integration tests (AGNT-02, AGNT-03)
 
 ### Phase 12: IDE Context & Hook Setup
 **Goal**: IDE orchestrators can find their workflow instructions in `.agent/workflows/` and `init` sets up hooks safely in existing settings files
@@ -116,7 +117,7 @@ Plans:
 | 7. CI/CD Pipeline | v1.2 | 1/1 | Complete | 2026-03-08 |
 | 8. npm Package | v1.2 | 2/2 | Complete | 2026-03-08 |
 | 9. Install Script and Docs | v1.2 | 2/2 | Complete | 2026-03-09 |
-| 10. Centralized Hooks | 2/2 | Complete    | 2026-03-09 | - |
-| 11. Antigravity Provider Core | v1.3 | 0/? | Not started | - |
+| 10. Centralized Hooks | v1.3 | 2/2 | Complete | 2026-03-09 |
+| 11. Antigravity Provider Core | v1.3 | 0/2 | Not started | - |
 | 12. IDE Context & Hook Setup | v1.3 | 0/? | Not started | - |
 | 13. Safe Injection & Documentation | v1.3 | 0/? | Not started | - |
