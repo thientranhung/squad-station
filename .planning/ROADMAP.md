@@ -100,10 +100,11 @@ Plans:
   2. `tmux.rs` uses `load-buffer` + `paste-buffer` via a temp file for content delivery, and the temp file is cleaned up after each send
   3. `PLAYBOOK.md` documents the `squad-station signal $TMUX_PANE` inline hook command as the canonical setup method, replacing the shell script reference
   4. `PLAYBOOK.md` covers the Antigravity provider and IDE orchestrator mode with correct `squad.yml` syntax
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Add `inject_body` to `tmux.rs` (load-buffer/paste-buffer + temp file cleanup) and wire `send.rs` (TMUX-01, TMUX-02)
+- [ ] 13-02-PLAN.md — Rewrite `docs/PLAYBOOK.md` with v1.3 inline hook, Antigravity mode, and Notification hooks (DOCS-01, DOCS-02, DOCS-03)
 
 ## Progress
 
@@ -121,4 +122,4 @@ Plans:
 | 10. Centralized Hooks | v1.3 | 2/2 | Complete | 2026-03-09 |
 | 11. Antigravity Provider Core | 2/2 | Complete    | 2026-03-09 | - |
 | 12. IDE Context & Hook Setup | 2/2 | Complete    | 2026-03-09 | - |
-| 13. Safe Injection & Documentation | v1.3 | 0/? | Not started | - |
+| 13. Safe Injection & Documentation | v1.3 | 0/2 | Not started | - |
