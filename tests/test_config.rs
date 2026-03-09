@@ -36,3 +36,24 @@ fn test_tool_field() {
     let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(cfg.agents[0].tool, "gemini");
 }
+
+#[test]
+fn test_antigravity_tool_parses() {
+    let yaml = "project: p\norchestrator:\n  tool: antigravity\nagents: []";
+    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(cfg.orchestrator.tool, "antigravity");
+}
+
+#[test]
+fn test_is_db_only_antigravity() {
+    let yaml = "project: p\norchestrator:\n  tool: antigravity\nagents: []";
+    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+    assert!(cfg.orchestrator.is_db_only());
+}
+
+#[test]
+fn test_is_db_only_claude_code_false() {
+    let yaml = "project: p\norchestrator:\n  tool: claude-code\nagents: []";
+    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+    assert!(!cfg.orchestrator.is_db_only());
+}

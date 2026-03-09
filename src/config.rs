@@ -22,6 +22,14 @@ pub struct AgentConfig {
                                // command field is REMOVED (CONF-03: tool infers launch command)
 }
 
+impl AgentConfig {
+    /// Returns true when the agent uses DB-only mode (no tmux session).
+    /// Currently only "antigravity" is DB-only. All other tool values use tmux.
+    pub fn is_db_only(&self) -> bool {
+        self.tool == "antigravity"
+    }
+}
+
 fn default_role() -> String {
     "worker".to_string()
 }
