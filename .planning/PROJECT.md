@@ -55,9 +55,15 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 - ✓ `inject_body` via `load-buffer`/`paste-buffer` for safe multiline task body delivery — v1.3
 - ✓ PLAYBOOK.md rewritten as authoritative v1.3 guide (inline hooks, Antigravity mode, Notification hooks) — v1.3
 
-### Active
+## Current Milestone: v1.4 Unified Playbook & Local DB
 
-<!-- Next milestone scope will be defined via /gsd:new-milestone -->
+**Goal:** Replace fragmented context files with a single cohesive orchestrator playbook, and move DB into the project directory for data locality.
+
+**Target features:**
+- Unified `squad-orchestrator.md` playbook (replaces 3 fragmented workflow files)
+- Local DB at `.squad/station.db` inside project dir (replaces `~/.agentic-squad/<project>/station.db`)
+
+### Active
 
 ### Out of Scope
 
@@ -126,4 +132,4 @@ Safe injection: load-buffer/paste-buffer pattern for multiline task bodies (no s
 | PLAYBOOK.md inline hook as canonical | Shell scripts in `hooks/` deprecated — single install path reduces user confusion | ✓ Good — clearer onboarding |
 
 ---
-*Last updated: 2026-03-09 after v1.3 milestone*
+*Last updated: 2026-03-10 after v1.4 milestone start*
