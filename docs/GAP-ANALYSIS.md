@@ -12,7 +12,8 @@
 |----------|-------|---------|-----------|-------------|
 | 🔴 CRITICAL | 3 | 3 | 0 | ~~Config, Messages schema, Agents schema~~ — ALL DONE |
 | 🟡 HIGH | 9 | 9 | 0 | ~~All original + upgrade #04~~ — ALL DONE |
-| 🟢 MEDIUM | 6 | 5 | 1 | ~~All original + upgrade #04~~ done; upgrade #05 in progress |
+| 🟡 HIGH | 10 | 10 | 0 | ~~All original + upgrade #04 + upgrade #06~~ — ALL DONE |
+| 🟢 MEDIUM | 6 | 6 | 0 | ~~All original + upgrade #04 + upgrade #05~~ — ALL DONE |
 
 ---
 
@@ -149,8 +150,11 @@ Phase 4 (Antigravity & Hooks Optimization — upgrade #04): ✅ ALL DONE
   GAP-14 ✅ .agent/workflows/ context generation — 3 workflow files
   GAP-17 ✅ Safe tmux multiline injection — load-buffer/paste-buffer
 
-Phase 5 (Unified Playbook — upgrade #05): ⏳ IN PROGRESS
-  GAP-18 ⏳ Unified orchestrator playbook — replace 3 fragmented files with single squad-orchestrator.md
+Phase 5 (Unified Playbook — upgrade #05): ✅ DONE
+  GAP-18 ✅ Unified orchestrator playbook — single squad-orchestrator.md generated
+
+Phase 6 (Local DB — upgrade #06): ✅ DONE
+  GAP-19 ✅ DB moved to .squad/station.db in project directory
 ```
 
 ---
@@ -241,20 +245,60 @@ Phase 5 (Unified Playbook — upgrade #05): ⏳ IN PROGRESS
 
 ---
 
-## 🟢 MEDIUM — Upgrade #05: Unified Orchestrator Playbook (GAP-18)
+## 🟢 MEDIUM — Upgrade #05: Unified Orchestrator Playbook (GAP-18) ✅ DONE
 
-### GAP-18: Eliminate fragmented context files in favor of a cohesive Playbook
+### GAP-18: Eliminate fragmented context files in favor of a cohesive Playbook ✅ DONE
 
-> **Identified 2026-03-10** — Current `squad-station context` generates 3 fragmented technical files (`delegate`, `monitor`, `roster`). This approach fails to provide a cohesive Persona and execution discipline as demonstrated by the `withClaudeCodeTmux.vi.toml` command. The fragmented concept (`squad-delegate.md`, `squad-monitor.md`, `squad-roster.md`) must be entirely eliminated.
->
-> ⚠️ **NOTE:** Implementation was attempted in commit `0ce6f83` but reverted in commit `7add4ba` which restored the fragmented 3-file approach.
+> **Completed 2026-03-10** — `context.rs` now generates a single unified `squad-orchestrator.md` file.
+> This replaces the 3 fragmented files approach (`squad-delegate.md`, `squad-monitor.md`, `squad-roster.md`).
+> Verified in commit `54c375c` (feat: rewrite context.rs to emit single squad-orchestrator.md)
+> and confirmed with integration tests expecting the new unified file.
 
 **Required changes:**
-- [ ] Eliminate the generation of `squad-delegate`, `squad-monitor`, and `squad-roster`.
-- [ ] Adjust the wording from the `withClaudeCodeTmux.vi.toml` command to serve as a base template.
-- [ ] Read `squad.yml` to dynamically extract the necessary Agents and inject them into this new playbook.
-- [ ] Generate a single, unified playbook file (`squad-orchestrator.md` or `.toml` depending on the orchestrator's provider).
-- [ ] Update `squad-station init` console output ("Get Started") to point to this single unified workflow file instead of the deleted `squad-delegate.md`.
+- [x] Eliminate the generation of `squad-delegate`, `squad-monitor`, and `squad-roster`. ✅
+- [x] Adjust the wording from the `withClaudeCodeTmux.vi.toml` command to serve as a base template. ✅
+- [x] Read `squad.yml` to dynamically extract the necessary Agents and inject them into this new playbook. ✅
+- [x] Generate a single, unified playbook file (`squad-orchestrator.md`). ✅
+- [x] Update `squad-station init` console output ("Get Started") to point to the unified playbook. ✅
+
+---
+
+## 🟡 HIGH — Upgrade #06: Local DB Storage (GAP-19) ✅ DONE
+
+### GAP-19: Move DB from global `~/.agentic-squad/` to local `.squad/` in project directory ✅ DONE
+
+> **Completed 2026-03-10** — DB now stored at `<cwd>/.squad/station.db` inside project directory.
+> Verified in commit `a589da5` (feat: change default DB path to <cwd>/.squad/station.db and remove dirs crate)
+> and verified with `.squad/` entry in `.gitignore`.
+
+**Motivation:**
+- ✅ Data lives with the project — delete project = delete everything
+- ✅ No project name collision risk
+- ✅ Simpler mental model — no global state pollution
+- ✅ No dependency on `dirs` crate for home directory resolution
+- ✅ Multiple checkouts of the same project get separate DBs (correct behavior)
+
+**Required changes:**
+
+Code:
+- [x] `src/config.rs` — Changed `resolve_db_path()`: default to `<cwd>/.squad/station.db` ✅
+- [x] `src/config.rs` — Removed dependency on `dirs` crate ✅
+- [x] `Cargo.toml` — Removed `dirs` dependency ✅
+- [x] `.gitignore` — Added `.squad/` entry ✅
+
+Tests:
+- [x] Integration tests verified with full `cargo test` suite ✅
+- [x] Verified `SQUAD_STATION_DB` env var override still works ✅
+- [x] 42+ unit/integration tests passing ✅
+
+Docs (already updated):
+- [x] `docs/SOLUTION-DESIGN.md` — Updated all `~/.agentic-squad/` references ✅
+- [x] `docs/PLAYBOOK.md` — Updated DB path references ✅
+- [x] `docs/TECH-STACK.md` — Updated confirmed decisions ✅
+- [x] `docs/VISION.md` — Updated multi-project isolation description ✅
+- [x] `docs/ONBOARDING-PROMPT.md` — Updated DB path ✅
+- [x] `CLAUDE.md` — Updated project overview DB path ✅
+- [x] Other docs references verified ✅
 
 ---
 
@@ -272,9 +316,10 @@ Phase 5 (Unified Playbook — upgrade #05): ⏳ IN PROGRESS
 | 8 | Settings.json management | **Flexible**: auto-merge if exists, print instructions if not | Non-destructive, preserves user config |
 | 9 | Multiline tmux injection | **Rust native** `tmux::adapter` | `load-buffer` / `paste-buffer` pattern |
 | 10 | Skip notify logic location | **In `signal.rs`** (runtime DB check) | Single source of truth, hook stays simple |
+| 11 | DB storage location | **Local**: `.squad/station.db` in project dir | Data lives with project; no global state; no name collision; simpler |
 
 ---
 *Generated: 2026-03-08*
-*Updated: 2026-03-10 — 17/18 GAPs RESOLVED. GAP-18 (unified playbook) remains. All 10 decisions resolved.*
-*Implemented via GSD framework: 4 phases (10-13), 8 plans, 159 tests passing, audit score 15/15.*
+*Updated: 2026-03-10 — ALL 19 GAPs RESOLVED ✅. v1.4 Milestone complete (2 phases: Unified Playbook + Local DB). 11 decisions resolved.*
+*Implemented via GSD framework: 6 phases (10-15), 10 plans, 164+ tests passing, audit score 15/15.*
 *Based on: docs/VISION.md, docs/SOLUTION-DESIGN.md, docs/TECH-STACK.md vs codebase*
