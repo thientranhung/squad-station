@@ -237,17 +237,16 @@ Phase 4 (Antigravity & Hooks Optimization — upgrade #04): ✅ ALL DONE
 
 ## 🟢 MEDIUM — Upgrade #05: Unified Orchestrator Playbook (GAP-18)
 
-### GAP-18: Context structure lacks Persona and execution discipline (3 fragmented files)
+### GAP-18: Eliminate fragmented context files in favor of unified Playbook
 
-> **Identified 2026-03-10** — Current `squad-station context` generates 3 fragmented technical files (`delegate`, `monitor`, `roster`). This API-style documentation fails to properly steer the LLM (Orchestrator), causing it to ignore rules (e.g., it writes code instead of delegating, forgets to copy full context between sessions).
+> **Identified 2026-03-10** — Current `squad-station context` generates 3 fragmented technical files. This fails to properly steer the LLM Orchestrator. The idea of separate `squad-delegate`, `squad-monitor`, and `squad-roster` is flawed and will be completely eliminated.
 
 **Required changes:**
-- [ ] Collapse `squad-delegate`, `squad-monitor`, and `squad-roster` into a **single, unified playbook file**.
-- [ ] Rename output to `.agent/workflows/squad-orchestrator-playbook.md` (for `antigravity`).
-- [ ] Add strong **Persona** definition (e.g., "AI Project Manager & Principal Tech Lead").
-- [ ] Add explicit **Pre-flight rules** (read specific project files/architecture docs before acting).
-- [ ] Incorporate strict **Context Handoff** discipline (must capture full pane output verbatim and pass to next agent, NO summarization).
-- [ ] Maintain the dynamic Agent Roster inside this single file.
+- [x] Completely eliminate the concept of `squad-delegate`, `squad-monitor`, and `squad-roster`.
+- [x] Replace context generation logic to generate a **single, unified playbook file**.
+- [x] Target correct directories based on orchestrator tool (`.agent/workflows/` for `antigravity`, `.gemini/commands/` for `gemini-cli`, `.claude/commands/` for `claude-code`).
+- [x] Adapt the Orchestrator persona ("AI PM & Tech Lead"), strict Context Handoff rules, and execution discipline from the provided reference command.
+- [x] Dynamically inject the listed agents from `squad.yml` into the unified document.
 
 ---
 
