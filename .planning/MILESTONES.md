@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.4 Unified Playbook & Local DB (Shipped: 2026-03-10)
+
+**Phases:** 14-15 | **Plans:** 4 | **Files changed:** 23 (+1,505 / -213) | **Timeline:** 1 day (2026-03-10)
+**Git range:** docs(14) create phase plan → docs(phase-15) complete phase execution
+
+**Key accomplishments:**
+- `context` generates single unified `squad-orchestrator.md` replacing 3 fragmented files (squad-delegate, squad-monitor, squad-roster)
+- `init` Get Started message references new `squad-orchestrator.md` path
+- DB path moved from `~/.agentic-squad/<project>/station.db` to `<cwd>/.squad/station.db` for data locality
+- `dirs` crate removed from dependencies (no longer needed for home dir resolution)
+- `.gitignore`, `CLAUDE.md`, and `README.md` updated for new DB location; all `~/.agentic-squad/` references removed
+
+**Archives:** [v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) | [v1.4-REQUIREMENTS.md](milestones/v1.4-REQUIREMENTS.md)
+
+---
+
 ## v1.3 Antigravity & Hooks Optimization (Shipped: 2026-03-09)
 
 **Phases:** 10-13 | **Plans:** 8 | **Timeline:** 1 day (2026-03-09)

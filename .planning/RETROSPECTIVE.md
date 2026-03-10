@@ -192,6 +192,47 @@
 
 ---
 
+## Milestone: v1.4 — Unified Playbook & Local DB
+
+**Shipped:** 2026-03-10
+**Phases:** 2 (14-15) | **Plans:** 4 | **Files changed:** 23 (+1,505 / -213)
+
+### What Was Built
+- `context` generates single unified `squad-orchestrator.md` replacing 3 fragmented workflow files
+- `init` Get Started message updated to reference unified playbook
+- DB path moved from `~/.agentic-squad/<project>/station.db` to `<cwd>/.squad/station.db`
+- `dirs` crate removed from Cargo.toml dependencies
+- `.gitignore`, `CLAUDE.md`, `README.md` updated for new DB location
+
+### What Worked
+- Smallest milestone yet (2 phases, 4 plans) — focused scope led to fast execution
+- `resolve_db_path` as single injection point made DB path change surgical — one function change affected all commands
+- Clean break from old DB path (no migration, no warnings) — correct call for dev builds
+- Phase 14→15 dependency chain was straightforward — playbook change independent of DB change
+
+### What Was Inefficient
+- SUMMARY `one_liner` field still not populated — 5th milestone in a row with empty field
+- No milestone audit — requirements were simple enough that skipping was acceptable but pattern continues
+- discuss-phase interrupted mid-flow — only captured one decision before user moved to planning
+
+### Patterns Established
+- `build_orchestrator_md` as pub fn — integration tests verify playbook content directly
+- CWD-relative DB path: `std::env::current_dir()` replaces `dirs::home_dir()` + project name
+- Single unified context file over multiple fragments — reduces orchestrator context load
+
+### Key Lessons
+1. Small milestones (2 phases) are efficient — scope clarity reduces overhead
+2. Single injection point pattern (resolve_db_path) pays off for cross-cutting changes
+3. No migration needed for dev-only tools — clean break saves complexity
+4. Still need to fill SUMMARY one_liner — tooling gap persists across 5 milestones
+
+### Cost Observations
+- Model mix: ~90% sonnet, ~10% opus (planner + checker)
+- Sessions: ~3 execution sessions
+- Notable: Entire milestone planned and executed in a single day
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -202,6 +243,7 @@
 | v1.1 | 3 | 7 | 58+ | Schema-first migration, TDD for shell scripts, gap-analysis-driven scope |
 | v1.2 | 3 | 5 | 58+ | Distribution layer — CI/CD, npm, curl installer, no new Rust code |
 | v1.3 | 4 | 8 | 58+ | Provider abstraction, safe injection, first formal milestone audit |
+| v1.4 | 2 | 4 | 164 | Unified playbook, local DB, smallest milestone — focused scope |
 
 ### Cumulative Quality
 
@@ -211,11 +253,13 @@
 | v1.1 | 58+ | 0 | 0 (clean close) |
 | v1.2 | 58+ | 0 | 0 (audit skipped) |
 | v1.3 | 58+ | 0 | 3 (cosmetic: stale comments, 1 edge case, 1 stale doc section) |
+| v1.4 | 164 | 0 | 0 (clean close, audit skipped) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Safety-first architecture: wire all safety primitives in the foundation phase
 2. Stateless CLI + SQLite WAL = simple, testable, concurrent-safe
 3. Atomic schema migrations with clear before/after states — clean upgrade path, no data loss
-4. Fill SUMMARY one_liner during execution — milestone tooling depends on it (4 milestones in a row with empty field)
+4. Fill SUMMARY one_liner during execution — milestone tooling depends on it (5 milestones in a row with empty field)
 5. Run milestone audit before completion — v1.3 first to do this; caught only tech debt (no blocking gaps)
+6. Small focused milestones (2 phases) execute efficiently — minimal overhead, clear scope

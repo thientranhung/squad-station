@@ -54,14 +54,12 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 - ✓ `init` safely merges hooks into existing `settings.json` with `.bak` backup; fallback instructions when absent — v1.3
 - ✓ `inject_body` via `load-buffer`/`paste-buffer` for safe multiline task body delivery — v1.3
 - ✓ PLAYBOOK.md rewritten as authoritative v1.3 guide (inline hooks, Antigravity mode, Notification hooks) — v1.3
-
-## Current Milestone: v1.4 Unified Playbook & Local DB
-
-**Goal:** Replace fragmented context files with a single cohesive orchestrator playbook, and move DB into the project directory for data locality.
-
-**Target features:**
-- Unified `squad-orchestrator.md` playbook (replaces 3 fragmented workflow files)
-- Local DB at `.squad/station.db` inside project dir (replaces `~/.agentic-squad/<project>/station.db`)
+- ✓ `context` generates single unified `squad-orchestrator.md` replacing 3 fragmented workflow files — v1.4
+- ✓ `init` Get Started message references `squad-orchestrator.md` — v1.4
+- ✓ DB path moved to `<cwd>/.squad/station.db` (local, no home-dir resolution) — v1.4
+- ✓ `dirs` crate removed from dependencies — v1.4
+- ✓ `.gitignore` excludes `.squad/`, docs updated for new DB path — v1.4
+- ✓ `SQUAD_STATION_DB` env var override preserved through DB path change — v1.4
 
 ### Active
 
@@ -77,19 +75,20 @@ Routing messages đáng tin cậy giữa Orchestrator và agents — gửi task 
 
 ## Context
 
-Shipped v1.3 Antigravity & Hooks Optimization with ~78k LOC Rust total (codebase + tests).
+Shipped v1.4 Unified Playbook & Local DB with 6,169 LOC Rust (codebase + tests).
 Tech stack: Rust, SQLite (sqlx 0.8), clap 4, ratatui 0.26, serde-saphyr, owo-colors 3, uuid (temp file naming).
 Distribution: npm package + curl | sh installer, both download pre-built binaries from GitHub Releases.
 CI/CD: GitHub Actions matrix workflow produces 4 musl/darwin binaries on v* tag push.
 Providers supported: claude-code, gemini-cli, antigravity (DB-only IDE orchestrator).
 Hook registration: inline `squad-station signal $TMUX_PANE` command (scripts in hooks/ deprecated).
-Context generation: `.agent/workflows/` with 3 markdown files for IDE orchestrator guidance.
+Context generation: `.agent/workflows/squad-orchestrator.md` — single unified playbook for IDE orchestrator.
 Safe injection: load-buffer/paste-buffer pattern for multiline task bodies (no shell-injection artifacts).
+Database: `.squad/station.db` in project directory (no home-dir dependency, no `dirs` crate).
 
 ## Constraints
 
 - **Language**: Rust — single binary, zero runtime dependency, cross-compile cho darwin/linux
-- **Database**: SQLite embedded — 1 DB file per project tại `~/.agentic-squad/<project>/station.db`
+- **Database**: SQLite embedded — 1 DB file per project tại `<cwd>/.squad/station.db`
 - **Architecture**: Stateless CLI — mỗi command chạy xong exit, không daemon, không background process
 - **Communication**: tmux send-keys để inject prompt vào agent, tmux capture-pane để đọc output
 - **Distribution**: npm package wrapper — download pre-built binary phù hợp platform
@@ -130,6 +129,10 @@ Safe injection: load-buffer/paste-buffer pattern for multiline task bodies (no s
 | JSON mode guard in `init.rs` | Hook instructions suppressed from stdout when `--json` active — preserves machine-parseable output | ✓ Good — composable CLI |
 | `inject_body` uses uuid-named temp file | Prevents concurrent `send` calls from clobbering each other's buffer; cleanup on all code paths | ✓ Good — safe concurrent usage |
 | PLAYBOOK.md inline hook as canonical | Shell scripts in `hooks/` deprecated — single install path reduces user confusion | ✓ Good — clearer onboarding |
+| Single unified `squad-orchestrator.md` | One file replaces 3 fragmented workflow files — reduces context load for orchestrator | ✓ Good — simpler context loading |
+| `build_orchestrator_md` as pub function | Integration tests can import and verify playbook content directly | ✓ Good — testable playbook generation |
+| DB at `<cwd>/.squad/station.db` | Data locality — no home-dir resolution, no project-name collision risk | ✓ Good — simpler path, no `dirs` crate |
+| No old DB migration | Dev builds only, no production data to preserve — clean break | ✓ Good — zero complexity |
 
 ---
-*Last updated: 2026-03-10 after v1.4 milestone start*
+*Last updated: 2026-03-10 after v1.4 milestone complete*
