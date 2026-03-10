@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Unified Playbook & Local DB
-status: ready_to_plan
-stopped_at: Phase 14 ready to plan
-last_updated: "2026-03-10T00:00:00.000Z"
-last_activity: 2026-03-10 — Roadmap created, phases 14-15 defined
+status: planning
+stopped_at: Completed 14-unified-orchestrator-playbook-01-PLAN.md
+last_updated: "2026-03-10T08:08:10.183Z"
+last_activity: 2026-03-10 — Roadmap created for v1.4, phases 14-15 defined
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -46,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 | - | - | - | - |
 
 *Updated after each plan completion*
+| Phase 14-unified-orchestrator-playbook P01 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,8 @@ All decisions logged in PROJECT.md Key Decisions table.
 - JSON mode guard in `init.rs` — hook instructions suppressed from stdout when `--json` active
 - `.agent/workflows/` is the IDE orchestrator context path (3 files in v1.3; v1.4 replaces with 1 file)
 - `SQUAD_STATION_DB` env var in `resolve_db_path` — single injection point for all commands; override must survive v1.4 path change
+- [Phase 14-unified-orchestrator-playbook]: Made build_orchestrator_md pub so integration tests can import it; orchestrator agents excluded from delegation block but included in roster table
+- [Phase 14-unified-orchestrator-playbook]: Anti-context-decay rule references squad-orchestrator.md explicitly — single file is the reset point for context recovery
 
 ### Pending Todos
 
@@ -69,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Roadmap written — Phase 14 ready to plan
+Last session: 2026-03-10T08:08:10.181Z
+Stopped at: Completed 14-unified-orchestrator-playbook-01-PLAN.md
 Resume file: None
