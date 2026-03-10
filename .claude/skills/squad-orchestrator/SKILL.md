@@ -1,7 +1,6 @@
 ---
 name: squad-orchestrator
 description: AI Orchestrator — manage and coordinate squad agents
-trigger: explicit
 argument-hint: <task description>
 ---
 
