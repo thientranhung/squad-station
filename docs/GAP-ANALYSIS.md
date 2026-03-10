@@ -235,6 +235,22 @@ Phase 4 (Antigravity & Hooks Optimization — upgrade #04): ✅ ALL DONE
 
 ---
 
+## 🟢 MEDIUM — Upgrade #05: Unified Orchestrator Playbook (GAP-18)
+
+### GAP-18: Context structure lacks Persona and execution discipline (3 fragmented files)
+
+> **Identified 2026-03-10** — Current `squad-station context` generates 3 fragmented technical files (`delegate`, `monitor`, `roster`). This API-style documentation fails to properly steer the LLM (Orchestrator), causing it to ignore rules (e.g., it writes code instead of delegating, forgets to copy full context between sessions).
+
+**Required changes:**
+- [ ] Collapse `squad-delegate`, `squad-monitor`, and `squad-roster` into a **single, unified playbook file**.
+- [ ] Rename output to `.agent/workflows/squad-orchestrator-playbook.md` (for `antigravity`).
+- [ ] Add strong **Persona** definition (e.g., "AI Project Manager & Principal Tech Lead").
+- [ ] Add explicit **Pre-flight rules** (read specific project files/architecture docs before acting).
+- [ ] Incorporate strict **Context Handoff** discipline (must capture full pane output verbatim and pass to next agent, NO summarization).
+- [ ] Maintain the dynamic Agent Roster inside this single file.
+
+---
+
 ## Owner Decisions Needed
 
 ### All Decisions — Resolved ✅
