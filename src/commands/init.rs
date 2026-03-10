@@ -149,7 +149,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         println!("\nGet Started (IDE Orchestrator):");
         println!("  1. Open your AI Assistant (e.g., Antigravity, Cursor, Gemini)");
         println!("  2. Point it to the generated workflows, for example:");
-        println!("     \"Please read .agent/workflows/squad-delegate.md and start delegating tasks.\"");
+        println!("     \"Please read .agent/workflows/squad-orchestrator.md and start delegating tasks.\"");
         println!("  3. Your AI will autonomously use squad-station to orchestrate the worker agents.");
     }
 
