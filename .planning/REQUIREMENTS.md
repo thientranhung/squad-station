@@ -12,7 +12,7 @@ Unified orchestrator playbook replacing fragmented 3-file context approach.
 - [x] **PLAY-01**: `context` generates a single `squad-orchestrator.md` (replaces 3 fragmented files: squad-delegate, squad-monitor, squad-roster)
 - [x] **PLAY-02**: Playbook uses `withClaudeCodeTmux.vi.toml` wording as base template, adapted for markdown delivery
 - [x] **PLAY-03**: Playbook dynamically injects agent list from `squad.yml` (names, models, descriptions, roles)
-- [ ] **PLAY-04**: `init` "Get Started" console output references the new `squad-orchestrator.md` path instead of deprecated `squad-delegate.md`
+- [x] **PLAY-04**: `init` "Get Started" console output references the new `squad-orchestrator.md` path instead of deprecated `squad-delegate.md`
 
 ### LocalDB
 
@@ -44,7 +44,7 @@ None — both gaps are fully scoped for v1.4.
 | PLAY-01 | Phase 14 | Complete |
 | PLAY-02 | Phase 14 | Complete |
 | PLAY-03 | Phase 14 | Complete |
-| PLAY-04 | Phase 14 | Pending |
+| PLAY-04 | Phase 14 | Complete |
 | LODB-01 | Phase 15 | Pending |
 | LODB-02 | Phase 15 | Pending |
 | LODB-03 | Phase 15 | Pending |
