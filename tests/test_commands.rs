@@ -228,3 +228,89 @@ async fn test_context_includes_model_and_description() {
         Some("Developer agent. Writes code.")
     );
 }
+
+#[tokio::test]
+async fn test_context_generates_single_orchestrator_file() {
+    // Verify agent fields are correctly populated for context generation
+    let db = helpers::setup_test_db().await;
+
+    db::agents::insert_agent(
+        &db,
+        "proj-claude-orchestrator",
+        "claude-code",
+        "orchestrator",
+        Some("claude-haiku"),
+        Some("Orchestrator agent"),
+    )
+    .await
+    .unwrap();
+
+    db::agents::insert_agent(
+        &db,
+        "proj-claude-implement",
+        "claude-code",
+        "worker",
+        Some("claude-sonnet"),
+        Some("Senior coder"),
+    )
+    .await
+    .unwrap();
+
+    let agents = db::agents::list_agents(&db).await.unwrap();
+
+    let worker = agents.iter().find(|a| a.role == "worker").unwrap();
+    let orch = agents.iter().find(|a| a.role == "orchestrator").unwrap();
+
+    assert_eq!(worker.name, "proj-claude-implement");
+    assert_eq!(worker.model.as_deref(), Some("claude-sonnet"));
+    assert_eq!(worker.description.as_deref(), Some("Senior coder"));
+    assert_eq!(orch.role, "orchestrator");
+}
+
+#[tokio::test]
+async fn test_build_orchestrator_md_contains_all_sections() {
+    use squad_station::commands::context::build_orchestrator_md;
+
+    let db = helpers::setup_test_db().await;
+    db::agents::insert_agent(
+        &db,
+        "p-claude-implement",
+        "claude-code",
+        "worker",
+        Some("claude-sonnet"),
+        Some("Coder"),
+    )
+    .await
+    .unwrap();
+    db::agents::insert_agent(
+        &db,
+        "p-claude-orchestrator",
+        "claude-code",
+        "orchestrator",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let agents = db::agents::list_agents(&db).await.unwrap();
+    let content = build_orchestrator_md(&agents);
+
+    assert!(content.contains("# Squad Orchestrator Playbook"), "Missing title");
+    assert!(content.contains("## Delegation Workflow"), "Missing delegation section");
+    assert!(content.contains("## Monitoring Workflow"), "Missing monitoring section");
+    assert!(content.contains("## Agent Roster"), "Missing roster section");
+    assert!(content.contains("p-claude-implement"), "Worker agent missing from content");
+    assert!(content.contains("claude-sonnet"), "Worker model missing");
+    assert!(
+        content.contains("squad-orchestrator.md"),
+        "Anti-decay rule must reference new file name"
+    );
+    // Orchestrator should NOT appear in the send-command delegation block
+    let delegation_section_end = content.find("## How to Delegate").unwrap_or(content.len());
+    let delegation_section = &content[..delegation_section_end];
+    assert!(
+        !delegation_section.contains("p-claude-orchestrator"),
+        "Orchestrator must not appear in delegation send-command block"
+    );
+}
