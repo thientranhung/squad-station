@@ -56,11 +56,11 @@ Inline signal via $TMUX_PANE, antigravity DB-only provider, .agent/workflows/ co
   2. The generated `squad-orchestrator.md` contains wording and structure derived from `withClaudeCodeTmux.vi.toml` (delegation, monitoring, roster sections in one file)
   3. The agent list section inside `squad-orchestrator.md` reflects the actual agents in `squad.yml` — correct names, models, descriptions, and roles
   4. Running `squad-station init` prints a "Get Started" message referencing `.agent/workflows/squad-orchestrator.md`, not the old `squad-delegate.md` path
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: Rewrite `context` command to generate single `squad-orchestrator.md` from base template with dynamic agent injection
-- [ ] 14-02: Update `init` "Get Started" console output to reference `squad-orchestrator.md`
+- [ ] 14-01-PLAN.md — Rewrite context.rs to generate single squad-orchestrator.md with dynamic agent injection
+- [ ] 14-02-PLAN.md — Update init Get Started console output to reference squad-orchestrator.md
 
 ### Phase 15: Local DB Storage
 **Goal**: The DB lives at `.squad/station.db` inside the working project directory — no home-dir path resolution, no `dirs` crate, no name-collision risk — with env var override intact and all docs/tests updated to reflect the new location
