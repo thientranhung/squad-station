@@ -72,11 +72,11 @@ Plans:
   3. Setting `SQUAD_STATION_DB=/custom/path/db` overrides the default and all commands use that path instead
   4. The project `.gitignore` contains a `.squad/` entry so the local DB is not accidentally committed
   5. `CLAUDE.md` and `README.md` document `.squad/station.db` as the DB location (no references to `~/.agentic-squad/`)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: Change `resolve_db_path` default to `<cwd>/.squad/station.db`, remove `dirs` from `Cargo.toml`
-- [ ] 15-02: Update `.gitignore`, `test_db_path_resolution_default` assertion, `CLAUDE.md`, and `README.md`
+- [ ] 15-01-PLAN.md — Change resolve_db_path default to cwd/.squad/station.db, remove dirs crate, update test
+- [ ] 15-02-PLAN.md — Add .squad/ to .gitignore, update CLAUDE.md and README.md with new DB path
 
 ## Progress
 
