@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Unified Playbook & Local DB
 status: planning
-stopped_at: Completed 15-local-db-storage-01-PLAN.md
-last_updated: "2026-03-10T09:35:50.678Z"
+stopped_at: Completed 15-local-db-storage-02-PLAN.md
+last_updated: "2026-03-10T09:38:01.955Z"
 last_activity: 2026-03-10 — Roadmap created for v1.4, phases 14-15 defined
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 14-unified-orchestrator-playbook P01 | 4min | 2 tasks | 4 files |
 | Phase 14-unified-orchestrator-playbook P02 | 1min | 1 tasks | 1 files |
 | Phase 15-local-db-storage P01 | 8min | 2 tasks | 4 files |
+| Phase 15-local-db-storage P02 | 1min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [Phase 14-unified-orchestrator-playbook]: Anti-context-decay rule references squad-orchestrator.md explicitly — single file is the reset point for context recovery
 - [Phase 14-unified-orchestrator-playbook]: Only the squad-delegate.md path in the Get Started println was changed — all other init.rs logic preserved
 - [Phase 15-local-db-storage]: DB path now relative to cwd: <cwd>/.squad/station.db eliminates home-dir dependency and project-name collision risk
+- [Phase 15-local-db-storage]: .squad/ excluded from git to prevent accidental DB commits; all user-facing docs now reference .squad/station.db
 
 ### Pending Todos
 
@@ -76,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T09:35:50.676Z
-Stopped at: Completed 15-local-db-storage-01-PLAN.md
+Last session: 2026-03-10T09:38:01.953Z
+Stopped at: Completed 15-local-db-storage-02-PLAN.md
 Resume file: None

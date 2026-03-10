@@ -43,7 +43,7 @@ Inline signal via $TMUX_PANE, antigravity DB-only provider, .agent/workflows/ co
 **Milestone Goal:** Replace fragmented context files with a single cohesive orchestrator playbook, and move DB into the project directory for data locality.
 
 - [x] **Phase 14: Unified Orchestrator Playbook** - `context` generates a single `squad-orchestrator.md` replacing the 3 fragmented workflow files (completed 2026-03-10)
-- [ ] **Phase 15: Local DB Storage** - DB path moves to `<cwd>/.squad/station.db`, `dirs` crate removed, docs and tests updated
+- [x] **Phase 15: Local DB Storage** - DB path moves to `<cwd>/.squad/station.db`, `dirs` crate removed, docs and tests updated (completed 2026-03-10)
 
 ## Phase Details
 
@@ -87,4 +87,4 @@ Plans:
 | 7-9. Distribution | v1.2 | - | Complete | 2026-03-09 |
 | 10-13. Antigravity & Hooks | v1.3 | - | Complete | 2026-03-09 |
 | 14. Unified Orchestrator Playbook | 2/2 | Complete   | 2026-03-10 | - |
-| 15. Local DB Storage | 1/2 | In Progress|  | - |
+| 15. Local DB Storage | 2/2 | Complete   | 2026-03-10 | - |

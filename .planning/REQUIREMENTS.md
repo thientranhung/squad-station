@@ -20,10 +20,10 @@ Move DB into project directory for data locality, simplicity, and no name-collis
 
 - [x] **LODB-01**: Default DB path changes from `~/.agentic-squad/<project>/station.db` to `<cwd>/.squad/station.db`
 - [x] **LODB-02**: `dirs` crate dependency removed from `Cargo.toml` (no longer needed for home dir resolution)
-- [ ] **LODB-03**: `.gitignore` gets `.squad/` entry so the local DB isn't committed
+- [x] **LODB-03**: `.gitignore` gets `.squad/` entry so the local DB isn't committed
 - [x] **LODB-04**: `SQUAD_STATION_DB` env var override continues to work (no behavior change)
 - [x] **LODB-05**: Test `test_db_path_resolution_default` updated to assert `.squad/station.db` (not `.agentic-squad`)
-- [ ] **LODB-06**: `CLAUDE.md` and `README.md` updated with new DB path
+- [x] **LODB-06**: `CLAUDE.md` and `README.md` updated with new DB path
 
 ## v2 Requirements
 
@@ -47,10 +47,10 @@ None — both gaps are fully scoped for v1.4.
 | PLAY-04 | Phase 14 | Complete |
 | LODB-01 | Phase 15 | Complete |
 | LODB-02 | Phase 15 | Complete |
-| LODB-03 | Phase 15 | Pending |
+| LODB-03 | Phase 15 | Complete |
 | LODB-04 | Phase 15 | Complete |
 | LODB-05 | Phase 15 | Complete |
-| LODB-06 | Phase 15 | Pending |
+| LODB-06 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 10 total
