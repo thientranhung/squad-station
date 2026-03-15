@@ -9,7 +9,13 @@ pub async fn run(
     body: String,
     priority: cli::Priority,
     json: bool,
+    thread_id: Option<String>,
 ) -> anyhow::Result<()> {
+    // 0. Validate body is not empty
+    if body.trim().is_empty() {
+        bail!("Task body cannot be empty");
+    }
+
     // 1. Resolve DB path from squad.yml in cwd
     let config_path = std::path::Path::new("squad.yml");
     let config = config::load_config(config_path)?;
@@ -19,9 +25,14 @@ pub async fn run(
     let pool = db::connect(&db_path).await?;
 
     // 3. Validate agent exists in DB
-    let agent_record = db::agents::get_agent(&pool, &agent).await?;
-    if agent_record.is_none() {
-        bail!("Agent not found: {}", agent);
+    let agent_record = match db::agents::get_agent(&pool, &agent).await? {
+        Some(r) => r,
+        None => bail!("Agent not found: {}", agent),
+    };
+
+    // 3b. Prevent sending tasks to orchestrator-role agents
+    if agent_record.role == "orchestrator" {
+        bail!("Cannot send tasks to orchestrator agent: {}", agent);
     }
 
     // 4. Check tmux session alive
@@ -41,6 +52,7 @@ pub async fn run(
         "task_request",
         &body,
         &priority_str,
+        thread_id.as_deref(),
     )
     .await?;
 

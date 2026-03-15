@@ -31,10 +31,22 @@ pub enum Commands {
         /// Task priority
         #[arg(long, value_enum, default_value = "normal")]
         priority: Priority,
+        /// Thread ID to group related messages (omit to start a new thread)
+        #[arg(long)]
+        thread: Option<String>,
     },
     /// Signal agent completion
     Signal {
         /// Agent name or tmux pane ID (e.g. %3). Omit to auto-detect from $TMUX_PANE.
+        agent: Option<String>,
+    },
+    /// Send a mid-task notification to orchestrator (agent needs input)
+    Notify {
+        /// Message to send
+        #[arg(long)]
+        body: String,
+        /// Source agent name. Omit to auto-detect from tmux session name.
+        #[arg(long)]
         agent: Option<String>,
     },
     /// List messages
@@ -42,7 +54,7 @@ pub enum Commands {
         /// Filter by agent name
         #[arg(long)]
         agent: Option<String>,
-        /// Filter by status (pending, completed)
+        /// Filter by status (processing, completed)
         #[arg(long)]
         status: Option<String>,
         /// Maximum number of messages to show
@@ -75,6 +87,30 @@ pub enum Commands {
     Ui,
     /// Open tmux tiled view of all live agent sessions
     View,
+    /// Kill all squad tmux sessions defined in squad.yml
+    Close {
+        /// Path to squad config file
+        #[arg(default_value = "squad.yml")]
+        config: PathBuf,
+    },
+    /// Kill all sessions and delete database, then relaunch
+    Reset {
+        /// Path to squad config file
+        #[arg(default_value = "squad.yml")]
+        config: PathBuf,
+        /// Skip relaunching sessions after reset
+        #[arg(long)]
+        no_relaunch: bool,
+    },
+    /// Delete the local database file only
+    Clean {
+        /// Path to squad config file
+        #[arg(default_value = "squad.yml")]
+        config: PathBuf,
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 /// Task priority level

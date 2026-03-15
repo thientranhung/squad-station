@@ -1,9 +1,14 @@
 pub mod agents;
+pub mod clean;
+pub mod close;
 pub mod context;
+pub mod helpers;
 pub mod init;
 pub mod list;
+pub mod notify;
 pub mod peek;
 pub mod register;
+pub mod reset;
 pub mod send;
 pub mod signal;
 pub mod status;

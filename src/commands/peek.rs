@@ -1,3 +1,5 @@
+use anyhow::bail;
+
 use crate::{config, db};
 
 pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
@@ -8,7 +10,12 @@ pub async fn run(agent: String, json: bool) -> anyhow::Result<()> {
     // 2. Connect to DB
     let pool = db::connect(&db_path).await?;
 
-    // 3. Query the highest-priority pending message for this agent
+    // 3. Validate agent exists
+    if db::agents::get_agent(&pool, &agent).await?.is_none() {
+        bail!("Agent not found: {}", agent);
+    }
+
+    // 4. Query the highest-priority pending message for this agent
     let message = db::messages::peek_message(&pool, &agent).await?;
 
     match message {

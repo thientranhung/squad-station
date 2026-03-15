@@ -1,6 +1,6 @@
-use crate::{config, db, tmux};
-use owo_colors::OwoColorize;
-use owo_colors::Stream;
+use crate::{config, db};
+
+use super::helpers::{colorize_agent_status, format_status_with_duration, pad_colored, reconcile_agent_statuses};
 
 #[derive(serde::Serialize)]
 struct StatusOutput {
@@ -33,14 +33,7 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
     }
 
     // 3. Reconcile status against tmux
-    for agent in &agents {
-        let session_alive = tmux::session_exists(&agent.name);
-        if !session_alive && agent.status != "dead" {
-            db::agents::update_agent_status(&pool, &agent.name, "dead").await?;
-        } else if session_alive && agent.status == "dead" {
-            db::agents::update_agent_status(&pool, &agent.name, "idle").await?;
-        }
-    }
+    reconcile_agent_statuses(&pool).await?;
 
     // 4. Re-fetch after reconciliation
     let agents = db::agents::list_agents(&pool).await?;
@@ -92,85 +85,10 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
         let colored_full = format!("{}{}", colored_status_word, duration_part);
         let status_cell = pad_colored(&raw_status, &colored_full, 20);
         println!(
-            "  {}: {}  |  {} pending",
+            "  {}: {}  |  {} processing",
             a.name, status_cell, a.pending_messages
         );
     }
 
     Ok(())
-}
-
-fn format_status_with_duration(status: &str, status_updated_at: &str) -> String {
-    let since = chrono::DateTime::parse_from_rfc3339(status_updated_at)
-        .ok()
-        .map(|t| {
-            let dur = chrono::Utc::now().signed_duration_since(t);
-            let mins = dur.num_minutes();
-            if mins < 60 {
-                format!("{}m", mins)
-            } else {
-                format!("{}h{}m", mins / 60, mins % 60)
-            }
-        })
-        .unwrap_or_else(|| "?".to_string());
-    format!("{} {}", status, since)
-}
-
-fn colorize_agent_status(status: &str) -> String {
-    match status {
-        "idle" => format!(
-            "{}",
-            status.if_supports_color(Stream::Stdout, |s| s.green())
-        ),
-        "busy" => format!(
-            "{}",
-            status.if_supports_color(Stream::Stdout, |s| s.yellow())
-        ),
-        "dead" => format!("{}", status.if_supports_color(Stream::Stdout, |s| s.red())),
-        _ => status.to_string(),
-    }
-}
-
-fn pad_colored(raw: &str, colored: &str, width: usize) -> String {
-    let raw_len = raw.len();
-    let padding = width.saturating_sub(raw_len);
-    format!("{}{}", colored, " ".repeat(padding))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_format_status_with_duration_minutes() {
-        let now = chrono::Utc::now().to_rfc3339();
-        let result = format_status_with_duration("idle", &now);
-        assert!(result.starts_with("idle 0m") || result.starts_with("idle 1m"));
-    }
-
-    #[test]
-    fn test_format_status_with_duration_hours_format() {
-        let ts = (chrono::Utc::now() - chrono::Duration::minutes(125)).to_rfc3339();
-        let result = format_status_with_duration("busy", &ts);
-        assert!(result.contains("2h5m"), "got: {}", result);
-    }
-
-    #[test]
-    fn test_format_status_with_duration_bad_input() {
-        assert_eq!(format_status_with_duration("dead", "garbage"), "dead ?");
-    }
-
-    #[test]
-    fn test_colorize_agent_status_returns_string_with_status() {
-        for status in &["idle", "busy", "dead", "other"] {
-            let result = colorize_agent_status(status);
-            assert!(result.contains(status));
-        }
-    }
-
-    #[test]
-    fn test_pad_colored_status() {
-        let result = pad_colored("busy 10m", "busy 10m", 20);
-        assert_eq!(result.len(), 20);
-    }
 }

@@ -53,14 +53,14 @@ fn test_context_output_contains_agents() {
     );
     // New behavior: 1-line summary to stdout
     assert!(
-        stdout.contains("Generated .agent/workflows/"),
+        stdout.contains("Generated") && stdout.contains("CLAUDE.md"),
         "context output must contain 1-line summary, got:\n{}",
         stdout
     );
-    // Single unified file must exist (PLAY-01)
+    // Orchestrator context at .squad/orchestrator/CLAUDE.md (GAP-02)
     assert!(
-        tmp.path().join(".agent/workflows/squad-orchestrator.md").exists(),
-        ".agent/workflows/squad-orchestrator.md must be created"
+        tmp.path().join(".squad/orchestrator/CLAUDE.md").exists(),
+        ".squad/orchestrator/CLAUDE.md must be created"
     );
 }
 
@@ -84,9 +84,9 @@ fn test_context_output_has_usage() {
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
-    // Delegation/usage is now in unified squad-orchestrator.md (PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
-    assert!(orchestrator_path.exists(), ".agent/workflows/squad-orchestrator.md must be created");
+    // Orchestrator context at .squad/orchestrator/CLAUDE.md (GAP-02)
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
+    assert!(orchestrator_path.exists(), ".squad/orchestrator/CLAUDE.md must be created");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
         content.contains("squad-station send"),

@@ -14,6 +14,7 @@ pub struct Message {
     pub created_at: String,
     pub updated_at: String,
     pub completed_at: Option<String>, // MSGS-04
+    pub thread_id: Option<String>,    // GAP-07: group related messages
 }
 
 pub async fn insert_message(
@@ -23,13 +24,16 @@ pub async fn insert_message(
     msg_type: &str,   // MSGS-02 ("task_request")
     body: &str,       // task content (stored in `task` column for now)
     priority: &str,
+    thread_id: Option<&str>, // GAP-07: group related messages
 ) -> anyhow::Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
+    // If no thread_id provided, this message starts a new thread (thread_id = msg id)
+    let effective_thread_id = thread_id.unwrap_or(&id);
     // agent_name is set to to_agent value for backward compat with peek_message and update_status subqueries
     sqlx::query(
-        "INSERT INTO messages (id, agent_name, from_agent, to_agent, type, task, status, priority, created_at, updated_at) \
-         VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?)"
+        "INSERT INTO messages (id, agent_name, from_agent, to_agent, type, task, status, priority, created_at, updated_at, thread_id) \
+         VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(to_agent)    // agent_name = to_agent for legacy compat
@@ -40,12 +44,14 @@ pub async fn insert_message(
     .bind(priority)
     .bind(&now)
     .bind(&now)
+    .bind(effective_thread_id)
     .execute(pool)
     .await?;
     Ok(id)
 }
 
-/// Mark the most recent processing message for this agent as completed.
+/// Mark the oldest processing message for this agent as completed (FIFO order).
+/// Respects priority ordering: urgent > high > normal, then oldest first.
 /// Returns the number of rows affected (0 = already completed, not an error — MSG-03 idempotency).
 ///
 /// Uses a subquery to identify the target row because SQLite does not support
@@ -57,7 +63,7 @@ pub async fn update_status(pool: &SqlitePool, agent_name: &str) -> anyhow::Resul
          WHERE id = (\
            SELECT id FROM messages \
            WHERE agent_name = ? AND status = 'processing' \
-           ORDER BY created_at DESC LIMIT 1\
+           ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END, created_at ASC LIMIT 1\
          )",
     )
     .bind(&now)
@@ -100,6 +106,17 @@ pub async fn list_messages(
 
     let messages = q.fetch_all(pool).await?;
     Ok(messages)
+}
+
+/// Count remaining processing messages for an agent.
+pub async fn count_processing(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<i64> {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM messages WHERE agent_name = ? AND status = 'processing'",
+    )
+    .bind(agent_name)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
 }
 
 /// Peek at the highest-priority processing message for an agent.

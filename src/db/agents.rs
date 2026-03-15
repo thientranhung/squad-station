@@ -25,10 +25,10 @@ pub async fn insert_agent(
     description: Option<&str>,
 ) -> anyhow::Result<()> {
     let id = uuid::Uuid::new_v4().to_string();
-    let created_at = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT OR IGNORE INTO agents (id, name, tool, role, command, model, description, created_at) \
-         VALUES (?, ?, ?, ?, '', ?, ?, ?)"
+        "INSERT OR IGNORE INTO agents (id, name, tool, role, command, model, description, created_at, status_updated_at) \
+         VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)"
     )
     .bind(id)
     .bind(name)
@@ -37,7 +37,8 @@ pub async fn insert_agent(
     // command = '' — legacy column; value is empty string placeholder
     .bind(model)
     .bind(description)
-    .bind(created_at)
+    .bind(&now)
+    .bind(&now) // status_updated_at — consistent RFC3339 format
     .execute(pool)
     .await?;
     Ok(())

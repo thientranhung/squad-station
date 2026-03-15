@@ -32,6 +32,18 @@ fn launch_args(session_name: &str, command: &str) -> Vec<String> {
     ]
 }
 
+fn launch_args_with_dir(session_name: &str, command: &str, start_dir: &str) -> Vec<String> {
+    vec![
+        "new-session".to_string(),
+        "-d".to_string(),
+        "-s".to_string(),
+        session_name.to_string(),
+        "-c".to_string(),
+        start_dir.to_string(),
+        command.to_string(),
+    ]
+}
+
 fn list_sessions_args() -> Vec<String> {
     vec![
         "list-sessions".into(),
@@ -295,6 +307,16 @@ pub fn session_name_from_pane(pane_id: &str) -> Option<String> {
 /// Passes the command directly to `new-session` to avoid shell readiness race conditions.
 pub fn launch_agent(session_name: &str, command: &str) -> Result<()> {
     let args = launch_args(session_name, command);
+    let status = Command::new("tmux").args(&args).status()?;
+    if !status.success() {
+        bail!("Failed to create tmux session: {}", session_name);
+    }
+    Ok(())
+}
+
+/// Launch an agent in a new detached tmux session at a specific working directory.
+pub fn launch_agent_in_dir(session_name: &str, command: &str, start_dir: &str) -> Result<()> {
+    let args = launch_args_with_dir(session_name, command, start_dir);
     let status = Command::new("tmux").args(&args).status()?;
     if !status.success() {
         bail!("Failed to create tmux session: {}", session_name);

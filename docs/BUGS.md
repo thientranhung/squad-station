@@ -1,108 +1,213 @@
-# 🐛 Squad Station — Bugs Found During Testing
+# Squad Station — Bug Report
 
-> Phát hiện: 2026-03-09 | Project: squad-station-web (landing page)
-
-## 📌 Status Legend
-- `[ ]` **Open**: Bug is confirmed nhưng chưa fix.
-- `[~]` **In Progress**: Đang tiến hành fix.
-- `[x]` **Fixed**: Đã fix và test thành công.
+**Tested:** 2026-03-15
+**Binary:** squad-station v0.2.0 (target/release/squad-station)
+**Test project:** squad-station-landing-page (tmux session: squad-station-testing)
 
 ---
 
-## [x] Bug #1: `squad-station view` — Nested tmux attach fails silently
+## BUG-01: Signal completes wrong task (LIFO vs FIFO mismatch) [CRITICAL]
 
-**Severity:** Medium  
-**Command:** `squad-station view`  
-**File:** [view.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/commands/view.rs) + [tmux.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/tmux.rs#L197-L225)
+**Description:** `signal` completes the **newest** processing task (`ORDER BY created_at DESC`), but `peek` returns the **oldest** processing task (`ORDER BY created_at ASC` with priority). When an agent has multiple tasks, it peeks task A, works on it, signals, but task B (newer) gets marked completed instead.
 
-**Mô tả:**  
-- `view` tạo window tên `squad-view` bằng `tmux new-window` với command `tmux attach-session -t <agent>`
-- Nhưng nested tmux attach bị chặn vì biến `$TMUX` đã set — session chết ngay lập tức
-- User chạy `tmux attach -t squad-view` → "can't find session" vì đây là **window**, không phải session
-
-**Workaround hiện tại:**  
-Tạo session `squad-monitor` riêng, dùng `TMUX=` để unset env trước khi attach:
+**Reproduce:**
 ```bash
-tmux new-session -d -s squad-monitor
-tmux send-keys -t squad-monitor "TMUX= tmux attach -t <agent1>" Enter
-tmux split-window -h -t squad-monitor
-tmux send-keys -t squad-monitor "TMUX= tmux attach -t <agent2>" Enter
+squad-station send squad-station-implement --body "task A"
+squad-station send squad-station-implement --body "task B"
+squad-station peek squad-station-implement   # Returns "task A" (oldest)
+squad-station signal squad-station-implement  # Completes "task B" (newest!)
 ```
 
-**Fix đề xuất:**  
-- Tạo **session** thay vì window.
-- **Naming Convention:** Cần sử dụng tiền tố theo tên project (ví dụ: `squad-monitor-<project-name>`) thay vì hardcode `squad-monitor`, để tránh xung đột conflict khi người dùng chạy `squad-station view` cho nhiều dự án khác nhau trên cùng một máy (mỗi project một squad station riêng).
-- Dùng `TMUX=` unset trước khi nested attach
-- Hoặc thay `attach-session` bằng `capture-pane -p -t <agent>` + watch loop
+**Location:** `src/db/messages.rs:65` — `ORDER BY created_at DESC LIMIT 1` should be `ASC`.
 
 ---
 
-## [x] Bug #2: `squad-station signal` — Xử lý `$TMUX_PANE` phức tạp và không cần thiết
+## BUG-02: Signal sets agent to idle even with remaining tasks [HIGH]
 
-**Severity:** Low (Code Complexity / Logic Flaw)  
-**Command:** `squad-station signal` / `squad-station init`  
-**File:** [signal.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/commands/signal.rs) và [init.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/commands/init.rs)
+**Description:** After `signal` completes one task, the agent status is unconditionally set to `idle`, even when other `processing` tasks remain in the queue. The `status` command then shows the agent as "idle" with "N pending" — contradictory.
 
-**Mô tả:**  
-- Hiện tại logic lấy tên agent đang phụ thuộc quá nhiều vào biến môi trường `$TMUX_PANE` (ví dụ: parse `%3` để mò ra tên session).
-- Điều này vừa khiến code trong `signal.rs` phức tạp (Guard 1 có nhiều nhánh match) vừa sinh ra lỗi silent exit khi dev chạy test thủ công ở môi trường không có bash `$TMUX_PANE`.
-- Việc inject command vào settings thông qua `init.rs` đang dùng hardcode string `squad-station signal $TMUX_PANE`.
+**Reproduce:**
+```bash
+squad-station send squad-station-implement --body "task 1"
+squad-station send squad-station-implement --body "task 2"
+squad-station signal squad-station-implement
+squad-station status  # Shows: implement idle | 1 pending
+```
 
-**Fix đề xuất:**  
-- **Bên phía Hook (`init.rs`)**: Sửa lại command sinh hook tự động thành việc lấy thẳng tên session tại thời điểm gọi. Ví dụ: đổi command thành `"squad-station signal $(tmux display-message -p '#S')"` (hoặc một cú pháp tương đương có thể resolve ra tên session động dựa theo shell context).
-- **Bên phía Agent (`signal.rs`)**: Xoá sổ hoàn toàn logic phụ thuộc vào biến `$TMUX_PANE`. Thay vào đó, hàm `signal` chỉ việc nhận vào tham số arg thứ nhất là tên của agent/session một cách tường minh và xử lý thẳng. Nếu không cung cấp tên → văng lỗi / silent exit luôn.
+**Expected:** Agent should remain `busy` if processing tasks remain.
 
----
-
-## [x] Bug #3: `squad-station init` — tmux `has-session` stderr leaks to user output
-
-**Severity:** Cosmetic (User Experience)  
-**Command:** `squad-station init`  
-**File:** [tmux.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/tmux.rs#L166-L172)
-
-**Mô tả:**  
-- Trong lệnh `init`, framework sẽ kiểm tra xem agent session đã tồn tại hay chưa thông qua hàm `session_exists()` (sử dụng lệnh `tmux has-session -t <name>`).
-- Nếu session đó chưa được tạo (đây là điều hiển nhiên trong lần chạy `init` đầu tiên), tiến trình `tmux` sẽ báo lỗi `"can't find session: <name>"` vào luồng **`stderr`**.
-- Do hàm này gọi `.status()` mà không chặn `stderr`, dòng thông báo này bị lọt (leak) trực tiếp ra màn hình terminal của người dùng.
-- Kết quả: Khi user chạy `squad-station init` lần đầu, console hiện ra một loạt thông báo lỗi màu đỏ/gây hoang mang, làm user tưởng rằng lệnh init thất bại (dù thực tế script vẫn tiếp tục khởi tạo session thành công).
-
-**Fix đề xuất:**  
-- **Tắt stderr leak**: Sửa hàm `session_exists()` trong `tmux.rs` để chặn luồng stderr. Thay vì dùng `Command::new(...).status()`, hãy dùng `Command::new(...).output()`.
-- Lệnh `output()` sẽ bắt cả `stdout` và `stderr` vào biến bộ nhớ và không in gì ra màn hình console, khắc phục hoàn toàn hiện tượng leak tin nhắn báo lỗi này.
+**Location:** `src/commands/signal.rs:102-108` — needs a check for remaining processing messages before setting idle.
 
 ---
 
-## [x] Bug #4: `squad.yml` Config Format Contradiction (v1.1+ Schema)
+## BUG-03: Agent names require full project prefix — no short name resolution [MEDIUM]
 
-**Severity:** High (Parsing Error)  
-**Command:** `squad-station init`  
-**File:** [squad.yml](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station-landing-page/squad.yml) và [config.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/config.rs)
+**Description:** Agents defined as `implement` in `squad.yml` are stored as `squad-station-implement` in DB. All commands require the full prefixed name. Short names fail with "Agent not found".
 
-**Mô tả:**  
-- Trong file `squad.yml` của project sử dụng Squad Station đang dùng keyword `provider` (`provider: antigravity`, vv), đây là định dạng chuẩn xác.
-- Tuy nhiên, trong core `squad-station` v1.1+ (file `src/config.rs`), struct `AgentConfig` đã bị đổi tên trường `provider` thành `tool` một cách không hợp lý.
-- Do đó khi parse file yaml sẽ báo lỗi không deserialize được.
+**Reproduce:**
+```bash
+squad-station send implement --body "test"       # Error: Agent not found: implement
+squad-station list --agent implement              # No messages found (silent miss)
+squad-station peek implement                      # No pending tasks (silent miss)
+```
 
-**Fix đề xuất:**  
-- Từ "tool" không phản ánh đúng ngầm định của schema, "provider" mới là từ chính xác.
-- (Cho Core): Cần sửa lại struct `AgentConfig` trong `src/config.rs`, đổi tên field `tool` quay trở lại thành `provider`.
-- Thay đổi liên đới: Cập nhật hàm `is_db_only()` và các đoạn code parse config khác để tương thích với field `provider` mới.
+**Expected:** Accept both `implement` and `squad-station-implement`. At minimum, suggest the full name when short name fails.
 
 ---
 
-## [x] Bug #5: Missing Configuration Validation (Strict Mode)
+## BUG-04: `signal` for nonexistent agent silently succeeds [MEDIUM]
 
-**Severity:** High (Silent Failure / False Positive)  
-**Command:** `squad-station init`  
-**File:** [config.rs](file:///Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station/src/config.rs)
+**Description:** `squad-station signal nonexistent-agent` produces no output and exits 0. By design for hook context (HOOK-03), but confusing for manual CLI usage.
 
-**Mô tả:**  
-- Core `squad-station` chưa có logic validate nội dung (giá trị thực) của trường `provider` (và `model`) khi deserialize file `squad.yml`.
-- Nếu người dùng typo hoặc nhập sai tên provider (ví dụ: `gemini`, `claude-code-2` thay vì chuẩn là `gemini-cli`, `claude-code`), struct `AgentConfig` vẫn parse thành chuỗi `String` hợp lệ và vượt qua bài test định dạng.
-- Lệnh `squad-station init` dùng luôn string sai này để run background tmux. Tmux sẽ vẫn tạo session nhưng app bên trong báo command not found rồi tắt lịm luôn. Tuy nhiên script vẫn báo ngoài CLI là "Initialized squad with x agents" — tức là một false positive báo thành công giả tạo!
+**Reproduce:**
+```bash
+squad-station signal nonexistent  # No output, exit 0
+```
 
-**Fix đề xuất:**  
-- **Về phía Provider**: Cần validate chặt chẽ field `provider`. Chỉ chấp nhận đúng whitelist: `antigravity`, `claude-code`, `gemini-cli`. Bất cứ text nào khác rơi vào đây, rust phải văng lỗi validate, **chặn tiến trình init**, và **gợi ý (suggest) rõ ràng ra console cho người dùng** danh sách các provider hợp lệ để họ sửa lại.
-- **Về phía Model**: Cần thiết lập danh sách model hợp lệ và validate tương ứng với từng provider. Nếu người dùng nhập sai model, hãy in ra thông báo lỗi kèm danh sách gợi ý model hợp lệ tương ứng với provider đó:
-  - `claude-code` = `opus`, `sonnet`, `haiku`
-  - `gemini-cli` = `gemini-3.1-pro-preview`, `gemini-3-flash-preview`
+**Note:** This is intentional for hooks but should at least print a message when running interactively (TTY detected).
+
+**Location:** `src/commands/signal.rs:42-44` — silent `return Ok(())` when agent not found.
+
+---
+
+## BUG-05: `peek` doesn't validate agent exists [LOW]
+
+**Description:** `peek nonexistent-agent` says "No pending tasks for nonexistent" instead of "Agent not found". Misleading — user thinks agent exists but has no tasks.
+
+**Reproduce:**
+```bash
+squad-station peek nonexistent  # "No pending tasks for nonexistent"
+```
+
+**Expected:** "Agent not found: nonexistent"
+
+---
+
+## BUG-06: `from_agent` hardcoded to "orchestrator" (no prefix) [LOW]
+
+**Description:** `send` command hardcodes `from_agent` as `"orchestrator"` (line 40 of send.rs), while the orchestrator agent is registered as `squad-station-orchestrator`. The FROM column in `list` shows "orchestrator" while TO shows the full prefixed name.
+
+**Location:** `src/commands/send.rs:40` — hardcoded `"orchestrator"` string.
+
+---
+
+## BUG-07: Can send tasks to orchestrator-role agents [LOW]
+
+**Description:** No guard preventing `squad-station send squad-station-orchestrator --body "test"`. The orchestrator is a coordinator, not a task receiver.
+
+**Reproduce:**
+```bash
+squad-station send squad-station-orchestrator --body "some task"  # Succeeds
+```
+
+**Expected:** "Cannot send tasks to orchestrator-role agents" or similar guard.
+
+---
+
+## BUG-08: Can send empty body tasks [LOW]
+
+**Description:** `squad-station send agent --body ""` succeeds and creates a task with empty content. No validation on body content.
+
+**Reproduce:**
+```bash
+squad-station send squad-station-implement --body ""  # Succeeds with empty task
+```
+
+---
+
+## BUG-09: `list --status` help text says "pending" but status doesn't exist [LOW]
+
+**Description:** `list --help` says `--status` accepts `(pending, completed)`, but messages go directly to `processing` status (never `pending`). `--status processing` works but isn't documented.
+
+**Reproduce:**
+```bash
+squad-station list --status pending     # Always "No messages found"
+squad-station list --status processing  # Works (undocumented)
+```
+
+**Location:** `src/cli.rs` — help text for `--status` option.
+
+---
+
+## BUG-10: `status` shows "pending" count but actual status is "processing" [LOW]
+
+**Description:** The `status` command displays "N pending" for each agent, but the underlying messages have status `processing`, not `pending`. Terminology mismatch between display and data model.
+
+---
+
+## BUG-11: `init` reports "0 agent(s)" when sessions already exist [LOW]
+
+**Description:** Running `init` when tmux sessions already exist shows "Initialized squad with 0 agent(s)" even though 3 agents are registered. The count only reflects newly launched sessions.
+
+**Reproduce:**
+```bash
+squad-station init    # First time: "3 agent(s)"
+squad-station init    # Second time: "0 agent(s)" — misleading
+```
+
+---
+
+## BUG-12: Missing squad.yml error is not user-friendly [LOW]
+
+**Description:** Running any command without `squad.yml` in CWD shows raw OS error: "No such file or directory (os error 2)". Should say "squad.yml not found in current directory".
+
+---
+
+## BUG-13: `status_updated_at` timestamp format inconsistency in JSON [LOW]
+
+**Description:** In `status --json` output, `status_updated_at` uses different formats: RFC3339 with microseconds (`2026-03-15T11:10:37.402493+00:00`) for agents updated via commands, but `2026-03-15 11:10:08` (no timezone, no T separator) for agents set during `init`.
+
+---
+
+## BUG-14: `notify` messages not persisted to database [NOTE]
+
+**Description:** `notify` sends a tmux message to the orchestrator but doesn't create a record in the messages table. Notifications are ephemeral and untracked. May be by design, but worth noting for audit trail purposes.
+
+---
+
+## BUG-15: `register` doesn't prefix agent name with project [NOTE]
+
+**Description:** `init` registers agents with `{project}-{name}` prefix, but `register` uses the raw name. Inconsistent naming convention.
+
+**Reproduce:**
+```bash
+squad-station register test-agent --role worker  # Stored as "test-agent"
+squad-station agents  # Shows "test-agent" alongside "squad-station-implement"
+```
+
+---
+
+## BUG-16: Remove `tmux-session` from squad.yml — session names must follow `{project}-{name}` convention [UPGRADE]
+
+**Description:** The `tmux-session` field in `squad.yml` agent configs is silently ignored by serde (not present in the `AgentConfig` struct). Session names are always derived as `{project}-{name}` in `init.rs:59`. Users may think they are customizing session names via this field, but it has no effect.
+
+**Required changes:**
+
+1. **Remove `tmux-session` from squad.yml** — it is dead config. The test project has:
+   ```yaml
+   agents:
+     - name: implement
+       tmux-session: squad-implement  # <-- silently ignored, does nothing
+   ```
+
+2. **Enforce `{project}-{name}` as the sole session naming convention** — this is already the actual behavior, but it should be explicit and documented.
+
+3. **Sanitize special characters in derived session names.** The project name or agent name may contain characters that break tmux session targeting:
+   - `.` (dot) — tmux interprets as `session.window` separator. A session created with `.` in the name cannot be addressed by `has-session -t`, `send-keys -t`, or any `-t` targeting. The session becomes unreachable.
+   - `:` (colon) — tmux silently converts to `_`. Session is created as `test_session` instead of `test:session`, causing name mismatch between DB and tmux.
+   - `"` (double quote) — works in tmux but can break shell expansion in hook commands like `squad-station signal $(tmux display-message -p '#S')` if the session name contains unescaped quotes.
+
+   **Fix:** Add a `sanitize_session_name()` function that replaces `.`, `:`, and `"` with `-` (or rejects them with a clear error) before passing to tmux. Apply this in `init.rs` when deriving `agent_name` and in `tmux.rs:launch_agent()`.
+
+**Reproduce (dot problem):**
+```bash
+# If project name were "my.app" and agent "worker":
+tmux new-session -d -s 'my.app-worker' zsh    # Session created OK
+tmux has-session -t 'my.app-worker'            # FAILS: "can't find window: my"
+# Session is orphaned — cannot be targeted, killed, or used
+```
+
+**Location:**
+- `src/config.rs:53-61` — `AgentConfig` struct (no `tmux_session` field, serde silently drops it)
+- `src/commands/init.rs:59` — `format!("{}-{}", config.project, role_suffix)` — needs sanitization
+- `src/tmux.rs` — all `-t` targeting functions assume session name is tmux-safe

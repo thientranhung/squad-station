@@ -121,6 +121,7 @@ async fn test_send_sets_current_task() {
         "task_request",
         "do the thing",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -147,6 +148,7 @@ async fn test_signal_clears_current_task() {
         "task_request",
         "do the thing",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -190,6 +192,7 @@ async fn test_insert_message() {
         "task_request",
         "do the thing",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -216,6 +219,7 @@ async fn test_insert_message_with_priority() {
         "task_request",
         "urgent task",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -248,6 +252,7 @@ async fn test_insert_message_stores_direction() {
         "task_request",
         "some task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -287,6 +292,7 @@ async fn test_update_status_completes_message() {
         "task_request",
         "task one",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -316,6 +322,7 @@ async fn test_update_status_sets_completed_at() {
         "task_request",
         "task with completion",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -356,6 +363,7 @@ async fn test_update_status_idempotent() {
         "task_request",
         "task one",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -408,6 +416,7 @@ async fn test_list_filter_by_agent() {
         "task_request",
         "task for alpha",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -418,6 +427,7 @@ async fn test_list_filter_by_agent() {
         "task_request",
         "task for beta",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -428,6 +438,7 @@ async fn test_list_filter_by_agent() {
         "task_request",
         "task for alpha 2",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -456,6 +467,7 @@ async fn test_list_filter_by_status() {
         "task_request",
         "processing task 1",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -466,6 +478,7 @@ async fn test_list_filter_by_status() {
         "task_request",
         "processing task 2",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -504,6 +517,7 @@ async fn test_list_with_limit() {
             "task_request",
             &format!("task {}", i),
             "normal",
+            None,
         )
         .await
         .unwrap();
@@ -530,6 +544,7 @@ async fn test_list_no_filters() {
         "task_request",
         "task 1",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -540,6 +555,7 @@ async fn test_list_no_filters() {
         "task_request",
         "task 2",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -550,6 +566,7 @@ async fn test_list_no_filters() {
         "task_request",
         "task 3",
         "urgent",
+        None,
     )
     .await
     .unwrap();
@@ -583,6 +600,7 @@ async fn test_peek_returns_pending() {
         "task_request",
         "processing task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -593,6 +611,7 @@ async fn test_peek_returns_pending() {
         "task_request",
         "completed task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -621,6 +640,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "normal task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -631,6 +651,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "high task",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -641,6 +662,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "urgent task",
         "urgent",
+        None,
     )
     .await
     .unwrap();
@@ -670,6 +692,7 @@ async fn test_peek_no_pending() {
         "task_request",
         "a task",
         "normal",
+        None,
     )
     .await
     .unwrap();

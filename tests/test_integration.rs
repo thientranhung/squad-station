@@ -222,6 +222,7 @@ async fn test_list_text_output_with_messages() {
         "task_request",
         "implement feature X",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -232,6 +233,7 @@ async fn test_list_text_output_with_messages() {
         "task_request",
         "fix bug Y",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -313,6 +315,7 @@ async fn test_list_json_output() {
         "task_request",
         "test task",
         "urgent",
+        None,
     )
     .await
     .unwrap();
@@ -385,6 +388,7 @@ async fn test_list_filter_by_agent() {
         "task_request",
         "alpha task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -395,6 +399,7 @@ async fn test_list_filter_by_agent() {
         "task_request",
         "beta task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -433,6 +438,7 @@ async fn test_list_filter_by_status() {
         "task_request",
         "task 1",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -443,6 +449,7 @@ async fn test_list_filter_by_status() {
         "task_request",
         "task 2",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -484,6 +491,7 @@ async fn test_list_with_limit() {
             "task_request",
             &format!("task {}", i),
             "normal",
+            None,
         )
         .await
         .unwrap();
@@ -526,6 +534,7 @@ async fn test_peek_text_with_pending_task() {
         "task_request",
         "do something important",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -569,6 +578,7 @@ async fn test_peek_json_with_pending_task() {
         "task_request",
         "json task",
         "urgent",
+        None,
     )
     .await
     .unwrap();
@@ -660,6 +670,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "normal task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -670,6 +681,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "high task",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -680,6 +692,7 @@ async fn test_peek_priority_ordering() {
         "task_request",
         "urgent task",
         "urgent",
+        None,
     )
     .await
     .unwrap();
@@ -785,6 +798,7 @@ async fn test_signal_completes_message_and_resets_status() {
         "task_request",
         "a task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -831,6 +845,7 @@ async fn test_signal_multiple_messages_completes_most_recent() {
         "task_request",
         "task 1",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -841,6 +856,7 @@ async fn test_signal_multiple_messages_completes_most_recent() {
         "task_request",
         "task 2",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -851,6 +867,7 @@ async fn test_signal_multiple_messages_completes_most_recent() {
         "task_request",
         "task 3",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -891,6 +908,7 @@ async fn test_signal_orchestrator_self_signal_guard() {
         "task_request",
         "orch task",
         "normal",
+        None,
     )
     .await
     .unwrap();
@@ -1044,8 +1062,8 @@ async fn test_context_lists_registered_agents() {
     );
 
     // Updated for unified single-file output (GAP-18 / PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
-    assert!(orchestrator_path.exists(), ".agent/workflows/squad-orchestrator.md must exist");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
+    assert!(orchestrator_path.exists(), ".squad/orchestrator/CLAUDE.md must exist");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
         content.contains("ctx-worker"),
@@ -1080,8 +1098,8 @@ async fn test_context_generates_delegate_file() {
     );
 
     // Updated: single unified file contains delegation content (PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
-    assert!(orchestrator_path.exists(), ".agent/workflows/squad-orchestrator.md must exist");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
+    assert!(orchestrator_path.exists(), ".squad/orchestrator/CLAUDE.md must exist");
 
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
@@ -1116,7 +1134,7 @@ async fn test_context_delegate_content() {
         .unwrap();
 
     // Updated: delegation content is in unified squad-orchestrator.md (PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
         content.contains("BEHAVIORAL RULE"),
@@ -1151,8 +1169,8 @@ async fn test_context_generates_monitor_file() {
     );
 
     // Updated: monitoring content is in unified squad-orchestrator.md (PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
-    assert!(orchestrator_path.exists(), ".agent/workflows/squad-orchestrator.md must exist");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
+    assert!(orchestrator_path.exists(), ".squad/orchestrator/CLAUDE.md must exist");
 
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
@@ -1187,7 +1205,7 @@ async fn test_context_monitor_content() {
         .unwrap();
 
     // Updated: monitoring content is in unified squad-orchestrator.md (PLAY-01)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
         content.contains("Anti-Context-Decay"),
@@ -1195,8 +1213,8 @@ async fn test_context_monitor_content() {
         content
     );
     assert!(
-        content.contains("re-read") && content.contains(".agent/workflows"),
-        "squad-orchestrator.md must contain re-read .agent/workflows instruction, got:\n{}",
+        content.contains("auto-loaded"),
+        "CLAUDE.md must state context is auto-loaded, got:\n{}",
         content
     );
 }
@@ -1241,8 +1259,8 @@ async fn test_context_generates_roster_file() {
     );
 
     // Updated: roster content is in unified squad-orchestrator.md (PLAY-01, PLAY-03)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
-    assert!(orchestrator_path.exists(), ".agent/workflows/squad-orchestrator.md must exist");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
+    assert!(orchestrator_path.exists(), ".squad/orchestrator/CLAUDE.md must exist");
 
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
@@ -1282,7 +1300,7 @@ async fn test_context_roster_content() {
         .unwrap();
 
     // Updated: roster table is in unified squad-orchestrator.md (PLAY-01, PLAY-03)
-    let orchestrator_path = tmp.path().join(".agent/workflows/squad-orchestrator.md");
+    let orchestrator_path = tmp.path().join(".squad/orchestrator/CLAUDE.md");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
         content.contains("| Agent |"),
@@ -1329,7 +1347,7 @@ async fn test_context_idempotent() {
     );
 
     // Updated: single unified file must exist (PLAY-01)
-    assert!(tmp.path().join(".agent/workflows/squad-orchestrator.md").exists());
+    assert!(tmp.path().join(".squad/orchestrator/CLAUDE.md").exists());
 }
 
 // ============================================================
@@ -1357,6 +1375,7 @@ async fn test_full_workflow_register_send_peek_signal() {
         "task_request",
         "build the feature",
         "high",
+        None,
     )
     .await
     .unwrap();
@@ -1432,7 +1451,7 @@ async fn test_signal_antigravity_orchestrator_db_only() {
     db::agents::insert_agent(&pool, "test-squad-antigravity-test-orch", "antigravity", "orchestrator", None, None).await.unwrap();
     db::agents::insert_agent(&pool, "test-squad-claude-code-worker", "claude-code", "worker", None, None).await.unwrap();
     // Send a task to the worker
-    db::messages::insert_message(&pool, "orchestrator", "test-squad-claude-code-worker", "task_request", "test task", "normal").await.unwrap();
+    db::messages::insert_message(&pool, "orchestrator", "test-squad-claude-code-worker", "task_request", "test task", "normal", None).await.unwrap();
     pool.close().await;
     // Signal the worker
     let output = cmd_with_db(&db_file)
@@ -1455,7 +1474,7 @@ async fn test_signal_antigravity_message_completed() {
     let pool = setup_file_db(&db_file).await;
     db::agents::insert_agent(&pool, "test-squad-antigravity-test-orch", "antigravity", "orchestrator", None, None).await.unwrap();
     db::agents::insert_agent(&pool, "test-squad-claude-code-worker", "claude-code", "worker", None, None).await.unwrap();
-    db::messages::insert_message(&pool, "orchestrator", "test-squad-claude-code-worker", "task_request", "do work", "normal").await.unwrap();
+    db::messages::insert_message(&pool, "orchestrator", "test-squad-claude-code-worker", "task_request", "do work", "normal", None).await.unwrap();
     pool.close().await;
     let output = cmd_with_db(&db_file)
         .args(["signal", "test-squad-claude-code-worker"])
@@ -1511,7 +1530,7 @@ async fn test_init_antigravity_registers_in_db() {
     // Orchestrator must be in DB even though no tmux session created
     let pool = setup_file_db(&db_file).await;
     let rec: Option<(String, String)> = sqlx::query_as(
-        "SELECT tool, role FROM agents WHERE name = 'test-squad-antigravity-test-orch'"
+        "SELECT tool, role FROM agents WHERE name = 'test-squad-test-orch'",
     )
     .fetch_optional(&pool).await.unwrap();
     assert!(rec.is_some(), "orchestrator must be registered in DB");

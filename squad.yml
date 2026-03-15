@@ -1,16 +1,24 @@
 project: squad-station
+
+sdd:
+  - name: get-shit-done
+    playbook: "/Users/tranthien/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/3-Research/Github/Get Shit Done/2. Playbook.md"
+
 orchestrator:
   provider: claude-code
   role: orchestrator
-  model: opus
-  description: "Routes tasks between agents and synthesizes results"
+  model: haiku
+  description: Team leader, monitors and coordinates tasks for agents
+
 agents:
   - name: implement
     provider: claude-code
     role: worker
     model: sonnet
-    description: "Implements features and fixes bugs"
-  - name: review
-    provider: gemini-cli
+    description: Senior coder, coding, fixing bugs, operating according to the project SDD.
+
+  - name: brainstorm
+    provider: claude-code
     role: worker
-    description: "Reviews code and provides feedback"
+    model: opus
+    description: Technical Lead, planner, analysis, performs code reviews and technical solutions

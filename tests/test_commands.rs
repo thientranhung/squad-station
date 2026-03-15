@@ -1,6 +1,6 @@
 mod helpers;
 
-use squad_station::config::{self, SquadConfig};
+use squad_station::config::{self, SddConfig, SquadConfig};
 use squad_station::db;
 
 // ============================================================
@@ -148,9 +148,10 @@ fn test_sigpipe_binary_starts() {
 async fn test_init_agent_name_prefix() {
     let db = helpers::setup_test_db().await;
     // Register an agent the same way init.rs would, using the auto-prefix logic
+    // GAP-04: naming simplified to {project}-{name} (no provider in middle)
     db::agents::insert_agent(
         &db,
-        "myapp-claude-code-backend", // pre-computed as init.rs would produce
+        "myapp-backend", // pre-computed as init.rs would produce
         "claude-code",
         "worker",
         None,
@@ -159,7 +160,7 @@ async fn test_init_agent_name_prefix() {
     .await
     .unwrap();
 
-    let agent = db::agents::get_agent(&db, "myapp-claude-code-backend")
+    let agent = db::agents::get_agent(&db, "myapp-backend")
         .await
         .unwrap();
     assert!(
@@ -167,7 +168,7 @@ async fn test_init_agent_name_prefix() {
         "Agent with prefixed name must be registered"
     );
     let agent = agent.unwrap();
-    assert_eq!(agent.name, "myapp-claude-code-backend");
+    assert_eq!(agent.name, "myapp-backend");
     assert_eq!(agent.tool, "claude-code");
     assert_eq!(agent.role, "worker");
 }
@@ -178,22 +179,32 @@ async fn test_init_agent_name_prefix() {
 
 #[test]
 fn test_signal_notification_format() {
-    // Verify the format string produces the expected output
-    let agent = "myapp-claude-implement";
+    // Verify the format string produces the expected output (GAP-02: structured notification)
+    let agent = "myapp-implement";
     let task_id_str = "msg-a1b2c3";
-    let notification = format!("{} completed {}", agent, task_id_str);
-    assert_eq!(notification, "myapp-claude-implement completed msg-a1b2c3");
-    assert!(
-        !notification.contains("[SIGNAL]"),
-        "Must not contain old [SIGNAL] prefix"
+    let notification = format!(
+        "[SQUAD SIGNAL] Agent '{}' completed task {}. Read output: tmux capture-pane -t {} -p | Next: squad-station status",
+        agent, task_id_str, agent
     );
     assert!(
-        !notification.contains("agent="),
-        "Must not contain old key=value format"
+        notification.contains("[SQUAD SIGNAL]"),
+        "Must contain [SQUAD SIGNAL] prefix"
     );
     assert!(
-        !notification.contains("task_id="),
-        "Must not contain old task_id= format"
+        notification.contains("myapp-implement"),
+        "Must contain agent name"
+    );
+    assert!(
+        notification.contains("msg-a1b2c3"),
+        "Must contain task_id"
+    );
+    assert!(
+        notification.contains("tmux capture-pane"),
+        "Must contain actionable read command"
+    );
+    assert!(
+        notification.contains("squad-station status"),
+        "Must contain next action hint"
     );
 }
 
@@ -294,7 +305,7 @@ async fn test_build_orchestrator_md_contains_all_sections() {
     .unwrap();
 
     let agents = db::agents::list_agents(&db).await.unwrap();
-    let content = build_orchestrator_md(&agents);
+    let content = build_orchestrator_md(&agents, "/project/root", &[]);
 
     assert!(content.contains("# Squad Orchestrator Playbook"), "Missing title");
     assert!(content.contains("## Delegation Workflow"), "Missing delegation section");
@@ -303,8 +314,8 @@ async fn test_build_orchestrator_md_contains_all_sections() {
     assert!(content.contains("p-claude-implement"), "Worker agent missing from content");
     assert!(content.contains("claude-sonnet"), "Worker model missing");
     assert!(
-        content.contains("squad-orchestrator.md"),
-        "Anti-decay rule must reference new file name"
+        content.contains("/project/root"),
+        "Content must include project root path"
     );
     // Orchestrator should NOT appear in the send-command delegation block
     let delegation_section_end = content.find("## How to Delegate").unwrap_or(content.len());
@@ -313,4 +324,48 @@ async fn test_build_orchestrator_md_contains_all_sections() {
         !delegation_section.contains("p-claude-orchestrator"),
         "Orchestrator must not appear in delegation send-command block"
     );
+}
+
+// ============================================================
+// SDD workflow context tests — GAP-01
+// ============================================================
+
+#[tokio::test]
+async fn test_build_orchestrator_md_with_sdd() {
+    use squad_station::commands::context::build_orchestrator_md;
+
+    let db = helpers::setup_test_db().await;
+    db::agents::insert_agent(&db, "p-worker", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    let agents = db::agents::list_agents(&db).await.unwrap();
+    let sdd = vec![SddConfig {
+        name: "get-shit-done".to_string(),
+        playbook: "/path/to/Playbook.md".to_string(),
+    }];
+    let content = build_orchestrator_md(&agents, "/project/root", &sdd);
+
+    assert!(content.contains("## Workflow (SDD)"), "Missing SDD section");
+    assert!(content.contains("get-shit-done"), "Missing SDD name");
+    assert!(content.contains("/path/to/Playbook.md"), "Missing playbook path");
+    assert!(content.contains("cat \"/path/to/Playbook.md\""), "Should use cat without head truncation");
+    assert!(!content.contains("head -200"), "Must not truncate playbook with head");
+    // Single SDD should not show selection rule
+    assert!(!content.contains("Selection rule"), "Single SDD should not show selection rule");
+}
+
+#[tokio::test]
+async fn test_build_orchestrator_md_without_sdd() {
+    use squad_station::commands::context::build_orchestrator_md;
+
+    let db = helpers::setup_test_db().await;
+    db::agents::insert_agent(&db, "p-worker", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    let agents = db::agents::list_agents(&db).await.unwrap();
+    let content = build_orchestrator_md(&agents, "/project/root", &[]);
+
+    assert!(!content.contains("## Workflow (SDD)"), "SDD section should not appear when no SDDs configured");
 }

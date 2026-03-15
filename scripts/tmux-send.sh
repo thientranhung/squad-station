@@ -40,7 +40,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 fi
 
 # Send the content
-tmux send-keys -t "$PANE_TARGET" "$MESSAGE"
+tmux send-keys -t "$PANE_TARGET" -l "$MESSAGE"
 
 # Wait for the pane to receive and render the text
 sleep "$WAIT_SECONDS"

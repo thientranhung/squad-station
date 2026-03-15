@@ -11,12 +11,14 @@ Squad Station is a stateless Rust CLI that routes messages between an AI orchest
 ```bash
 cargo build                    # Debug build
 cargo build --release          # Release build (binary at target/release/squad-station)
-cargo test                     # Run all 58 unit + integration tests
+cargo test                     # Run all 164 unit + integration tests
 cargo test test_name           # Run a single test by name
 cargo test --test test_commands # Run a specific test file
 ./tests/e2e_cli.sh            # End-to-end CLI tests (requires release binary)
 cargo check                    # Quick compilation check
 ```
+
+**Local Binary Access:** A symlink at `~/.cargo/bin/squad-station` points to `target/release/squad-station`. After `cargo build --release`, the binary is immediately available via `squad-station` command—no manual installation needed.
 
 ## Architecture
 

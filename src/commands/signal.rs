@@ -37,11 +37,16 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
         }
     };
 
-    // GUARD 3: Agent not registered -- silent exit 0 (HOOK-03)
-    // Unregistered agents must be a silent exit 0 (not an error) in hook context.
+    // GUARD 3: Agent not registered -- silent exit 0 in hook context (HOOK-03),
+    // but print a message when running interactively so manual usage isn't confusing.
     let agent_record = match db::agents::get_agent(&pool, &agent).await? {
         Some(r) => r,
-        None => return Ok(()),
+        None => {
+            if std::io::stdout().is_terminal() {
+                println!("Agent not found: {} (ignored)", agent);
+            }
+            return Ok(());
+        }
     };
 
     // GUARD 4: Orchestrator self-signal -- silent exit 0 (HOOK-01)
@@ -75,7 +80,10 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
         let orchestrator = db::agents::get_orchestrator(&pool).await?;
         if let Some(orch) = orchestrator {
             let task_id_str = task_id.as_deref().unwrap_or("unknown");
-            let notification = format!("{} completed {}", agent, task_id_str);
+            let notification = format!(
+                "[SQUAD SIGNAL] Agent '{}' completed task {}. Read output: tmux capture-pane -t {} -p | Next: squad-station status",
+                agent, task_id_str, agent
+            );
             if orch.tool == "antigravity" {
                 // DB-only orchestrator: polls DB for completions, no push notification needed.
                 false
@@ -95,14 +103,28 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
         false
     };
 
-    // After successful signal, set agent status back to idle and clear current_task FK.
+    // After successful signal, check remaining tasks and update agent status accordingly.
     if rows > 0 {
-        // AGNT-02: clear current_task FK on the signaling agent
-        sqlx::query("UPDATE agents SET current_task = NULL WHERE name = ?")
-            .bind(&agent)
-            .execute(&pool)
-            .await?;
-        db::agents::update_agent_status(&pool, &agent, "idle").await?;
+        let remaining = db::messages::count_processing(&pool, &agent).await?;
+        if remaining > 0 {
+            // Still has processing tasks — update current_task to next task, stay busy
+            let next = db::messages::peek_message(&pool, &agent).await?;
+            if let Some(next_msg) = next {
+                sqlx::query("UPDATE agents SET current_task = ? WHERE name = ?")
+                    .bind(&next_msg.id)
+                    .bind(&agent)
+                    .execute(&pool)
+                    .await?;
+            }
+            // Agent remains busy — don't change status
+        } else {
+            // No remaining tasks — clear current_task and set idle
+            sqlx::query("UPDATE agents SET current_task = NULL WHERE name = ?")
+                .bind(&agent)
+                .execute(&pool)
+                .await?;
+            db::agents::update_agent_status(&pool, &agent, "idle").await?;
+        }
     }
 
     // Output result

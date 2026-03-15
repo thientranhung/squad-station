@@ -27,8 +27,10 @@ async fn run(cli: cli::Cli) -> Result<()> {
             agent,
             body,
             priority,
-        } => commands::send::run(agent, body, priority, cli.json).await,
+            thread,
+        } => commands::send::run(agent, body, priority, cli.json, thread).await,
         Signal { agent } => commands::signal::run(agent, cli.json).await,
+        Notify { body, agent } => commands::notify::run(body, agent, cli.json).await,
         List {
             agent,
             status,
@@ -41,5 +43,8 @@ async fn run(cli: cli::Cli) -> Result<()> {
         Status => commands::status::run(cli.json).await,
         Ui => commands::ui::run().await,
         View => commands::view::run(cli.json).await,
+        Close { config } => commands::close::run(config, cli.json).await,
+        Reset { config, no_relaunch } => commands::reset::run(config, no_relaunch, cli.json).await,
+        Clean { config, yes } => commands::clean::run(config, yes, cli.json).await,
     }
 }

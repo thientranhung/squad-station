@@ -279,6 +279,7 @@ async fn test_status_pending_count() {
             "task_request",
             &format!("task {}", i),
             "normal",
+            None,
         )
         .await
         .expect("insert message");

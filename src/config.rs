@@ -14,10 +14,18 @@ fn valid_models_for(provider: &str) -> Option<&'static [&'static str]> {
     }
 }
 
+/// SDD (Software Design Document) workflow configuration
+#[derive(Deserialize, Debug, Clone)]
+pub struct SddConfig {
+    pub name: String,
+    pub playbook: String, // absolute path to playbook .md file
+}
+
 /// Top-level squad configuration
 #[derive(Deserialize, Debug)]
 pub struct SquadConfig {
     pub project: String, // CONF-01: plain string (not a nested struct)
+    pub sdd: Option<Vec<SddConfig>>, // optional SDD workflow configs
     pub orchestrator: AgentConfig,
     pub agents: Vec<AgentConfig>,
 }
@@ -42,6 +50,7 @@ impl SquadConfig {
 
 /// Agent configuration (used for both orchestrator and worker agents)
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct AgentConfig {
     pub name: Option<String>, // optional; orchestrator name auto-derived in Phase 5
     pub provider: String,     // CONF-04: provider name (e.g. claude-code, gemini-cli, antigravity)
@@ -50,6 +59,17 @@ pub struct AgentConfig {
     pub model: Option<String>,       // CONF-02: optional model override
     pub description: Option<String>, // CONF-02: optional description
                                      // command field is REMOVED (CONF-03: provider infers launch command)
+}
+
+/// Sanitize a string for use as a tmux session name.
+/// Replaces `.`, `:`, and `"` with `-` to prevent tmux targeting issues.
+pub fn sanitize_session_name(name: &str) -> String {
+    name.chars()
+        .map(|c| match c {
+            '.' | ':' | '"' => '-',
+            _ => c,
+        })
+        .collect()
 }
 
 impl AgentConfig {
@@ -65,18 +85,21 @@ fn default_role() -> String {
 }
 
 /// Validate provider and (optionally) model for a single agent config.
+/// Known providers get model validation; unknown providers get a warning but proceed.
 fn validate_agent_config(label: &str, agent: &AgentConfig) -> Result<()> {
-    // Provider whitelist check
     if !VALID_PROVIDERS.contains(&agent.provider.as_str()) {
-        bail!(
-            "Invalid provider '{}' for agent '{}'. Valid providers are: {}.",
+        // Unknown provider: warn but don't fail — allows extensibility
+        eprintln!(
+            "Warning: Unknown provider '{}' for agent '{}'. \
+             Known providers: {}. Proceeding without model validation.",
             agent.provider,
             label,
             VALID_PROVIDERS.join(", ")
         );
+        return Ok(()); // skip model validation for unknown providers
     }
 
-    // Model validation (only for providers that have a known model list)
+    // Model validation (only for known providers with a model list)
     if let Some(model) = &agent.model {
         if let Some(valid_models) = valid_models_for(&agent.provider) {
             if !valid_models.contains(&model.as_str()) {
@@ -94,23 +117,55 @@ fn validate_agent_config(label: &str, agent: &AgentConfig) -> Result<()> {
     Ok(())
 }
 
+/// Walk up the directory tree to find `squad.yml`, returning the project root directory.
+/// Similar to how git finds `.git/` or cargo finds `Cargo.toml`.
+pub fn find_project_root() -> Result<PathBuf> {
+    let mut dir = std::env::current_dir()
+        .map_err(|e| anyhow!("Cannot determine current directory: {}", e))?;
+    loop {
+        if dir.join("squad.yml").exists() {
+            return Ok(dir);
+        }
+        if !dir.pop() {
+            bail!("squad.yml not found in current directory or any parent directory. Run 'squad-station init' with a squad.yml config file.");
+        }
+    }
+}
+
 /// Load squad configuration from a YAML file and validate its contents.
+/// If the default `squad.yml` path doesn't exist, walks up the directory tree.
+/// Explicit non-default paths (e.g. `/tmp/custom.yml`) are NOT searched up the tree.
 pub fn load_config(path: &Path) -> Result<SquadConfig> {
-    let content = std::fs::read_to_string(path)?;
+    let is_default_path = path == Path::new("squad.yml");
+    let config_path = if path.exists() {
+        path.to_path_buf()
+    } else if is_default_path {
+        // Walk up the directory tree to find squad.yml (supports orchestrator subdirectory)
+        find_project_root()?.join("squad.yml")
+    } else {
+        // Explicit path given but not found — don't walk up
+        path.to_path_buf()
+    };
+    let content = std::fs::read_to_string(&config_path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            anyhow!("squad.yml not found in current directory or any parent directory. Run 'squad-station init' with a squad.yml config file.")
+        } else {
+            anyhow!("Failed to read {}: {}", config_path.display(), e)
+        }
+    })?;
     let config: SquadConfig = serde_saphyr::from_str(&content)?;
     config.validate()?;
     Ok(config)
 }
 
-/// Resolve the DB path from config or use the default.
+/// Resolve the DB path. Uses project root (where squad.yml lives), not CWD.
 /// SQUAD_STATION_DB env var overrides the default path (useful for testing).
 pub fn resolve_db_path(_config: &SquadConfig) -> Result<PathBuf> {
     let db_path = if let Ok(env_path) = std::env::var("SQUAD_STATION_DB") {
         PathBuf::from(env_path)
     } else {
-        let cwd = std::env::current_dir()
-            .map_err(|e| anyhow!("Cannot determine current directory: {}", e))?;
-        cwd.join(".squad").join("station.db")
+        let project_root = find_project_root()?;
+        project_root.join(".squad").join("station.db")
     };
 
     // Ensure the parent directory exists
@@ -143,10 +198,11 @@ mod tests {
     }
 
     #[test]
-    fn invalid_provider_rejected() {
-        let err = validate_agent_config("agent1", &make_agent("gemini", None)).unwrap_err();
-        assert!(err.to_string().contains("antigravity, claude-code, gemini-cli"));
-        assert!(err.to_string().contains("agent1"));
+    fn unknown_provider_warns_but_succeeds() {
+        // GAP-03: unknown providers warn to stderr but don't fail
+        assert!(validate_agent_config("agent1", &make_agent("gemini", None)).is_ok());
+        assert!(validate_agent_config("agent1", &make_agent("codex", None)).is_ok());
+        assert!(validate_agent_config("agent1", &make_agent("opencode", None)).is_ok());
     }
 
     #[test]
@@ -168,5 +224,43 @@ mod tests {
     fn antigravity_model_not_validated() {
         // antigravity has no known model list — any model value (or none) is accepted
         assert!(validate_agent_config("orch", &make_agent("antigravity", Some("anything"))).is_ok());
+    }
+
+    #[test]
+    fn sanitize_session_name_replaces_dots() {
+        assert_eq!(sanitize_session_name("my.app-worker"), "my-app-worker");
+    }
+
+    #[test]
+    fn sanitize_session_name_replaces_colons() {
+        assert_eq!(sanitize_session_name("proj:v2-agent"), "proj-v2-agent");
+    }
+
+    #[test]
+    fn sanitize_session_name_replaces_quotes() {
+        assert_eq!(sanitize_session_name(r#"proj"name-agent"#), "proj-name-agent");
+    }
+
+    #[test]
+    fn sanitize_session_name_clean_passthrough() {
+        assert_eq!(sanitize_session_name("squad-station-implement"), "squad-station-implement");
+    }
+
+    #[test]
+    fn deny_unknown_fields_in_agent_config() {
+        // BUG-16: unknown fields like tmux-session must be rejected
+        let yaml = r#"
+project: test
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+    role: worker
+    tmux-session: custom-name
+"#;
+        let result: Result<SquadConfig, _> = serde_saphyr::from_str(yaml);
+        assert!(result.is_err(), "unknown field 'tmux-session' should be rejected");
     }
 }
