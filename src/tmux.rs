@@ -326,6 +326,12 @@ pub fn create_view_session(session_name: &str, agent_sessions: &[String]) -> Res
         }
     }
 
+    // Focus the first pane (orchestrator) so it's selected when attaching
+    let first_pane = format!("{}.0", session_name);
+    Command::new("tmux")
+        .args(["select-pane", "-t", &first_pane])
+        .status()?;
+
     Ok(())
 }
 
@@ -520,4 +526,5 @@ mod tests {
             "paste-buffer must use -t not -p; -p pastes to current pane ignoring -t target"
         );
     }
+
 }

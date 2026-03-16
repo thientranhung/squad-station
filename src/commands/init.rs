@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 
+use owo_colors::OwoColorize;
+use owo_colors::Stream;
+
 use crate::{config, db, tmux};
 
 pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
@@ -156,9 +159,14 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 9. Hook setup: auto-install or print instructions
     // In JSON mode, skip stdout instructions (to preserve machine-parseable output).
     if !json {
-        println!("\n==================================");
-        println!("  Squad Setup Complete");
-        println!("==================================\n");
+        let green = |s: &str| s.if_supports_color(Stream::Stdout, |s| s.green()).to_string();
+        let cyan = |s: &str| s.if_supports_color(Stream::Stdout, |s| s.cyan()).to_string();
+        let yellow = |s: &str| s.if_supports_color(Stream::Stdout, |s| s.yellow()).to_string();
+        let bold = |s: &str| s.if_supports_color(Stream::Stdout, |s| s.bold()).to_string();
+
+        println!("\n{}", green("══════════════════════════════════"));
+        println!("  {}", bold("Squad Setup Complete"));
+        println!("{}\n", green("══════════════════════════════════"));
 
         let hook_installed = auto_install_hooks(&config.orchestrator.provider).unwrap_or(false);
         if hook_installed {
@@ -182,27 +190,22 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             println!("Warning: Failed to generate context files: {}", e);
         }
 
-        // Send /squad-orchestrator to load context
-        if orch_launched && !config.orchestrator.is_db_only() {
-            std::thread::sleep(std::time::Duration::from_secs(8));
-            if let Err(e) = tmux::send_keys_literal(&orch_name, "/squad-orchestrator") {
-                eprintln!("Warning: Failed to send slash command to orchestrator: {}", e);
-            } else {
-                println!("  Loaded /squad-orchestrator into {}", orch_name);
-            }
-        }
-
-        println!("\nGet Started:");
-        println!("  Context loaded via /squad-orchestrator.");
-        println!("  To reload: type /squad-orchestrator in the orchestrator session.");
-        println!("\n  Attach to orchestrator:");
-        println!("     tmux attach -t {}", orch_name);
+        println!("\n{}", bold("Get Started:"));
+        println!();
+        println!("  1. Attach to the orchestrator session:");
+        println!("     {}", cyan(&format!("tmux attach -t {}", orch_name)));
+        println!();
+        println!("  2. Load the orchestrator context by typing:");
+        println!("     {}", yellow("/squad-orchestrator"));
         if monitor_created {
-            println!("\n  Monitor all agents (interactive panes):");
-            println!("     tmux attach -t {}", monitor_name);
+            println!();
+            println!("  Monitor all agents (interactive panes):");
+            println!("     {}", cyan(&format!("tmux attach -t {}", monitor_name)));
         }
-        println!("\n  Monitor all agents (read-only view):");
-        println!("     squad-station view");
+        println!();
+        println!("  Monitor all agents (read-only view):");
+        println!("     {}", cyan("squad-station view"));
+        println!();
     }
 
     Ok(())
