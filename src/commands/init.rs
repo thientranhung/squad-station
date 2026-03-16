@@ -198,7 +198,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             let providers: &[(&str, &str, &str)] = &[
                 (".claude/settings.json", "Stop", "*"),
                 (".claude/settings.json", "Notification", "permission_prompt"),
-                (".claude/settings.json", "Notification", "idle_prompt"),
+                (".claude/settings.json", "PostToolUse", "AskUserQuestion"),
                 (".gemini/settings.json", "AfterAgent", "*"),
                 (".gemini/settings.json", "Notification", "*"),
             ];
@@ -269,7 +269,7 @@ fn read_or_create_settings(settings_file: &str) -> anyhow::Result<serde_json::Va
     }
 }
 
-/// Install Claude Code hooks: Stop (signal) + Notification (notify)
+/// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let signal_cmd = "squad-station signal $(tmux display-message -p '#S')";
@@ -289,6 +289,19 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     settings["hooks"]["Notification"] = serde_json::json!([
         {
             "matcher": "permission_prompt",
+            "hooks": [{"type": "command", "command": notify_cmd}]
+        },
+        {
+            "matcher": "elicitation_dialog",
+            "hooks": [{"type": "command", "command": notify_cmd}]
+        }
+    ]);
+
+    // PostToolUse hook — agent is asking the user a question → notify orchestrator.
+    // Orchestrator reads the actual question via capture-pane.
+    settings["hooks"]["PostToolUse"] = serde_json::json!([
+        {
+            "matcher": "AskUserQuestion",
             "hooks": [{"type": "command", "command": notify_cmd}]
         }
     ]);
@@ -339,6 +352,86 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
             cmd
         }
         _ => "zsh".to_string(), // Unknown provider: open shell, user launches manually
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_install_claude_hooks_includes_post_tool_use() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let settings_file = tmp.path().join(".claude").join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_claude_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Verify Stop hook exists
+        assert!(settings["hooks"]["Stop"].is_array(), "Stop hook must exist");
+
+        // Verify Notification hook exists with both matchers
+        let notif = &settings["hooks"]["Notification"];
+        assert!(notif.is_array(), "Notification hook must exist");
+        assert_eq!(notif.as_array().unwrap().len(), 2);
+        assert_eq!(
+            notif[0]["matcher"].as_str().unwrap(),
+            "permission_prompt"
+        );
+        assert_eq!(
+            notif[1]["matcher"].as_str().unwrap(),
+            "elicitation_dialog"
+        );
+
+        // Verify PostToolUse hook exists with AskUserQuestion matcher
+        let ptu = &settings["hooks"]["PostToolUse"];
+        assert!(ptu.is_array(), "PostToolUse hook must exist");
+        assert_eq!(
+            ptu[0]["matcher"].as_str().unwrap(),
+            "AskUserQuestion"
+        );
+
+        // Verify the command calls notify with the standard pattern
+        let cmd = ptu[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            cmd.contains("squad-station notify"),
+            "PostToolUse command must call squad-station notify"
+        );
+    }
+
+    #[test]
+    fn test_install_claude_hooks_preserves_existing_settings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let settings_file = claude_dir.join("settings.json");
+
+        // Pre-populate with existing settings
+        let existing = serde_json::json!({
+            "customKey": "preserved",
+            "hooks": {
+                "PreToolUse": [{"matcher": "Bash", "hooks": []}]
+            }
+        });
+        std::fs::write(&settings_file, serde_json::to_string_pretty(&existing).unwrap()).unwrap();
+
+        let settings_str = settings_file.to_str().unwrap();
+        install_claude_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Existing keys preserved
+        assert_eq!(settings["customKey"].as_str().unwrap(), "preserved");
+        // Existing hooks preserved
+        assert!(settings["hooks"]["PreToolUse"].is_array());
+        // New hooks added
+        assert!(settings["hooks"]["PostToolUse"].is_array());
+        assert!(settings["hooks"]["Stop"].is_array());
+        assert!(settings["hooks"]["Notification"].is_array());
     }
 }
 

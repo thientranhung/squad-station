@@ -252,6 +252,32 @@ async fn test_get_orchestrator_returns_none_when_no_orchestrator() {
     );
 }
 
+#[tokio::test]
+async fn test_get_orchestrator_prefers_non_dead() {
+    // When multiple orchestrators exist (e.g. stale from previous init),
+    // get_orchestrator must return the non-dead one.
+    let pool = helpers::setup_test_db().await;
+
+    // Insert old orchestrator (will be marked dead)
+    db::agents::insert_agent(&pool, "old-orch", "claude", "orchestrator", None, None)
+        .await
+        .unwrap();
+    db::agents::update_agent_status(&pool, "old-orch", "dead")
+        .await
+        .unwrap();
+
+    // Insert new orchestrator (idle)
+    db::agents::insert_agent(&pool, "new-orch", "claude", "orchestrator", None, None)
+        .await
+        .unwrap();
+
+    let orch = db::agents::get_orchestrator(&pool).await.unwrap().unwrap();
+    assert_eq!(
+        orch.name, "new-orch",
+        "get_orchestrator must prefer non-dead orchestrator over dead one"
+    );
+}
+
 // ============================================================
 // List agents status tests — SESS-04
 // ============================================================

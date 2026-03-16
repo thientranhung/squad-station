@@ -91,11 +91,11 @@ squad-station/
 │       ├── agents.rs        ← Agent CRUD
 │       ├── messages.rs      ← Message CRUD
 │       └── migrations/      ← 4 migration files (0001–0004)
-├── hooks/
-│   ├── claude-code.sh       ← Completion hook for Claude Code agents
-│   ├── gemini-cli.sh        ← Completion hook for Gemini CLI agents
-│   ├── claude-code-notify.sh ← Notification hook (permission prompts)
-│   ├── gemini-cli-notify.sh  ← Notification hook (Gemini)
+├── hooks/                      ← Legacy reference scripts (no longer required — init embeds inline commands)
+│   ├── claude-code.sh       ← (deprecated) Completion hook for Claude Code agents
+│   ├── gemini-cli.sh        ← (deprecated) Completion hook for Gemini CLI agents
+│   ├── claude-code-notify.sh ← (deprecated) Notification hook (permission prompts)
+│   ├── gemini-cli-notify.sh  ← (deprecated) Notification hook (Gemini)
 │   └── test-notify-hooks.sh  ← Hook testing utility
 ├── scripts/
 │   ├── _common.sh           ← Shared helpers (provider/model validation)

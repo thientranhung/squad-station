@@ -393,46 +393,69 @@ Agent stops → Hook fires → squad-station signal [agent]
 
 ### 5.3 Config per provider
 
-**Claude Code** (`.claude/settings.json`):
+`squad-station init` auto-installs all hooks below. The inline command pattern uses
+`$(tmux display-message -p '#S')` to resolve the agent name from the tmux session.
+
+**Claude Code** (`.claude/settings.json`) — 4 hook events:
+
+| Event | Matcher | Command | Purpose |
+|-------|---------|---------|---------|
+| `Stop` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
+| `Notification` | `permission_prompt` | `squad-station notify ...` | Permission dialog blocking agent |
+| `Notification` | `elicitation_dialog` | `squad-station notify ...` | MCP server input form blocking agent |
+| `PostToolUse` | `AskUserQuestion` | `squad-station notify ...` | Agent asking clarifying question |
+
 ```json
 {
   "hooks": {
     "Stop": [
-      {
-        "type": "command",
-        "command": "squad-station signal $TMUX_PANE"
-      }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal $(tmux display-message -p '#S')" }] }
     ],
     "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "squad-station notify --body \"Agent needs permission approval\""
-          }
-        ]
-      }
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] },
+      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
     ]
   }
 }
 ```
 
-**Gemini CLI** (`.gemini/settings.json`):
+**Gemini CLI** (`.gemini/settings.json`) — 2 hook events:
+
+| Event | Matcher | Command | Purpose |
+|-------|---------|---------|---------|
+| `AfterAgent` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
+| `Notification` | `*` | `squad-station notify ...` | Any notification (permissions, alerts) |
+
 ```json
 {
   "hooks": {
     "AfterAgent": [
-      {
-        "type": "command",
-        "command": "squad-station signal $TMUX_PANE"
-      }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal $(tmux display-message -p '#S')" }] }
+    ],
+    "Notification": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
     ]
   }
 }
 ```
 
 **Antigravity:** No hooks needed — DB-only polling mode (no tmux sessions).
+
+### 5.4 Orchestrator Resolution
+
+`get_orchestrator()` returns the best orchestrator when multiple exist in the DB
+(e.g. stale records from a previous `init` with a different project name):
+
+```sql
+SELECT * FROM agents WHERE role = 'orchestrator'
+ORDER BY CASE WHEN status = 'dead' THEN 1 ELSE 0 END, created_at DESC
+LIMIT 1
+```
+
+Non-dead orchestrators are always preferred. Among equals, the most recently created wins.
 
 ---
 
@@ -580,7 +603,7 @@ src/
 │   └── helpers.rs   ← shared: colorize_agent_status, format_status_with_duration, reconcile
 └── db/
     ├── mod.rs       ← SQLite pool setup (max_connections=1, busy_timeout=5s)
-    ├── agents.rs    ← Agent CRUD, get_orchestrator, reconciliation
+    ├── agents.rs    ← Agent CRUD, get_orchestrator (prefers non-dead), reconciliation
     ├── messages.rs  ← Message CRUD, priority ordering, idempotent completion
     └── migrations/
         ├── 0001_initial.sql       ← agents + messages tables

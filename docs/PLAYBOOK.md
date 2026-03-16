@@ -116,107 +116,46 @@ Re-running `init` is safe — already-running agents are skipped.
 
 ---
 
-## 3. Completion Hooks
+## 3. Hooks — Completion & Notification
 
-Hooks let squad-station know when an agent finishes its work. Without hooks, you must signal manually.
+Hooks let squad-station know when an agent finishes work or needs input. Without hooks, you must signal manually.
 
 ### Automatic Setup
 
-`squad-station init` automatically sets up hooks:
-- If a `settings.json` already exists, init merges the hook entry and creates a `.bak` backup
+`squad-station init` automatically installs all hooks:
+- If a `settings.json` already exists, init merges hook entries and creates a `.bak` backup
 - If no `settings.json` exists, init prints the hook configuration to stdout for manual setup
 
-### Manual Setup — Claude Code
+All hooks use the same inline command pattern — no external shell scripts needed:
+- **Signal:** `squad-station signal $(tmux display-message -p '#S')`
+- **Notify:** `squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')`
+
+### Claude Code Hooks (4 events)
 
 Add to `.claude/settings.json` (project-level) or `~/.claude/settings.json` (global):
 
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "squad-station signal $(tmux display-message -p '#S')"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+| Event | Matcher | Fires When |
+|-------|---------|------------|
+| `Stop` | `*` | Agent finishes turn → `signal` marks task completed |
+| `Notification` | `permission_prompt` | Agent blocked by permission dialog → `notify` orchestrator |
+| `Notification` | `elicitation_dialog` | Agent blocked by MCP input form → `notify` orchestrator |
+| `PostToolUse` | `AskUserQuestion` | Agent asks a clarifying question → `notify` orchestrator |
 
-### Manual Setup — Gemini CLI
+### Gemini CLI Hooks (2 events)
 
 Add to `.gemini/settings.json`:
 
-```json
-{
-  "hooks": {
-    "AfterAgent": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "squad-station signal $(tmux display-message -p '#S')"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+| Event | Matcher | Fires When |
+|-------|---------|------------|
+| `AfterAgent` | `*` | Agent finishes turn → `signal` marks task completed |
+| `Notification` | `*` | Any notification (permissions, alerts) → `notify` orchestrator |
 
-**Notes:**
+### Notes
+
 - The hook command auto-detects the agent from the tmux session name
 - The command always exits 0 and never blocks the AI tool, even on errors
 - `signal` has a 4-layer guard: not in tmux → exit, not registered → exit, is orchestrator → exit, no pending task → exit
-
----
-
-## 4. Notification Hooks (Optional)
-
-When Claude Code encounters a permission prompt, it fires a `Notification` event. Hook this to alert the orchestrator.
-
-### Claude Code
-
-```json
-{
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "hooks/claude-code-notify.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Gemini CLI
-
-```json
-{
-  "hooks": {
-    "Notification": [
-      {
-        "type": "command",
-        "command": "hooks/gemini-cli-notify.sh"
-      }
-    ]
-  }
-}
-```
-
-Both notify scripts are included in the `hooks/` directory. Make them executable: `chmod +x hooks/claude-code-notify.sh hooks/gemini-cli-notify.sh`.
+- Legacy shell scripts in `hooks/` are kept for reference but are no longer required
 
 ---
 

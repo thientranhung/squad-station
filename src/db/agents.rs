@@ -61,11 +61,15 @@ pub async fn list_agents(pool: &SqlitePool) -> anyhow::Result<Vec<Agent>> {
 }
 
 /// Find the orchestrator agent (role = 'orchestrator') for notification purposes.
+/// Prefers non-dead orchestrators so stale records from previous inits don't shadow
+/// the active one (e.g. my-project-orchestrator dead vs squad-test-project-orchestrator idle).
 pub async fn get_orchestrator(pool: &SqlitePool) -> anyhow::Result<Option<Agent>> {
-    let agent =
-        sqlx::query_as::<_, Agent>("SELECT * FROM agents WHERE role = 'orchestrator' LIMIT 1")
-            .fetch_optional(pool)
-            .await?;
+    let agent = sqlx::query_as::<_, Agent>(
+        "SELECT * FROM agents WHERE role = 'orchestrator' \
+         ORDER BY CASE WHEN status = 'dead' THEN 1 ELSE 0 END, created_at DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await?;
     Ok(agent)
 }
 
