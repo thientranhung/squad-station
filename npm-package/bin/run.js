@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// bin/run.js — entry point for npx / npm global install
+// bin/run.js — entry point for npx squad-station
 // Handles "install" in JS (download binary + scaffold project files).
 // All other subcommands proxy to the native Rust binary.
 
@@ -20,8 +20,8 @@ if (subcommand === 'install') {
 // 2. Copy .squad/ project files to CWD
 
 function install() {
-  const args = process.argv.slice(3);
-  const force = args.includes('--force') || args.includes('-f');
+  var args = process.argv.slice(3);
+  var force = args.includes('--force') || args.includes('-f');
 
   console.log('\n\x1b[32m══════════════════════════════════\x1b[0m');
   console.log('  \x1b[1mSquad Station Install\x1b[0m');
@@ -42,14 +42,14 @@ function install() {
 }
 
 function installBinary() {
-  const VERSION = require('../package.json').version;
-  const REPO = 'thientranhung/squad-station';
+  var VERSION = require('../package.json').version;
+  var REPO = 'thientranhung/squad-station';
 
-  const platformMap = { darwin: 'darwin', linux: 'linux' };
-  const archMap = { x64: 'x86_64', arm64: 'arm64' };
+  var platformMap = { darwin: 'darwin', linux: 'linux' };
+  var archMap = { x64: 'x86_64', arm64: 'arm64' };
 
-  const p = platformMap[process.platform];
-  const a = archMap[process.arch];
+  var p = platformMap[process.platform];
+  var a = archMap[process.arch];
 
   if (!p || !a) {
     console.error('Unsupported platform: ' + process.platform + ' ' + process.arch);
@@ -57,8 +57,8 @@ function installBinary() {
     process.exit(1);
   }
 
-  const assetName = 'squad-station-' + p + '-' + a;
-  const url = 'https://github.com/' + REPO + '/releases/download/v' + VERSION + '/' + assetName;
+  var assetName = 'squad-station-' + p + '-' + a;
+  var url = 'https://github.com/' + REPO + '/releases/download/v' + VERSION + '/' + assetName;
 
   // Determine install directory
   var installDir = '/usr/local/bin';
@@ -71,12 +71,12 @@ function installBinary() {
     fs.mkdirSync(installDir, { recursive: true });
   }
 
-  const destPath = path.join(installDir, 'squad-station');
+  var destPath = path.join(installDir, 'squad-station');
 
   // Check if binary already exists and is the right version
   if (fs.existsSync(destPath)) {
     try {
-      const result = spawnSync(destPath, ['--version'], { encoding: 'utf8' });
+      var result = spawnSync(destPath, ['--version'], { encoding: 'utf8' });
       if (result.stdout && result.stdout.includes(VERSION)) {
         console.log('  \x1b[32m✓\x1b[0m squad-station v' + VERSION + ' already installed at ' + destPath);
         return;
@@ -89,14 +89,14 @@ function installBinary() {
   console.log('  Downloading ' + assetName + ' v' + VERSION + '...');
 
   // Use curl (available on macOS/Linux) for simplicity
-  const curlResult = spawnSync('curl', [
+  var curlResult = spawnSync('curl', [
     '-fsSL', '--proto', '=https', '--tlsv1.2',
     '-o', destPath,
     url
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
   if (curlResult.status !== 0) {
-    const stderr = curlResult.stderr ? curlResult.stderr.toString() : '';
+    var stderr = curlResult.stderr ? curlResult.stderr.toString() : '';
     console.error('  Download failed: ' + stderr);
     console.error('  Manual install: https://github.com/' + REPO + '/releases');
     process.exit(1);
@@ -112,9 +112,9 @@ function installBinary() {
 
 function scaffoldProject(force) {
   // Source: bundled .squad/ directory inside npm package
-  const pkgRoot = path.join(__dirname, '..');
-  const srcSquad = path.join(pkgRoot, '.squad');
-  const destSquad = path.join(process.cwd(), '.squad');
+  var pkgRoot = path.join(__dirname, '..');
+  var srcSquad = path.join(pkgRoot, '.squad');
+  var destSquad = path.join(process.cwd(), '.squad');
 
   console.log('');
 
@@ -155,21 +155,12 @@ function scaffoldProject(force) {
 // Forward all non-install subcommands to the native binary.
 
 function proxyToBinary() {
-  // Look for binary in system PATH first, then fallback to local bin/
   var binaryPath = null;
 
-  // Try system-installed binary
+  // Try system-installed binary via PATH
   var which = spawnSync('which', ['squad-station'], { encoding: 'utf8' });
   if (which.status === 0 && which.stdout) {
     binaryPath = which.stdout.trim();
-  }
-
-  // Fallback: local binary (from postinstall)
-  if (!binaryPath) {
-    var localBin = path.join(__dirname, 'squad-station');
-    if (fs.existsSync(localBin)) {
-      binaryPath = localBin;
-    }
   }
 
   if (!binaryPath) {

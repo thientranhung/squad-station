@@ -3,7 +3,7 @@ set -e
 
 REPO="thientranhung/squad-station"
 BASE_URL="https://github.com/thientranhung/squad-station/releases/download"
-VERSION="0.1.0"
+VERSION="0.5.1"
 
 # Detect OS
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')

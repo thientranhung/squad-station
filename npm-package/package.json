@@ -17,5 +17,15 @@
   "engines": {
     "node": ">=14"
   },
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestration",
+    "tmux",
+    "squad",
+    "claude",
+    "gemini",
+    "cli"
+  ],
   "license": "MIT"
 }
