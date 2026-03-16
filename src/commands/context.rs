@@ -128,8 +128,12 @@ pub async fn run() -> anyhow::Result<()> {
     let sdd_configs = config.sdd.as_deref().unwrap_or(&[]);
     let content = build_orchestrator_md(&agents, &project_root_str, sdd_configs);
 
-    // Write slash command to .claude/commands/squad-orchestrator.md
-    let cmd_dir = project_root.join(".claude").join("commands");
+    // Write slash command to provider-specific command directory
+    let cmd_subdir = match config.orchestrator.provider.as_str() {
+        "gemini-cli" => ".gemini/commands",
+        _ => ".claude/commands",
+    };
+    let cmd_dir = project_root.join(cmd_subdir);
     std::fs::create_dir_all(&cmd_dir)?;
     let context_path = cmd_dir.join("squad-orchestrator.md");
     std::fs::write(&context_path, &content)?;
