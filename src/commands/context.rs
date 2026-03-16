@@ -126,17 +126,28 @@ pub async fn run() -> anyhow::Result<()> {
 
     let project_root_str = project_root.to_string_lossy().to_string();
     let sdd_configs = config.sdd.as_deref().unwrap_or(&[]);
-    let content = build_orchestrator_md(&agents, &project_root_str, sdd_configs);
+    let prompt_content = build_orchestrator_md(&agents, &project_root_str, sdd_configs);
 
-    // Write slash command to provider-specific command directory
-    let cmd_subdir = match config.orchestrator.provider.as_str() {
-        "gemini-cli" => ".gemini/commands",
-        _ => ".claude/commands",
+    // Write slash command in provider-specific format and directory
+    let (cmd_subdir, filename, file_content) = match config.orchestrator.provider.as_str() {
+        "gemini-cli" => {
+            // Gemini CLI: TOML format with description + prompt fields
+            let toml = format!(
+                "description = \"Squad Station orchestrator — coordinate AI agent squads\"\n\
+                 prompt = \"\"\"\n{}\n\"\"\"",
+                prompt_content
+            );
+            (".gemini/commands", "squad-orchestrator.toml", toml)
+        }
+        _ => {
+            // Claude Code: plain markdown
+            (".claude/commands", "squad-orchestrator.md", prompt_content)
+        }
     };
     let cmd_dir = project_root.join(cmd_subdir);
     std::fs::create_dir_all(&cmd_dir)?;
-    let context_path = cmd_dir.join("squad-orchestrator.md");
-    std::fs::write(&context_path, &content)?;
+    let context_path = cmd_dir.join(filename);
+    std::fs::write(&context_path, &file_content)?;
 
     println!("Generated {}", context_path.display());
     Ok(())
