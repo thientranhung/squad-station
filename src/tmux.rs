@@ -114,11 +114,19 @@ fn paste_buffer_args(target: &str) -> Vec<String> {
 
 // --- Public API ---
 
+/// Delay (seconds) between sending text and pressing Enter.
+/// Claude Code needs time to render the input before Enter is processed.
+const SEND_ENTER_DELAY_SECS: u64 = 2;
+
+/// Delay (seconds) between sending consecutive commands (e.g., /clear && /gsd:plan-phase 1).
+/// The first command needs time to execute before the next one is sent.
+const MULTI_CMD_DELAY_SECS: u64 = 5;
+
 /// Send text literally to a tmux target, followed by Enter (SAFE-02)
 ///
 /// Always uses `-l` flag to prevent special character injection.
 /// Sends Enter as a separate call so it is interpreted as a key, not literal text.
-/// Includes a short delay between text and Enter to ensure the target pane
+/// Includes a delay between text and Enter to ensure the target pane
 /// has received and rendered the text before Enter is processed.
 pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
     // Step 1: Send text as literal (no key name interpretation)
@@ -129,7 +137,7 @@ pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
     }
 
     // Step 2: Wait for the pane to receive and render the text
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    std::thread::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS));
 
     // Step 3: Send Enter as separate key (NOT -l, so Enter key is recognized)
     let enter = enter_args(target);
@@ -141,23 +149,17 @@ pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
     Ok(())
 }
 
-/// Inject arbitrary body content into a tmux target using load-buffer/paste-buffer.
-///
-/// Writes content to a uniquely-named temp file, loads it into the tmux paste buffer,
-/// pastes it to the target session, sends Enter, and cleans up the temp file on all paths.
-/// This replaces send_keys_literal for body delivery — handles multiline content safely.
-pub fn inject_body(target: &str, body: &str) -> Result<()> {
-    // Step 1: Write content to temp file with unique name
+/// Inject a single piece of content into a tmux target using load-buffer/paste-buffer.
+fn inject_single(target: &str, text: &str) -> Result<()> {
     let temp_path = std::env::temp_dir()
         .join(format!("squad-station-msg-{}", uuid::Uuid::new_v4()));
-    std::fs::write(&temp_path, body)?;
+    std::fs::write(&temp_path, text)?;
 
     let path_str = temp_path
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp path contains invalid UTF-8"))?
         .to_string();
 
-    // Step 2: Load temp file into tmux paste buffer
     let load_args = load_buffer_args(&path_str);
     let status = Command::new("tmux").args(&load_args).status()?;
     if !status.success() {
@@ -165,22 +167,45 @@ pub fn inject_body(target: &str, body: &str) -> Result<()> {
         bail!("tmux load-buffer failed for target: {}", target);
     }
 
-    // Step 3: Paste buffer into target session
     let paste_args = paste_buffer_args(target);
     let status = Command::new("tmux").args(&paste_args).status()?;
-    let _ = std::fs::remove_file(&temp_path); // always cleanup regardless of outcome
+    let _ = std::fs::remove_file(&temp_path);
     if !status.success() {
         bail!("tmux paste-buffer failed for target: {}", target);
     }
 
-    // Step 4: Wait for the pane to receive and render the pasted text
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    std::thread::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS));
 
-    // Step 5: Send Enter (paste-buffer does NOT send Enter automatically)
     let enter = enter_args(target);
     let status = Command::new("tmux").args(&enter).status()?;
     if !status.success() {
         bail!("tmux send-keys Enter failed for target: {}", target);
+    }
+
+    Ok(())
+}
+
+/// Inject body content into a tmux target.
+///
+/// If the body contains `&&`, it is split into separate commands and each is
+/// sent individually with a delay between them. This handles compound commands
+/// like `/clear && /gsd:plan-phase 1` that Claude Code's TUI cannot parse as one input.
+pub fn inject_body(target: &str, body: &str) -> Result<()> {
+    // Check if body contains && separators (compound commands)
+    let parts: Vec<&str> = body.split("&&").map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+
+    if parts.len() > 1 {
+        // Multiple commands: send each separately with delay between
+        for (i, part) in parts.iter().enumerate() {
+            inject_single(target, part)?;
+            if i < parts.len() - 1 {
+                // Wait for the command to execute before sending the next
+                std::thread::sleep(std::time::Duration::from_secs(MULTI_CMD_DELAY_SECS));
+            }
+        }
+    } else {
+        // Single command: send as-is
+        inject_single(target, body)?;
     }
 
     Ok(())
@@ -257,40 +282,49 @@ pub fn create_view_window(window_name: &str, sessions: &[String]) -> Result<()> 
     Ok(())
 }
 
-/// Create a dedicated monitor session with tiled panes, one per agent session.
+/// Create a dedicated monitor session with orchestrator on the left and workers on the right.
+///
+/// Layout: orchestrator takes the full left column (50% width),
+/// worker agents stack vertically in the right column.
 ///
 /// Each pane runs `sh -c 'TMUX= tmux attach-session -t <agent>'` to bypass the
 /// nested-tmux restriction ($TMUX set in the calling environment).
-/// The session is named `squad-monitor-<project>` to avoid conflicts across projects.
 pub fn create_view_session(session_name: &str, agent_sessions: &[String]) -> Result<()> {
     if agent_sessions.is_empty() {
         return Ok(());
     }
 
-    // First pane: create a new detached session attaching to the first agent
-    let first_cmd = format!(
+    // First pane (left): orchestrator — always agent_sessions[0]
+    let orch_cmd = format!(
         "sh -c 'TMUX= tmux attach-session -t {}'",
         agent_sessions[0]
     );
     let status = Command::new("tmux")
-        .args(launch_args(session_name, &first_cmd))
+        .args(launch_args(session_name, &orch_cmd))
         .status()?;
     if !status.success() {
         bail!("tmux new-session failed for monitor session: {}", session_name);
     }
 
-    // Remaining panes: split-window within the new session
-    for agent in agent_sessions.iter().skip(1) {
-        let cmd = format!("sh -c 'TMUX= tmux attach-session -t {}'", agent);
+    if agent_sessions.len() > 1 {
+        // Split horizontally: left = orchestrator, right = first worker
+        let first_worker_cmd = format!(
+            "sh -c 'TMUX= tmux attach-session -t {}'",
+            agent_sessions[1]
+        );
         Command::new("tmux")
-            .args(split_window_args(session_name, &cmd))
+            .args(&["split-window", "-t", session_name, "-h", &first_worker_cmd])
             .status()?;
-    }
 
-    // Apply tiled layout
-    Command::new("tmux")
-        .args(select_layout_args(session_name, "tiled"))
-        .status()?;
+        // Remaining workers: split vertically within the right column
+        for agent in agent_sessions.iter().skip(2) {
+            let cmd = format!("sh -c 'TMUX= tmux attach-session -t {}'", agent);
+            // Target the last pane (right column) for vertical split
+            Command::new("tmux")
+                .args(&["split-window", "-t", session_name, "-v", &cmd])
+                .status()?;
+        }
+    }
 
     Ok(())
 }

@@ -1,13 +1,13 @@
-project: squad-station
+project: landing-page
 
 sdd:
   - name: get-shit-done
     playbook: ".squad/sdd/gsd-playbook.md"
 
 orchestrator:
-  provider: claude-code
+  provider: gemini-cli
   role: orchestrator
-  model: haiku
+  model: gemini-3.1-pro-preview
   description: Team leader, monitors and coordinates tasks for agents
 
 agents:

@@ -25,25 +25,25 @@ async fn test_insert_and_get_agent() {
 
 #[tokio::test]
 async fn test_insert_agent_idempotent() {
-    // SESS-02: INSERT OR IGNORE — duplicate insert is a no-op, not an error
+    // Upsert: re-inserting with different config updates the existing record
     let pool = helpers::setup_test_db().await;
 
     agents::insert_agent(&pool, "backend", "claude-code", "worker", None, None)
         .await
         .expect("first insert should succeed");
 
-    // Second insert must NOT return an error
+    // Second insert must NOT return an error and must update the record
     agents::insert_agent(&pool, "backend", "gemini", "orchestrator", None, None)
         .await
-        .expect("duplicate insert should be a no-op, not an error");
+        .expect("upsert should succeed");
 
-    // The first insertion's data must be preserved
+    // The second insertion's data must take effect
     let agent = agents::get_agent(&pool, "backend").await.unwrap().unwrap();
     assert_eq!(
-        agent.tool, "claude-code",
-        "first insert data must be preserved (IGNORE semantics)"
+        agent.tool, "gemini",
+        "upsert must update tool to new value"
     );
-    assert_eq!(agent.role, "worker");
+    assert_eq!(agent.role, "orchestrator", "upsert must update role to new value");
 }
 
 #[tokio::test]
