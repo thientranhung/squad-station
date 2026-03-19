@@ -46,14 +46,23 @@ pub fn build_orchestrator_md(
 
     // ── Context Management ─────────────────────────────────────────────
     out.push_str("## Context Management — `/clear`\n\n");
-    out.push_str("You are responsible for knowing when to send `/clear` to an agent. Use your judgment via two methods:\n\n");
-    out.push_str("1. **From task context** — Based on what you know about the previous and upcoming tasks\n");
-    out.push_str("   (yours or the agent's), decide if the agent's context has become irrelevant or\n");
-    out.push_str("   counterproductive for the next task. If so, send `/clear` before the next task.\n\n");
-    out.push_str("2. **From agent hints** — After an agent completes a task, it may suggest or signal\n");
-    out.push_str("   that a `/clear` is needed (e.g., context is too long, topic is shifting). Follow that hint.\n\n");
-    out.push_str("After `/clear`, the agent has zero memory. Re-inject enough context so the agent can\n");
-    out.push_str("execute the next task independently.\n\n");
+    out.push_str("You MUST send `/clear` to an agent BEFORE dispatching a new task if ANY of these conditions are true:\n\n");
+    out.push_str("### Mandatory `/clear` Triggers\n\n");
+    out.push_str("1. **Topic shift** — The new task is on a DIFFERENT topic/feature than the agent's last completed task.\n");
+    out.push_str("   Examples: bug fix → new feature, UI work → backend work, different file areas.\n\n");
+    out.push_str("2. **Task count threshold** — The agent has completed 3 or more consecutive tasks without a `/clear`.\n");
+    out.push_str("   Count resets after each `/clear`.\n\n");
+    out.push_str("3. **Agent hint** — The agent's output mentions context issues, suggests clearing,\n");
+    out.push_str("   or shows signs of confusion (referencing old/irrelevant code).\n\n");
+    out.push_str("### `/clear` Checklist (run BEFORE every `squad-station send`)\n\n");
+    out.push_str("□ Is this a topic shift from the agent's last task? → /clear\n");
+    out.push_str("□ Has the agent done 3+ tasks since last /clear? → /clear\n");
+    out.push_str("□ Did the agent hint at context issues? → /clear\n");
+    out.push_str("□ None of the above? → send task directly (no /clear needed)\n\n");
+    out.push_str("### How to `/clear`\n\n");
+    out.push_str("```bash\nsquad-station send <agent-name> --body \"/clear\"\n```\n\n");
+    out.push_str("After `/clear`, the agent has ZERO memory. You MUST re-inject enough context\n");
+    out.push_str("in the next task body so the agent can execute independently.\n\n");
 
     // ── Session Routing ──────────────────────────────────────────────────
     out.push_str("## Session Routing\n\n");
@@ -128,7 +137,8 @@ pub fn build_orchestrator_md(
     );
     out.push_str("3. If agent asked business/requirements questions → forward to user (HITL)\n");
     out.push_str("4. `squad-station list --agent <agent>` — confirm status is `completed`\n");
-    out.push_str("5. Decide if `/clear` is needed before the next task (see Context Management).\n");
+    out.push_str("5. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n");
+    out.push_str("   send `/clear` to the agent BEFORE dispatching the next task.\n");
     out.push_str(
         "6. Proceed to next playbook step, or report to user if workflow is complete.\n\n",
     );

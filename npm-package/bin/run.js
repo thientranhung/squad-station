@@ -43,7 +43,7 @@ function install() {
 
 function installBinary() {
   // Binary version — may differ from npm package version
-  var VERSION = '0.5.3';
+  var VERSION = '0.5.6';
   var REPO = 'thientranhung/squad-station';
 
   var platformMap = { darwin: 'darwin', linux: 'linux' };

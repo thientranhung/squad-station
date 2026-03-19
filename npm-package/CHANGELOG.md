@@ -2,6 +2,24 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.5.6 - 2026-03-20
+
+### 🌟 Highlights
+
+- `/clear` context management upgraded from vague guidance to **hard rules** — weaker models (Haiku) no longer ignore `/clear` decisions
+
+### 🎁 Features
+
+- Mandatory `/clear` triggers: topic shift, 3-task threshold, agent hint detection
+- Pre-send checklist added to orchestrator playbook — run before every `squad-station send`
+- Explicit `How to /clear` section with code example
+- QA Gate step 5 now says "Run the `/clear` checklist" instead of "Decide if `/clear` is needed"
+
+### 🔧 Maintenance
+
+- Version bumped to 0.5.6 across Cargo.toml, npm-package/package.json, and bin/run.js
+- Binary download version aligned to 0.5.6 (was stuck at 0.5.3)
+
 ## v0.5.5 - 2026-03-19
 
 ### 🌟 Highlights
