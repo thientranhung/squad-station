@@ -418,3 +418,45 @@ async fn test_build_orchestrator_md_without_sdd() {
         "SDD section should not appear when no SDDs configured"
     );
 }
+
+// ============================================================
+// Context inject output format tests
+// ============================================================
+
+#[tokio::test]
+async fn test_format_inject_output_claude_code_returns_raw_content() {
+    use squad_station::commands::context::format_inject_output;
+
+    let content = "You are the orchestrator.\n## Agent Roster\n";
+    let output = format_inject_output("claude-code", content);
+    assert_eq!(output, content, "Claude Code inject must return raw content");
+}
+
+#[tokio::test]
+async fn test_format_inject_output_gemini_cli_returns_json() {
+    use squad_station::commands::context::format_inject_output;
+
+    let content = "You are the orchestrator.";
+    let output = format_inject_output("gemini-cli", content);
+    let parsed: serde_json::Value = serde_json::from_str(&output)
+        .expect("Gemini CLI inject output must be valid JSON");
+    assert_eq!(
+        parsed["hookSpecificOutput"]["additionalContext"]
+            .as_str()
+            .unwrap(),
+        content,
+        "Gemini JSON must contain additionalContext field"
+    );
+}
+
+#[tokio::test]
+async fn test_format_inject_output_unknown_provider_returns_raw() {
+    use squad_station::commands::context::format_inject_output;
+
+    let content = "fallback content";
+    let output = format_inject_output("some-other-tool", content);
+    assert_eq!(
+        output, content,
+        "Unknown provider should fall back to raw content"
+    );
+}

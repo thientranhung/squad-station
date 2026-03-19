@@ -44,6 +44,17 @@ pub fn build_orchestrator_md(
     out.push_str("```\n\n");
     out.push_str("Only proactively check (`capture-pane`) if you suspect the agent is stuck for an unusually long time.\n\n");
 
+    // ── Context Management ─────────────────────────────────────────────
+    out.push_str("## Context Management — `/clear`\n\n");
+    out.push_str("You are responsible for knowing when to send `/clear` to an agent. Use your judgment via two methods:\n\n");
+    out.push_str("1. **From task context** — Based on what you know about the previous and upcoming tasks\n");
+    out.push_str("   (yours or the agent's), decide if the agent's context has become irrelevant or\n");
+    out.push_str("   counterproductive for the next task. If so, send `/clear` before the next task.\n\n");
+    out.push_str("2. **From agent hints** — After an agent completes a task, it may suggest or signal\n");
+    out.push_str("   that a `/clear` is needed (e.g., context is too long, topic is shifting). Follow that hint.\n\n");
+    out.push_str("After `/clear`, the agent has zero memory. Re-inject enough context so the agent can\n");
+    out.push_str("execute the next task independently.\n\n");
+
     // ── Session Routing ──────────────────────────────────────────────────
     out.push_str("## Session Routing\n\n");
     out.push_str("Based on the nature of the work, independently decide the correct agent:\n\n");
@@ -117,8 +128,9 @@ pub fn build_orchestrator_md(
     );
     out.push_str("3. If agent asked business/requirements questions → forward to user (HITL)\n");
     out.push_str("4. `squad-station list --agent <agent>` — confirm status is `completed`\n");
+    out.push_str("5. Decide if `/clear` is needed before the next task (see Context Management).\n");
     out.push_str(
-        "5. Proceed to next playbook step, or report to user if workflow is complete.\n\n",
+        "6. Proceed to next playbook step, or report to user if workflow is complete.\n\n",
     );
 
     // ── Agent Roster ─────────────────────────────────────────────────────
@@ -137,9 +149,50 @@ pub fn build_orchestrator_md(
     out
 }
 
-pub async fn run() -> anyhow::Result<()> {
+/// Detect the current tmux session name. Returns None if not in tmux.
+pub fn detect_tmux_session() -> Option<String> {
+    std::process::Command::new("tmux")
+        .args(["display-message", "-p", "#S"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                let name = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name)
+                }
+            } else {
+                None
+            }
+        })
+}
+
+/// Format orchestrator content for stdout injection based on provider.
+/// Claude Code: raw markdown. Gemini CLI: JSON with hookSpecificOutput.additionalContext.
+pub fn format_inject_output(provider: &str, content: &str) -> String {
+    match provider {
+        "gemini-cli" => {
+            let json = serde_json::json!({
+                "hookSpecificOutput": {
+                    "additionalContext": content
+                }
+            });
+            serde_json::to_string(&json).unwrap_or_default()
+        }
+        _ => content.to_string(),
+    }
+}
+
+pub async fn run(inject: bool) -> anyhow::Result<()> {
     let project_root = config::find_project_root()?;
     let config = config::load_config(&project_root.join("squad.yml"))?;
+
+    if inject {
+        return run_inject(&project_root, &config).await;
+    }
+
     let db_path = config::resolve_db_path(&config)?;
     let pool = db::connect(&db_path).await?;
 
@@ -171,5 +224,42 @@ pub async fn run() -> anyhow::Result<()> {
     std::fs::write(&context_path, &file_content)?;
 
     println!("Generated {}", context_path.display());
+    Ok(())
+}
+
+/// Hook injection mode: output orchestrator context to stdout for SessionStart hooks.
+/// Guards: only injects if the current tmux session is the orchestrator.
+async fn run_inject(
+    project_root: &std::path::Path,
+    config: &config::SquadConfig,
+) -> anyhow::Result<()> {
+    // GUARD 1: Must be in a tmux session
+    let session_name = match detect_tmux_session() {
+        Some(name) => name,
+        None => return Ok(()), // Not in tmux — silent exit
+    };
+
+    // GUARD 2: Must be the orchestrator session
+    let orch_role = config
+        .orchestrator
+        .name
+        .as_deref()
+        .unwrap_or("orchestrator");
+    let orch_name = config::sanitize_session_name(&format!("{}-{}", config.project, orch_role));
+    if session_name != orch_name {
+        return Ok(()); // Not the orchestrator — silent exit (workers get no injection)
+    }
+
+    // Generate content
+    let db_path = config::resolve_db_path(config)?;
+    let pool = db::connect(&db_path).await?;
+    let agents = db::agents::list_agents(&pool).await?;
+
+    let project_root_str = project_root.to_string_lossy().to_string();
+    let sdd_configs = config.sdd.as_deref().unwrap_or(&[]);
+    let content = build_orchestrator_md(&agents, &project_root_str, sdd_configs);
+
+    // Output in provider-appropriate format
+    print!("{}", format_inject_output(&config.orchestrator.provider, &content));
     Ok(())
 }

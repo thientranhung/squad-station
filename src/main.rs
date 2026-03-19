@@ -39,11 +39,10 @@ async fn run(cli: cli::Cli) -> Result<()> {
         Peek { agent } => commands::peek::run(agent, cli.json).await,
         Register { name, role, tool } => commands::register::run(name, role, tool, cli.json).await,
         Agents => commands::agents::run(cli.json).await,
-        Context => commands::context::run().await,
+        Context { inject } => commands::context::run(inject).await,
         Status => commands::status::run(cli.json).await,
         Ui => commands::ui::run().await,
         View => commands::view::run(cli.json).await,
-        Close { config } => commands::close::run(config, cli.json).await,
         Reset {
             config,
             no_relaunch,

@@ -80,19 +80,17 @@ pub enum Commands {
     /// List agents with reconciled status
     Agents,
     /// Generate orchestrator context file
-    Context,
+    Context {
+        /// Output context to stdout for SessionStart hook injection (orchestrator only)
+        #[arg(long)]
+        inject: bool,
+    },
     /// Show project and agent status summary
     Status,
     /// Launch interactive TUI dashboard
     Ui,
     /// Open tmux tiled view of all live agent sessions
     View,
-    /// Kill all squad tmux sessions defined in squad.yml
-    Close {
-        /// Path to squad config file
-        #[arg(default_value = "squad.yml")]
-        config: PathBuf,
-    },
     /// Kill all sessions and delete database, then relaunch
     Reset {
         /// Path to squad config file
@@ -106,7 +104,7 @@ pub enum Commands {
     Freeze,
     /// Unfreeze all agents — allow orchestrator to send tasks again
     Unfreeze,
-    /// Delete the local database file only
+    /// Kill all squad tmux sessions and delete the database
     Clean {
         /// Path to squad config file
         #[arg(default_value = "squad.yml")]
