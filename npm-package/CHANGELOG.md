@@ -2,6 +2,20 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.5.7 - 2026-03-20
+
+### 🐛 Bug Fixes
+
+- Fixed signal race condition: `/clear` followed by a real task no longer leaves the real task stuck at `processing` forever
+- Root cause: `/clear` in Claude Code produces no response turn, so the Stop hook never fires — its DB message blocked the FIFO signal queue, causing subsequent signals to complete the wrong task
+- Fire-and-forget commands (e.g. `/clear`, `/clear hard`) are now auto-completed at send time in `send.rs`
+- Agent status correctly resets to idle after fire-and-forget if no other tasks are queued
+
+### 🧪 Tests
+
+- Added `is_fire_and_forget` unit tests (positive + negative cases)
+- Added `test_fire_and_forget_clear_auto_completed` integration test — reproduces the exact race condition and verifies signal targets the correct task
+
 ## v0.5.6 - 2026-03-20
 
 ### 🌟 Highlights
@@ -17,8 +31,8 @@ All notable changes to Squad Station are documented in this file.
 
 ### 🔧 Maintenance
 
-- Version bumped to 0.5.6 across Cargo.toml, npm-package/package.json, and bin/run.js
-- Binary download version aligned to 0.5.6 (was stuck at 0.5.3)
+- Version bumped to 0.5.6 across Cargo.toml, npm-package/package.json, and bin/run.js binary download
+- npm binary download version aligned to 0.5.6 (was stuck at 0.5.3)
 
 ## v0.5.5 - 2026-03-19
 

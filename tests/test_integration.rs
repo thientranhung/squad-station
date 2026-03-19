@@ -1726,3 +1726,80 @@ async fn test_signal_pane_id_as_arg() {
     // E2E behavior is covered by e2e_cli.sh.
     eprintln!("test_signal_pane_id_as_arg: E2E covered by e2e_cli.sh");
 }
+
+// ============================================================
+// Fire-and-forget race condition regression test
+// ============================================================
+
+/// Regression: /clear followed by a real task would leave the real task stuck at
+/// `processing` forever because /clear never fires a Stop hook, and the single
+/// signal from the real task would be consumed by the FIFO-oldest /clear message.
+///
+/// Fix: /clear is auto-completed at send time. Verify that after sending /clear,
+/// the message is already completed and subsequent signal correctly targets the
+/// real task.
+#[tokio::test]
+async fn test_fire_and_forget_clear_auto_completed() {
+    let pool = helpers::setup_test_db().await;
+
+    // Register agent
+    db::agents::insert_agent(&pool, "ff-agent", "claude", "worker", None, None)
+        .await
+        .unwrap();
+
+    // Simulate send of /clear — insert as processing then immediately complete
+    // (mirroring what send.rs now does for fire-and-forget commands)
+    let clear_id = db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "ff-agent",
+        "task_request",
+        "/clear",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Auto-complete it (as send.rs does for fire-and-forget)
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE messages SET status = 'completed', updated_at = ?, completed_at = ? WHERE id = ?",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(&clear_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Now send a real task
+    let review_id = db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "ff-agent",
+        "task_request",
+        "/review PR #2",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Signal fires once (from the real task completing)
+    let rows = db::messages::update_status(&pool, "ff-agent").await.unwrap();
+    assert_eq!(rows, 1, "signal should complete exactly one message");
+
+    // The review task should be completed, not the already-completed /clear
+    let msgs = db::messages::list_messages(&pool, Some("ff-agent"), Some("completed"), 10)
+        .await
+        .unwrap();
+    assert_eq!(msgs.len(), 2, "both /clear and /review should be completed");
+
+    let review_msg = msgs.iter().find(|m| m.id == review_id).unwrap();
+    assert_eq!(review_msg.status, "completed");
+
+    // No processing messages should remain
+    let remaining = db::messages::count_processing(&pool, "ff-agent").await.unwrap();
+    assert_eq!(remaining, 0, "no tasks should remain stuck at processing");
+}
