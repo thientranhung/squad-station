@@ -110,6 +110,21 @@ pub enum Commands {
     Freeze,
     /// Unfreeze all agents — allow orchestrator to send tasks again
     Unfreeze,
+    /// Watchdog daemon — auto-detect and fix stuck agents
+    Watch {
+        /// Poll interval in seconds
+        #[arg(long, default_value = "30")]
+        interval: u64,
+        /// Minutes of system-wide idle before nudging orchestrator
+        #[arg(long, default_value = "5")]
+        stall_threshold: u64,
+        /// Fork to background and write PID to .squad/watch.pid
+        #[arg(long)]
+        daemon: bool,
+        /// Stop a running watchdog daemon
+        #[arg(long)]
+        stop: bool,
+    },
     /// Kill all squad tmux sessions and delete the database
     Clean {
         /// Path to squad config file

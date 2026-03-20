@@ -136,6 +136,15 @@ pub async fn complete_by_id(pool: &SqlitePool, message_id: &str) -> anyhow::Resu
     Ok(result.rows_affected())
 }
 
+/// Count all processing messages across all agents.
+pub async fn count_processing_all(pool: &SqlitePool) -> anyhow::Result<i64> {
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM messages WHERE status = 'processing'")
+            .fetch_one(pool)
+            .await?;
+    Ok(row.0)
+}
+
 /// Peek at the highest-priority processing message for an agent.
 /// Priority ordering: urgent > high > normal.
 pub async fn peek_message(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<Option<Message>> {
