@@ -166,7 +166,16 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         anyhow::bail!("All {} agent(s) failed to launch", total);
     }
 
-    // 9. Hook setup: auto-install or print instructions
+    // 9a. Create .squad/log/ directory for signal and watchdog logs
+    {
+        let log_dir = db_path
+            .parent()
+            .unwrap_or(std::path::Path::new(".squad"))
+            .join("log");
+        let _ = std::fs::create_dir_all(&log_dir);
+    }
+
+    // 9. Hook setup: auto-install for ALL providers used in the squad (not just orchestrator).
     // In JSON mode, skip stdout instructions (to preserve machine-parseable output).
     if !json {
         let green = |s: &str| {
@@ -190,22 +199,45 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         println!("  {}", bold("Squad Setup Complete"));
         println!("{}\n", green("══════════════════════════════════"));
 
-        let hook_installed = auto_install_hooks(&config.orchestrator.provider).unwrap_or(false);
-        if hook_installed {
-            println!("  Hooks: installed to settings file");
-        } else {
+        // Collect all unique providers across orchestrator + workers
+        let mut providers_seen: Vec<String> = vec![config.orchestrator.provider.clone()];
+        for agent in &config.agents {
+            if !providers_seen.contains(&agent.provider) {
+                providers_seen.push(agent.provider.clone());
+            }
+        }
+
+        let mut any_hooks_installed = false;
+        for provider in &providers_seen {
+            match auto_install_hooks(provider) {
+                Ok(true) => {
+                    any_hooks_installed = true;
+                    println!("  Hooks: installed for {}", provider);
+                }
+                Ok(false) => {
+                    println!("  Hooks: skipped for {} (unsupported provider)", provider);
+                }
+                Err(e) => {
+                    println!("  Hooks: failed for {} ({})", provider, e);
+                }
+            }
+        }
+
+        if !any_hooks_installed {
             println!("Please manually configure the following hooks to enable task completion signals:\n");
-            let providers: &[(&str, &str, &str)] = &[
+            let hook_providers: &[(&str, &str, &str)] = &[
                 (".claude/settings.json", "Stop", "*"),
                 (".claude/settings.json", "Notification", "permission_prompt"),
                 (".claude/settings.json", "PostToolUse", "AskUserQuestion"),
                 (".gemini/settings.json", "AfterAgent", "*"),
                 (".gemini/settings.json", "Notification", "*"),
             ];
-            for &(settings_path, hook_event, matcher) in providers {
+            for &(settings_path, hook_event, matcher) in hook_providers {
                 print_hook_instructions(settings_path, hook_event, matcher);
             }
         }
+
+        let hook_installed = any_hooks_installed;
 
         // Ask user if they want auto-inject of orchestrator context on session start/compact/clear.
         // Only prompt when base hooks were successfully auto-installed (supported provider).
@@ -261,6 +293,20 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         println!();
         println!("  Monitor all agents (read-only view):");
         println!("     {}", cyan("squad-station view"));
+        println!();
+
+        // Auto-start watchdog daemon for self-healing
+        match crate::commands::watch::run(30, 5, true, false).await {
+            Ok(()) => println!("  Watchdog: started (30s interval)"),
+            Err(e) => {
+                let msg = format!("{}", e);
+                if msg.contains("already running") {
+                    println!("  Watchdog: already running");
+                } else {
+                    println!("  Watchdog: failed to start ({})", e);
+                }
+            }
+        }
         println!();
     }
 

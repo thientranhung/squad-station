@@ -113,6 +113,8 @@ pub async fn run(
                 .arg(interval_secs.to_string())
                 .arg("--stall-threshold")
                 .arg(stall_threshold_mins.to_string());
+            // Explicitly set CWD to ensure the child finds squad.yml
+            cmd.current_dir(std::env::current_dir()?);
             cmd.stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null());
