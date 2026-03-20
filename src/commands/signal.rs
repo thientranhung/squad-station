@@ -144,14 +144,37 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
                 (0, None)
             }
         } else {
-            // current_task is NULL — no assigned task
-            log_signal(
-                &project_root,
-                "OK",
-                &agent,
-                "task=none reason=no_current_task",
-            );
-            (0, None)
+            // current_task is NULL — fallback to FIFO (edge case: task sent but current_task race)
+            let fifo_rows = db::messages::update_status(&pool, &agent).await?;
+            if fifo_rows > 0 {
+                // Retrieve the task that FIFO just completed
+                let completed: Option<(String,)> = sqlx::query_as(
+                    "SELECT id FROM messages WHERE agent_name = ? AND status = 'completed' \
+                     ORDER BY updated_at DESC LIMIT 1",
+                )
+                .bind(&agent)
+                .fetch_optional(&pool)
+                .await?;
+                let tid = completed.map(|(id,)| id);
+                log_signal(
+                    &project_root,
+                    "WARN",
+                    &agent,
+                    &format!(
+                        "task={} method=fifo_fallback reason=current_task_null",
+                        tid.as_deref().unwrap_or("unknown")
+                    ),
+                );
+                (fifo_rows, tid)
+            } else {
+                log_signal(
+                    &project_root,
+                    "OK",
+                    &agent,
+                    "task=none reason=no_current_task_no_processing",
+                );
+                (0, None)
+            }
         };
 
     // Find orchestrator and notify (only on actual state change).

@@ -7,6 +7,7 @@ pub mod init;
 pub mod list;
 pub mod notify;
 pub mod peek;
+pub mod reconcile;
 pub mod register;
 pub mod reset;
 pub mod send;

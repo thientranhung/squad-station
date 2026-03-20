@@ -100,6 +100,12 @@ pub enum Commands {
         #[arg(long)]
         no_relaunch: bool,
     },
+    /// Detect and fix stuck agents (busy in DB but idle in tmux)
+    Reconcile {
+        /// Show what would be fixed without changing the database
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Freeze all agents — block orchestrator from sending tasks (user takes control)
     Freeze,
     /// Unfreeze all agents — allow orchestrator to send tasks again
@@ -112,6 +118,9 @@ pub enum Commands {
         /// Skip confirmation prompt
         #[arg(long, short = 'y')]
         yes: bool,
+        /// Also delete .squad/log/ directory (by default, logs are preserved for post-mortem)
+        #[arg(long)]
+        all: bool,
     },
 }
 

@@ -127,8 +127,27 @@ fn clean_delete_db_file_deletes_file_and_returns_true() {
 
 #[tokio::test]
 async fn clean_run_errors_on_missing_config() {
-    let result = clean::run(PathBuf::from("nonexistent-squad.yml"), true, false).await;
+    let result = clean::run(PathBuf::from("nonexistent-squad.yml"), true, false, false).await;
     assert!(result.is_err(), "run must error when config file not found");
+}
+
+// ============================================================
+// clean::stop_watchdog — watchdog lifecycle tests
+// ============================================================
+
+#[test]
+fn clean_stop_watchdog_returns_false_when_no_pid_file() {
+    let dir = TempDir::new().unwrap();
+    assert!(!clean::stop_watchdog(dir.path()));
+}
+
+#[test]
+fn clean_stop_watchdog_removes_pid_file() {
+    let dir = TempDir::new().unwrap();
+    let pid_file = dir.path().join("watch.pid");
+    std::fs::write(&pid_file, "99999999").unwrap(); // Non-existent PID
+    assert!(clean::stop_watchdog(dir.path()));
+    assert!(!pid_file.exists(), "PID file must be removed after stop");
 }
 
 // ============================================================
