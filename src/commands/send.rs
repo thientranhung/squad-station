@@ -69,15 +69,7 @@ pub async fn run(
     // (that would cause the next signal to noop since current_task points to a completed message).
     if is_fire_and_forget(&body) {
         // Auto-complete the message without touching current_task
-        let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE messages SET status = 'completed', updated_at = ?, completed_at = ? WHERE id = ?",
-        )
-        .bind(&now)
-        .bind(&now)
-        .bind(&msg_id)
-        .execute(&pool)
-        .await?;
+        db::messages::complete_by_id(&pool, &msg_id).await?;
 
         // If no other tasks are processing, agent goes idle
         let remaining = db::messages::count_processing(&pool, &agent).await?;
@@ -89,11 +81,7 @@ pub async fn run(
         // If remaining > 0, current_task already points to the real task — don't touch it
     } else {
         // Real task: set current_task and mark agent as busy
-        sqlx::query("UPDATE agents SET current_task = ? WHERE name = ?")
-            .bind(&msg_id)
-            .bind(&agent)
-            .execute(&pool)
-            .await?;
+        db::agents::set_current_task(&pool, &agent, &msg_id).await?;
         db::agents::update_agent_status(&pool, &agent, "busy").await?;
     }
 

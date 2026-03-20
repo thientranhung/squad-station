@@ -110,10 +110,7 @@ pub async fn reconcile_agents(
                     completed_count += 1;
                 }
                 // Clear current_task and set idle
-                sqlx::query("UPDATE agents SET current_task = NULL WHERE name = ?")
-                    .bind(&agent.name)
-                    .execute(pool)
-                    .await?;
+                db::agents::clear_current_task(pool, &agent.name).await?;
                 db::agents::update_agent_status(pool, &agent.name, "idle").await?;
 
                 // Notify orchestrator

@@ -148,14 +148,7 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
             let fifo_rows = db::messages::update_status(&pool, &agent).await?;
             if fifo_rows > 0 {
                 // Retrieve the task that FIFO just completed
-                let completed: Option<(String,)> = sqlx::query_as(
-                    "SELECT id FROM messages WHERE agent_name = ? AND status = 'completed' \
-                     ORDER BY updated_at DESC LIMIT 1",
-                )
-                .bind(&agent)
-                .fetch_optional(&pool)
-                .await?;
-                let tid = completed.map(|(id,)| id);
+                let tid = db::messages::last_completed_id(&pool, &agent).await?;
                 log_signal(
                     &project_root,
                     "WARN",
@@ -248,19 +241,12 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
             // Still has processing tasks — update current_task to next task, stay busy
             let next = db::messages::peek_message(&pool, &agent).await?;
             if let Some(next_msg) = next {
-                sqlx::query("UPDATE agents SET current_task = ? WHERE name = ?")
-                    .bind(&next_msg.id)
-                    .bind(&agent)
-                    .execute(&pool)
-                    .await?;
+                db::agents::set_current_task(&pool, &agent, &next_msg.id).await?;
             }
             // Agent remains busy — don't change status
         } else {
             // No remaining tasks — clear current_task and set idle
-            sqlx::query("UPDATE agents SET current_task = NULL WHERE name = ?")
-                .bind(&agent)
-                .execute(&pool)
-                .await?;
+            db::agents::clear_current_task(&pool, &agent).await?;
             db::agents::update_agent_status(&pool, &agent, "idle").await?;
         }
     }

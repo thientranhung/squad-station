@@ -221,16 +221,13 @@ async fn tick(
     }
 
     // Check for new message activity (resets nudge state)
-    let current_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM messages")
-            .fetch_one(&pool)
-            .await?;
+    let current_count = db::messages::total_count(&pool).await?;
     if let Some(prev) = last_msg_count {
-        if current_count.0 != *prev {
+        if current_count != *prev {
             nudge_state.reset();
         }
     }
-    *last_msg_count = Some(current_count.0);
+    *last_msg_count = Some(current_count);
 
     // Pass 2: Global stall detection
     let agents = db::agents::list_agents(&pool).await?;
@@ -242,13 +239,9 @@ async fn tick(
 
         if all_idle && processing_count == 0 {
             // Check how long since last activity
-            let last_activity: Option<(String,)> = sqlx::query_as(
-                "SELECT MAX(updated_at) FROM messages",
-            )
-            .fetch_optional(&pool)
-            .await?;
+            let last_activity = db::messages::last_activity_timestamp(&pool).await?;
 
-            if let Some((ref ts,)) = last_activity {
+            if let Some(ref ts) = last_activity {
                 if let Ok(last_ts) = chrono::DateTime::parse_from_rfc3339(ts) {
                     let idle_duration = chrono::Utc::now().signed_duration_since(last_ts);
                     let idle_mins = idle_duration.num_minutes();
