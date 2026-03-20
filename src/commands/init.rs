@@ -303,12 +303,27 @@ fn read_or_create_settings(settings_file: &str) -> anyhow::Result<serde_json::Va
     }
 }
 
+/// Build the agent name resolution shell snippet.
+/// Primary: $SQUAD_AGENT_NAME (set at tmux launch, deterministic).
+/// Fallback: $TMUX_PANE + list-panes (server command, more reliable than display-message).
+fn agent_resolve_snippet() -> &'static str {
+    r#"AGENT=${SQUAD_AGENT_NAME:-$(tmux list-panes -t "$TMUX_PANE" -F '#S' 2>/dev/null | head -1)}"#
+}
+
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let signal_cmd = "squad-station signal $(tmux display-message -p '#S')";
-    let notify_cmd =
-        "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')";
+    let resolve = agent_resolve_snippet();
+
+    // Claude Code: stdout is ignored, errors to log file. Always exit 0.
+    let signal_cmd = format!(
+        r#"{}; [ -n "$AGENT" ] && squad-station signal "$AGENT" 2>>.squad/log/signal.log || true"#,
+        resolve
+    );
+    let notify_cmd = format!(
+        r#"{}; [ -n "$AGENT" ] && squad-station notify --body 'Agent needs input' --agent "$AGENT" || true"#,
+        resolve
+    );
 
     // Stop hook — agent finished task → signal completion
     settings["hooks"]["Stop"] = serde_json::json!([{
@@ -345,20 +360,46 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
 }
 
 /// Install Gemini CLI hooks: AfterAgent (signal) + Notification (notify)
+///
+/// Critical Gemini CLI differences:
+/// - Uses AfterAgent (not Stop) for completion signals
+/// - Stdout MUST be valid JSON (golden rule) — all signal output goes to log file
+/// - printf '{}' outputs empty JSON object = "continue normally"
+/// - Uses ${AGENT:-__none__} to avoid shell short-circuit skipping printf
 fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let signal_cmd = "squad-station signal $(tmux display-message -p '#S')";
-    let notify_cmd =
-        "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')";
+    let resolve = agent_resolve_snippet();
+
+    // Gemini CLI: ALL signal output redirected to log. stdout MUST be valid JSON.
+    let signal_cmd = format!(
+        r#"{}; squad-station signal "${{AGENT:-__none__}}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        resolve
+    );
+    let notify_cmd = format!(
+        r#"{}; squad-station notify --body 'Agent needs input' --agent "${{AGENT:-__none__}}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        resolve
+    );
 
     settings["hooks"]["AfterAgent"] = serde_json::json!([{
         "matcher": "",
-        "hooks": [{"type": "command", "command": signal_cmd}]
+        "hooks": [{
+            "type": "command",
+            "command": signal_cmd,
+            "name": "squad-signal",
+            "description": "Signal task completion to squad-station",
+            "timeout": 30000
+        }]
     }]);
 
     settings["hooks"]["Notification"] = serde_json::json!([{
         "matcher": "",
-        "hooks": [{"type": "command", "command": notify_cmd}]
+        "hooks": [{
+            "type": "command",
+            "command": notify_cmd,
+            "name": "squad-notify",
+            "description": "Forward permission prompt to orchestrator",
+            "timeout": 30000
+        }]
     }]);
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
@@ -464,6 +505,63 @@ mod tests {
     }
 
     #[test]
+    fn test_install_claude_hooks_uses_squad_agent_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let settings_file = tmp.path().join(".claude").join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_claude_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let stop_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            stop_cmd.contains("SQUAD_AGENT_NAME"),
+            "Stop hook must use $SQUAD_AGENT_NAME: {}",
+            stop_cmd
+        );
+        assert!(
+            stop_cmd.contains("list-panes"),
+            "Stop hook must have tmux list-panes fallback: {}",
+            stop_cmd
+        );
+        assert!(
+            stop_cmd.contains(".squad/log/signal.log"),
+            "Stop hook must log to .squad/log/signal.log: {}",
+            stop_cmd
+        );
+        assert!(
+            !stop_cmd.contains("display-message"),
+            "Stop hook must NOT use fragile tmux display-message: {}",
+            stop_cmd
+        );
+    }
+
+    #[test]
+    fn test_install_claude_hooks_no_json_stdout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let settings_file = tmp.path().join(".claude").join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_claude_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let stop_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            !stop_cmd.contains("printf"),
+            "Claude Code hook must NOT add printf '{{}}' — stdout is ignored: {}",
+            stop_cmd
+        );
+    }
+
+    #[test]
     fn test_install_claude_hooks_preserves_existing_settings() {
         let tmp = tempfile::TempDir::new().unwrap();
         let claude_dir = tmp.path().join(".claude");
@@ -495,6 +593,118 @@ mod tests {
         assert!(settings["hooks"]["Notification"].is_array());
         // SessionStart must NOT be added by base hooks
         assert!(settings["hooks"]["SessionStart"].is_null());
+    }
+
+    #[test]
+    fn test_install_gemini_hooks_json_stdout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let gemini_dir = tmp.path().join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
+        let settings_file = gemini_dir.join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_gemini_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let signal_cmd = settings["hooks"]["AfterAgent"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        // Must end with printf '{}' for valid JSON stdout
+        assert!(
+            signal_cmd.contains("printf '{}'"),
+            "Gemini hook MUST output valid JSON via printf: {}",
+            signal_cmd
+        );
+        // Must redirect signal stdout to log (not to Gemini's stdout)
+        assert!(
+            signal_cmd.contains(">>.squad/log/signal.log 2>&1"),
+            "Gemini hook must redirect signal output to log: {}",
+            signal_cmd
+        );
+    }
+
+    #[test]
+    fn test_install_gemini_hooks_uses_afteragent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let gemini_dir = tmp.path().join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
+        let settings_file = gemini_dir.join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_gemini_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Must use AfterAgent, NOT Stop
+        assert!(
+            settings["hooks"]["AfterAgent"].is_array(),
+            "Gemini must use AfterAgent hook"
+        );
+        assert!(
+            settings["hooks"]["Stop"].is_null(),
+            "Gemini must NOT use Stop hook"
+        );
+    }
+
+    #[test]
+    fn test_install_gemini_hooks_has_name_and_timeout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let gemini_dir = tmp.path().join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
+        let settings_file = gemini_dir.join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_gemini_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let hook = &settings["hooks"]["AfterAgent"][0]["hooks"][0];
+        assert_eq!(
+            hook["name"].as_str().unwrap(),
+            "squad-signal",
+            "Gemini hook must have name field"
+        );
+        assert!(
+            hook["description"].is_string(),
+            "Gemini hook must have description field"
+        );
+        assert_eq!(
+            hook["timeout"].as_u64().unwrap(),
+            30000,
+            "Gemini hook must have timeout field"
+        );
+    }
+
+    #[test]
+    fn test_install_gemini_hooks_uses_squad_agent_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let gemini_dir = tmp.path().join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
+        let settings_file = gemini_dir.join("settings.json");
+        let settings_str = settings_file.to_str().unwrap();
+
+        install_gemini_hooks(settings_str).unwrap();
+
+        let content = std::fs::read_to_string(&settings_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let signal_cmd = settings["hooks"]["AfterAgent"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            signal_cmd.contains("SQUAD_AGENT_NAME"),
+            "Gemini hook must use $SQUAD_AGENT_NAME: {}",
+            signal_cmd
+        );
+        assert!(
+            !signal_cmd.contains("display-message"),
+            "Gemini hook must NOT use fragile tmux display-message: {}",
+            signal_cmd
+        );
     }
 
     #[test]

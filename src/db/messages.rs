@@ -119,6 +119,23 @@ pub async fn count_processing(pool: &SqlitePool, agent_name: &str) -> anyhow::Re
     Ok(row.0)
 }
 
+/// Complete a specific message by ID. Returns rows affected (0 if already completed or not found).
+/// Used by signal.rs to complete the exact task pointed to by agent.current_task,
+/// instead of the FIFO-based update_status which can race with /clear.
+pub async fn complete_by_id(pool: &SqlitePool, message_id: &str) -> anyhow::Result<u64> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let result = sqlx::query(
+        "UPDATE messages SET status = 'completed', updated_at = ?, completed_at = ? \
+         WHERE id = ? AND status = 'processing'",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(message_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Peek at the highest-priority processing message for an agent.
 /// Priority ordering: urgent > high > normal.
 pub async fn peek_message(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<Option<Message>> {
