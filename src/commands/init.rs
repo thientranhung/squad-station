@@ -482,6 +482,15 @@ fn install_session_start_hook(
     Ok(true)
 }
 
+/// Validate that a model string is safe for use as a CLI argument.
+/// Only allows alphanumeric characters, dots, dashes, underscores, and colons.
+fn is_safe_model_value(model: &str) -> bool {
+    !model.is_empty()
+        && model
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == '_' || c == ':')
+}
+
 /// Build the launch command for a tmux session based on provider and model.
 /// Claude Code: `claude --dangerously-skip-permissions --model <model>`
 /// Gemini CLI: `gemini -y --model <model>`
@@ -491,14 +500,28 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
         "claude-code" => {
             let mut cmd = "claude --dangerously-skip-permissions".to_string();
             if let Some(model) = &agent.model {
-                cmd.push_str(&format!(" --model {}", model));
+                if is_safe_model_value(model) {
+                    cmd.push_str(&format!(" --model {}", model));
+                } else {
+                    eprintln!(
+                        "squad-station: warning: skipping unsafe model value: {:?}",
+                        model
+                    );
+                }
             }
             cmd
         }
         "gemini-cli" => {
             let mut cmd = "gemini -y".to_string();
             if let Some(model) = &agent.model {
-                cmd.push_str(&format!(" --model {}", model));
+                if is_safe_model_value(model) {
+                    cmd.push_str(&format!(" --model {}", model));
+                } else {
+                    eprintln!(
+                        "squad-station: warning: skipping unsafe model value: {:?}",
+                        model
+                    );
+                }
             }
             cmd
         }
@@ -844,6 +867,21 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(!install_session_start_hook("antigravity", tmp.path()).unwrap());
         assert!(!install_session_start_hook("unknown-tool", tmp.path()).unwrap());
+    }
+
+    #[test]
+    fn test_is_safe_model_value_valid() {
+        assert!(is_safe_model_value("claude-opus"));
+        assert!(is_safe_model_value("gemini-3.1-pro-preview"));
+        assert!(is_safe_model_value("gpt_4o:latest"));
+    }
+
+    #[test]
+    fn test_is_safe_model_value_rejects_injection() {
+        assert!(!is_safe_model_value("opus; rm -rf /"));
+        assert!(!is_safe_model_value("model$(whoami)"));
+        assert!(!is_safe_model_value("model`id`"));
+        assert!(!is_safe_model_value(""));
     }
 }
 
