@@ -263,7 +263,11 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             if std::io::stdin().read_line(&mut answer).is_ok()
                 && answer.trim().eq_ignore_ascii_case("y")
             {
-                match install_session_start_hook(&config.orchestrator.provider) {
+                let project_root = config_path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(std::path::Path::new("."));
+                match install_session_start_hook(&config.orchestrator.provider, project_root) {
                     Ok(true) => println!("  SessionStart hook: installed"),
                     Ok(false) => println!("  SessionStart hook: skipped (unsupported provider)"),
                     Err(e) => println!("  SessionStart hook: failed ({})", e),
@@ -454,14 +458,19 @@ fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
 
 /// Install SessionStart hook for auto-injecting orchestrator context.
 /// Called separately from base hooks because it requires user opt-in.
-fn install_session_start_hook(provider: &str) -> anyhow::Result<bool> {
-    let settings_file = match provider {
+fn install_session_start_hook(
+    provider: &str,
+    project_root: &std::path::Path,
+) -> anyhow::Result<bool> {
+    let rel_path = match provider {
         "claude-code" => ".claude/settings.json",
         "gemini-cli" => ".gemini/settings.json",
         _ => return Ok(false),
     };
 
-    let mut settings = read_or_create_settings(settings_file)?;
+    let settings_path = project_root.join(rel_path);
+    let settings_str = settings_path.to_string_lossy();
+    let mut settings = read_or_create_settings(&settings_str)?;
     let inject_cmd = "squad-station context --inject";
 
     settings["hooks"]["SessionStart"] = serde_json::json!([{
@@ -469,7 +478,7 @@ fn install_session_start_hook(provider: &str) -> anyhow::Result<bool> {
         "hooks": [{"type": "command", "command": inject_cmd}]
     }]);
 
-    std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
+    std::fs::write(&settings_path, serde_json::to_string_pretty(&settings)?)?;
     Ok(true)
 }
 
@@ -791,12 +800,7 @@ mod tests {
         // Pre-populate with base hooks
         std::fs::write(&settings_file, r#"{"hooks":{"Stop":[]}}"#).unwrap();
 
-        // Override CWD so install_session_start_hook finds the settings file
-        let orig_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
-
-        let result = install_session_start_hook("claude-code");
-        std::env::set_current_dir(orig_dir).unwrap();
+        let result = install_session_start_hook("claude-code", tmp.path());
         assert!(result.unwrap());
 
         let content = std::fs::read_to_string(&settings_file).unwrap();
@@ -820,11 +824,7 @@ mod tests {
         let settings_file = gemini_dir.join("settings.json");
         std::fs::write(&settings_file, r#"{"hooks":{"AfterAgent":[]}}"#).unwrap();
 
-        let orig_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
-
-        let result = install_session_start_hook("gemini-cli");
-        std::env::set_current_dir(orig_dir).unwrap();
+        let result = install_session_start_hook("gemini-cli", tmp.path());
         assert!(result.unwrap());
 
         let content = std::fs::read_to_string(&settings_file).unwrap();
@@ -841,8 +841,9 @@ mod tests {
 
     #[test]
     fn test_install_session_start_hook_unknown_provider_returns_false() {
-        assert!(!install_session_start_hook("antigravity").unwrap());
-        assert!(!install_session_start_hook("unknown-tool").unwrap());
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(!install_session_start_hook("antigravity", tmp.path()).unwrap());
+        assert!(!install_session_start_hook("unknown-tool", tmp.path()).unwrap());
     }
 }
 
