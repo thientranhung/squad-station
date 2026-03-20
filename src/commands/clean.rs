@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::{config, tmux};
 
 /// Compute the expected tmux session names for all agents in a squad config.
-/// Mirrors the naming logic in init.rs: `{project}-{name_or_role}`.
+/// Mirrors the naming logic in init.rs: `sanitize_session_name("{project}-{name_or_role}")`.
 pub fn compute_session_names(config: &config::SquadConfig) -> Vec<String> {
     let mut names = Vec::new();
 
@@ -14,21 +14,32 @@ pub fn compute_session_names(config: &config::SquadConfig) -> Vec<String> {
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    names.push(format!("{}-{}", config.project, orch_role));
+    names.push(config::sanitize_session_name(&format!(
+        "{}-{}",
+        config.project, orch_role
+    )));
 
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
-        names.push(format!("{}-{}", config.project, role_suffix));
+        names.push(config::sanitize_session_name(&format!(
+            "{}-{}",
+            config.project, role_suffix
+        )));
     }
 
     names
 }
 
-/// Delete the DB file at the given path.
-/// Returns `true` if the file was deleted, `false` if it did not exist.
+/// Delete the DB file and its WAL/SHM companions at the given path.
+/// Returns `true` if the main DB file was deleted, `false` if it did not exist.
 pub fn delete_db_file(db_path: &Path) -> Result<bool> {
     if db_path.exists() {
         std::fs::remove_file(db_path)?;
+        // SQLite WAL mode creates companion files — clean them up too
+        let wal_path = db_path.with_extension("db-wal");
+        let shm_path = db_path.with_extension("db-shm");
+        let _ = std::fs::remove_file(wal_path);
+        let _ = std::fs::remove_file(shm_path);
         Ok(true)
     } else {
         Ok(false)
@@ -76,7 +87,7 @@ pub fn kill_all_sessions(config: &config::SquadConfig) -> Result<(u32, Vec<Strin
     }
 
     // Also kill the monitor session
-    let monitor_name = format!("{}-monitor", config.project);
+    let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
     if tmux::session_exists(&monitor_name) {
         tmux::kill_session(&monitor_name)?;
         killed += 1;
