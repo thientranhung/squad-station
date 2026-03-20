@@ -134,8 +134,7 @@ pub async fn run(
     std::fs::write(&pid_file, std::process::id().to_string())?;
 
     // Setup graceful shutdown via SIGTERM/SIGINT
-    let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-    ctrlc_handler(running.clone());
+    setup_signal_handlers();
 
     let mut nudge_state = NudgeState::new(600, 3); // 10min cooldown, 3 max nudges
     let mut last_msg_count: Option<i64> = None;
@@ -183,10 +182,7 @@ pub async fn run(
 /// Global shutdown flag for signal handler.
 static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-fn ctrlc_handler(running: std::sync::Arc<std::sync::atomic::AtomicBool>) {
-    // Store Arc reference in a global so the signal handler can access it
-    // The running flag is also checked via the SHUTDOWN global
-    let _ = running; // kept alive by caller
+fn setup_signal_handlers() {
     #[cfg(unix)]
     unsafe {
         libc::signal(libc::SIGTERM, signal_trampoline as *const () as usize);
