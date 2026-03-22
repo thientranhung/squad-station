@@ -353,25 +353,28 @@ fn read_or_create_settings(settings_file: &str) -> anyhow::Result<serde_json::Va
     }
 }
 
-/// Build the agent name resolution shell snippet.
-/// Primary: $SQUAD_AGENT_NAME (set at tmux launch, deterministic).
-/// Fallback: $TMUX_PANE + list-panes (server command, more reliable than display-message).
-fn agent_resolve_snippet() -> &'static str {
-    r#"AGENT=${SQUAD_AGENT_NAME:-$(tmux list-panes -t "$TMUX_PANE" -F '#S' 2>/dev/null | head -1)}"#
+/// Returns a shell command substitution that resolves the current tmux session name.
+/// Produces `$(tmux display-message -p '#S' 2>/dev/null)` — a server-side query that
+/// works reliably in all hook contexts (Claude Code Stop hooks, Gemini CLI AfterAgent,
+/// tmux run-shell). If the command fails (e.g. running outside tmux), expands to an
+/// empty string which signal.rs GUARD-1 handles with logging.
+fn agent_name_subshell() -> &'static str {
+    r#"$(tmux display-message -p '#S' 2>/dev/null)"#
 }
 
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_resolve_snippet();
+    let resolve = agent_name_subshell();
 
     // Claude Code: stdout is ignored, errors to log file. Always exit 0.
+    // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.
     let signal_cmd = format!(
-        r#"{}; [ -n "$AGENT" ] && squad-station signal "$AGENT" 2>>.squad/log/signal.log || true"#,
+        r#"squad-station signal "{}" 2>>.squad/log/signal.log"#,
         resolve
     );
     let notify_cmd = format!(
-        r#"{}; [ -n "$AGENT" ] && squad-station notify --body 'Agent needs input' --agent "$AGENT" || true"#,
+        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>>.squad/log/signal.log"#,
         resolve
     );
 
@@ -418,15 +421,16 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
 /// - Uses ${AGENT:-__none__} to avoid shell short-circuit skipping printf
 fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_resolve_snippet();
+    let resolve = agent_name_subshell();
 
     // Gemini CLI: ALL signal output redirected to log. stdout MUST be valid JSON.
+    // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.
     let signal_cmd = format!(
-        r#"{}; squad-station signal "${{AGENT:-__none__}}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        r#"squad-station signal "{}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
         resolve
     );
     let notify_cmd = format!(
-        r#"{}; squad-station notify --body 'Agent needs input' --agent "${{AGENT:-__none__}}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        r#"squad-station notify --body 'Agent needs input' --agent "{}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
         resolve
     );
 
@@ -583,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_install_claude_hooks_uses_squad_agent_name() {
+    fn test_install_claude_hooks_uses_tmux_display_message() {
         let tmp = tempfile::TempDir::new().unwrap();
         let settings_file = tmp.path().join(".claude").join("settings.json");
         let settings_str = settings_file.to_str().unwrap();
@@ -597,13 +601,8 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(
-            stop_cmd.contains("SQUAD_AGENT_NAME"),
-            "Stop hook must use $SQUAD_AGENT_NAME: {}",
-            stop_cmd
-        );
-        assert!(
-            stop_cmd.contains("list-panes"),
-            "Stop hook must have tmux list-panes fallback: {}",
+            stop_cmd.contains("display-message"),
+            "Stop hook must use tmux display-message for session name: {}",
             stop_cmd
         );
         assert!(
@@ -612,8 +611,18 @@ mod tests {
             stop_cmd
         );
         assert!(
-            !stop_cmd.contains("display-message"),
-            "Stop hook must NOT use fragile tmux display-message: {}",
+            !stop_cmd.contains("SQUAD_AGENT_NAME"),
+            "Stop hook must NOT use $SQUAD_AGENT_NAME (not available in hook context): {}",
+            stop_cmd
+        );
+        assert!(
+            !stop_cmd.contains("list-panes"),
+            "Stop hook must NOT use list-panes (depends on $TMUX_PANE): {}",
+            stop_cmd
+        );
+        assert!(
+            !stop_cmd.contains("TMUX_PANE"),
+            "Stop hook must NOT depend on $TMUX_PANE: {}",
             stop_cmd
         );
     }
@@ -758,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn test_install_gemini_hooks_uses_squad_agent_name() {
+    fn test_install_gemini_hooks_uses_tmux_display_message() {
         let tmp = tempfile::TempDir::new().unwrap();
         let gemini_dir = tmp.path().join(".gemini");
         std::fs::create_dir_all(&gemini_dir).unwrap();
@@ -774,13 +783,18 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(
-            signal_cmd.contains("SQUAD_AGENT_NAME"),
-            "Gemini hook must use $SQUAD_AGENT_NAME: {}",
+            signal_cmd.contains("display-message"),
+            "Gemini hook must use tmux display-message for session name: {}",
             signal_cmd
         );
         assert!(
-            !signal_cmd.contains("display-message"),
-            "Gemini hook must NOT use fragile tmux display-message: {}",
+            !signal_cmd.contains("SQUAD_AGENT_NAME"),
+            "Gemini hook must NOT use $SQUAD_AGENT_NAME (not available in hook context): {}",
+            signal_cmd
+        );
+        assert!(
+            !signal_cmd.contains("list-panes"),
+            "Gemini hook must NOT use list-panes: {}",
             signal_cmd
         );
     }
@@ -890,7 +904,7 @@ fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
         "\nHook setup instructions for {} (event: {}):\n\n  \
         Create the file with the following content, or add to your existing hooks:\n\n  \
         {{\n    \"hooks\": {{\n      \"{}\": [\n        \
-        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal $(tmux display-message -p '#S')\" }} ] }}\n      \
+        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>>.squad/log/signal.log\" }} ] }}\n      \
         ]\n    }}\n  }}",
         settings_path, event, event, matcher
     );

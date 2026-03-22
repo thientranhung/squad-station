@@ -1,6 +1,37 @@
 use anyhow::{bail, Result};
+use crate::{commands::helpers, commands::reconcile, config, db, tmux};
 
-use crate::{commands::reconcile, config, db, tmux};
+/// Alert state for Pass 3 prolonged busy detection.
+/// Tracks per-agent notification cooldown to avoid spamming the orchestrator.
+struct BusyAlertState {
+    last_alert_at: std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
+    cooldown_secs: u64,
+}
+
+impl BusyAlertState {
+    fn new(cooldown_secs: u64) -> Self {
+        Self {
+            last_alert_at: std::collections::HashMap::new(),
+            cooldown_secs,
+        }
+    }
+
+    fn should_alert(&self, agent: &str, now: chrono::DateTime<chrono::Utc>) -> bool {
+        match self.last_alert_at.get(agent) {
+            None => true,
+            Some(last) => (now - *last).num_seconds() > self.cooldown_secs as i64,
+        }
+    }
+
+    fn record_alert(&mut self, agent: &str, now: chrono::DateTime<chrono::Utc>) {
+        self.last_alert_at.insert(agent.to_string(), now);
+    }
+
+    /// Remove agent from tracking (e.g. after reconcile heals it)
+    fn clear(&mut self, agent: &str) {
+        self.last_alert_at.remove(agent);
+    }
+}
 
 /// Nudge state for global stall detection (Pass 2).
 /// Tracks nudge count, cooldown, and escalation.
@@ -63,6 +94,8 @@ pub async fn run(
             if let Ok(content) = std::fs::read_to_string(&pid_file) {
                 if let Ok(pid) = content.trim().parse::<i32>() {
                     #[cfg(unix)]
+                    // SAFETY: signal 0 probes liveness without side effects; SIGTERM is
+                    // the standard graceful-shutdown signal. pid comes from our own PID file.
                     unsafe {
                         if libc::kill(pid, 0) == 0 {
                             libc::kill(pid, libc::SIGTERM);
@@ -87,6 +120,7 @@ pub async fn run(
             if let Ok(pid) = content.trim().parse::<i32>() {
                 #[cfg(unix)]
                 {
+                    // SAFETY: signal 0 is a null signal (no-op liveness probe); pid from our PID file.
                     let alive = unsafe { libc::kill(pid, 0) == 0 };
                     if alive {
                         bail!(
@@ -105,20 +139,9 @@ pub async fn run(
     if daemon {
         #[cfg(unix)]
         {
-            use std::process::Command;
-            let exe = std::env::current_exe()?;
-            let mut cmd = Command::new(exe);
-            cmd.arg("watch")
-                .arg("--interval")
-                .arg(interval_secs.to_string())
-                .arg("--stall-threshold")
-                .arg(stall_threshold_mins.to_string());
-            // Explicitly set CWD to ensure the child finds squad.yml
-            cmd.current_dir(std::env::current_dir()?);
-            cmd.stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
-            let child = cmd.spawn()?;
+            let cwd = std::env::current_dir()?;
+            let child =
+                helpers::spawn_watchdog_daemon(&cwd, interval_secs, stall_threshold_mins)?;
             let pid = child.id();
             std::fs::write(&pid_file, pid.to_string())?;
             println!("Watchdog daemon started (PID {})", pid);
@@ -138,6 +161,7 @@ pub async fn run(
 
     let mut nudge_state = NudgeState::new(600, 3); // 10min cooldown, 3 max nudges
     let mut last_msg_count: Option<i64> = None;
+    let mut busy_alert_state = BusyAlertState::new(600); // 10min cooldown per agent
 
     log_watch(
         &squad_dir,
@@ -159,6 +183,7 @@ pub async fn run(
             stall_threshold_mins,
             &mut nudge_state,
             &mut last_msg_count,
+            &mut busy_alert_state,
         )
         .await
         {
@@ -184,6 +209,8 @@ static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 
 fn setup_signal_handlers() {
     #[cfg(unix)]
+    // SAFETY: signal_trampoline is an extern "C" fn that only sets an AtomicBool —
+    // async-signal-safe. We register it for SIGTERM/SIGINT for graceful shutdown.
     unsafe {
         libc::signal(libc::SIGTERM, signal_trampoline as *const () as usize);
         libc::signal(libc::SIGINT, signal_trampoline as *const () as usize);
@@ -201,6 +228,7 @@ async fn tick(
     stall_threshold_mins: u64,
     nudge_state: &mut NudgeState,
     last_msg_count: &mut Option<i64>,
+    busy_alert_state: &mut BusyAlertState,
 ) -> Result<()> {
     let pool = db::connect(db_path).await?;
 
@@ -289,24 +317,120 @@ async fn tick(
         }
     }
 
-    // Pass 3: Prolonged busy detection
+    // Pass 3: Prolonged busy detection with tiered escalation
+    // Tier 1 (10-30min): Log only — long tasks are normal
+    // Tier 2 (30min+): Reconcile check — if pane looks idle, auto-heal (signal was lost)
+    // Tier 3 (60min+): Notify orchestrator — agent may be stuck, human review needed
     for agent in &agents {
-        if agent.status == "busy" {
-            if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&agent.status_updated_at) {
-                let busy_mins = chrono::Utc::now()
-                    .signed_duration_since(ts)
-                    .num_minutes();
-                if busy_mins > 30 {
-                    log_watch(
-                        squad_dir,
-                        "WARN",
-                        &format!(
-                            "agent={} busy_minutes={} reason=prolonged_busy",
-                            agent.name, busy_mins
-                        ),
+        if agent.status != "busy" {
+            continue;
+        }
+        let ts = match chrono::DateTime::parse_from_rfc3339(&agent.status_updated_at) {
+            Ok(ts) => ts,
+            Err(_) => continue,
+        };
+        let busy_mins = chrono::Utc::now()
+            .signed_duration_since(ts)
+            .num_minutes();
+
+        if busy_mins < 10 {
+            continue; // Normal operation
+        }
+
+        if busy_mins < 30 {
+            // Tier 1: Log only
+            log_watch(
+                squad_dir,
+                "WARN",
+                &format!(
+                    "agent={} busy_minutes={} tier=log_only",
+                    agent.name, busy_mins
+                ),
+            );
+            continue;
+        }
+
+        // Tier 2 (30min+): Reconcile check — is the pane actually idle?
+        if tmux::session_exists(&agent.name)
+            && reconcile::pane_looks_idle(&agent.name, &agent.tool)
+        {
+            // Pane is idle but DB says busy → signal was lost. Fix it.
+            let completed =
+                db::messages::complete_all_processing(&pool, &agent.name).await?;
+            db::agents::clear_current_task(&pool, &agent.name).await?;
+            db::agents::update_agent_status(&pool, &agent.name, "idle").await?;
+
+            log_watch(
+                squad_dir,
+                "HEAL",
+                &format!(
+                    "agent={} busy_minutes={} action=auto_reconcile completed={}",
+                    agent.name, busy_mins, completed
+                ),
+            );
+
+            // Leave breadcrumb in agent's pane so the agent sees the reset
+            let _ = tmux::send_keys_literal(
+                &agent.name,
+                &format!(
+                    "# [SQUAD] Auto-healed: DB reset to idle after {}m busy (signal lost)",
+                    busy_mins
+                ),
+            );
+
+            // Notify orchestrator about the self-heal
+            if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
+                if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
+                    let msg = format!(
+                        "[SQUAD WATCHDOG] Auto-healed agent '{}' — stuck busy for {}m (signal lost). {} task(s) completed. Run: squad-station status",
+                        agent.name, busy_mins, completed
                     );
+                    let _ = tmux::send_keys_literal(&orch.name, &msg);
                 }
             }
+
+            busy_alert_state.clear(&agent.name);
+            continue;
+        }
+
+        // Tier 3 (60min+): Notify orchestrator that agent may be stuck
+        if busy_mins >= 60 {
+            let now = chrono::Utc::now();
+            if busy_alert_state.should_alert(&agent.name, now) {
+                if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
+                    if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
+                        let urgency = if busy_mins >= 120 {
+                            "URGENT"
+                        } else {
+                            "WARNING"
+                        };
+                        let msg = format!(
+                            "[SQUAD WATCHDOG] {} — Agent '{}' busy for {}m, may be stuck. Check: tmux capture-pane -t {} -p | tail -20",
+                            urgency, agent.name, busy_mins, agent.name
+                        );
+                        let _ = tmux::send_keys_literal(&orch.name, &msg);
+                        log_watch(
+                            squad_dir,
+                            "ALERT",
+                            &format!(
+                                "agent={} busy_minutes={} tier=notify_orch",
+                                agent.name, busy_mins
+                            ),
+                        );
+                    }
+                }
+                busy_alert_state.record_alert(&agent.name, now);
+            }
+        } else {
+            // 30-60min: pane not idle, just log
+            log_watch(
+                squad_dir,
+                "WARN",
+                &format!(
+                    "agent={} busy_minutes={} tier=prolonged_busy pane=active",
+                    agent.name, busy_mins
+                ),
+            );
         }
     }
 
@@ -404,5 +528,52 @@ mod tests {
         let content = std::fs::read_to_string(&log_file).unwrap();
         assert!(content.contains("INFO"));
         assert!(content.contains("test message"));
+    }
+
+    #[test]
+    fn test_busy_alert_state_first_alert() {
+        let state = BusyAlertState::new(600);
+        assert!(state.should_alert("agent-a", chrono::Utc::now()));
+    }
+
+    #[test]
+    fn test_busy_alert_state_respects_cooldown() {
+        let mut state = BusyAlertState::new(600);
+        let now = chrono::Utc::now();
+        state.record_alert("agent-a", now);
+
+        // Immediately: should NOT alert
+        assert!(!state.should_alert("agent-a", now));
+
+        // 5 minutes later: still in cooldown
+        let five_mins = now + chrono::Duration::seconds(300);
+        assert!(!state.should_alert("agent-a", five_mins));
+
+        // 11 minutes later: cooldown elapsed
+        let eleven_mins = now + chrono::Duration::seconds(660);
+        assert!(state.should_alert("agent-a", eleven_mins));
+    }
+
+    #[test]
+    fn test_busy_alert_state_per_agent() {
+        let mut state = BusyAlertState::new(600);
+        let now = chrono::Utc::now();
+        state.record_alert("agent-a", now);
+
+        // Different agent should still be alertable
+        assert!(state.should_alert("agent-b", now));
+        // Same agent should be in cooldown
+        assert!(!state.should_alert("agent-a", now));
+    }
+
+    #[test]
+    fn test_busy_alert_state_clear() {
+        let mut state = BusyAlertState::new(600);
+        let now = chrono::Utc::now();
+        state.record_alert("agent-a", now);
+        assert!(!state.should_alert("agent-a", now));
+
+        state.clear("agent-a");
+        assert!(state.should_alert("agent-a", now));
     }
 }
