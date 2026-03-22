@@ -74,6 +74,22 @@ pub async fn update_status(pool: &SqlitePool, agent_name: &str) -> anyhow::Resul
     Ok(result.rows_affected())
 }
 
+/// Batch-complete all processing messages for an agent in one query.
+/// Used by watchdog self-healing where FIFO ordering doesn't matter.
+pub async fn complete_all_processing(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<u64> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let result = sqlx::query(
+        "UPDATE messages SET status = 'completed', updated_at = ?, completed_at = ? \
+         WHERE agent_name = ? AND status = 'processing'",
+    )
+    .bind(&now)
+    .bind(&now)
+    .bind(agent_name)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 pub async fn list_messages(
     pool: &SqlitePool,
     agent: Option<&str>,

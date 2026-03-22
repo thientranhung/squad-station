@@ -2,7 +2,7 @@ use anyhow::bail;
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
-use crate::{cli, config, db, tmux};
+use crate::{cli, commands::helpers, config, db, tmux};
 
 pub async fn run(
     agent: String,
@@ -87,6 +87,13 @@ pub async fn run(
 
     // 6. Inject task into agent tmux session via load-buffer/paste-buffer (TMUX-01, TMUX-02)
     tmux::inject_body(&agent, &body)?;
+
+    // 6b. Opportunistic watchdog health check — respawn if dead
+    let project_root = db_path
+        .parent()
+        .and_then(|p| p.parent())
+        .unwrap_or(std::path::Path::new("."));
+    helpers::ensure_watchdog(project_root);
 
     // 7. Output result
     if json {
