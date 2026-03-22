@@ -353,19 +353,19 @@ fn read_or_create_settings(settings_file: &str) -> anyhow::Result<serde_json::Va
     }
 }
 
-/// Build the shell snippet that resolves the current tmux session name.
-/// Uses `tmux display-message -p '#S'` — a server-side query that works reliably
-/// in all hook contexts (Claude Code Stop hooks, Gemini CLI AfterAgent, tmux run-shell).
-/// If the command fails (e.g. running outside tmux), returns empty string which
-/// signal.rs GUARD-1 handles with logging.
-fn agent_resolve_snippet() -> &'static str {
+/// Returns a shell command substitution that resolves the current tmux session name.
+/// Produces `$(tmux display-message -p '#S' 2>/dev/null)` — a server-side query that
+/// works reliably in all hook contexts (Claude Code Stop hooks, Gemini CLI AfterAgent,
+/// tmux run-shell). If the command fails (e.g. running outside tmux), expands to an
+/// empty string which signal.rs GUARD-1 handles with logging.
+fn agent_name_subshell() -> &'static str {
     r#"$(tmux display-message -p '#S' 2>/dev/null)"#
 }
 
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_resolve_snippet();
+    let resolve = agent_name_subshell();
 
     // Claude Code: stdout is ignored, errors to log file. Always exit 0.
     // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.
@@ -421,7 +421,7 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
 /// - Uses ${AGENT:-__none__} to avoid shell short-circuit skipping printf
 fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_resolve_snippet();
+    let resolve = agent_name_subshell();
 
     // Gemini CLI: ALL signal output redirected to log. stdout MUST be valid JSON.
     // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.

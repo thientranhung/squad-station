@@ -845,6 +845,87 @@ async fn test_complete_by_id_nonexistent() {
 }
 
 #[tokio::test]
+async fn test_complete_all_processing() {
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-cap", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    // Insert 3 processing messages for the same agent
+    for i in 1..=3 {
+        messages::insert_message(
+            &pool,
+            "orchestrator",
+            "agent-cap",
+            "task_request",
+            &format!("task {}", i),
+            "normal",
+            None,
+        )
+        .await
+        .unwrap();
+    }
+
+    // Insert 1 processing message for a different agent (should NOT be affected)
+    agents::insert_agent(&pool, "agent-other", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+    messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-other",
+        "task_request",
+        "other task",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+
+    let rows = messages::complete_all_processing(&pool, "agent-cap")
+        .await
+        .unwrap();
+    assert_eq!(rows, 3, "should complete all 3 processing messages");
+
+    // All 3 should now be completed
+    let completed = messages::list_messages(&pool, Some("agent-cap"), Some("completed"), 10)
+        .await
+        .unwrap();
+    assert_eq!(completed.len(), 3);
+    for msg in &completed {
+        assert!(msg.completed_at.is_some(), "completed_at must be set");
+    }
+
+    // No remaining processing messages for this agent
+    let remaining = messages::count_processing(&pool, "agent-cap")
+        .await
+        .unwrap();
+    assert_eq!(remaining, 0);
+
+    // Other agent's message should be unaffected
+    let other_remaining = messages::count_processing(&pool, "agent-other")
+        .await
+        .unwrap();
+    assert_eq!(
+        other_remaining, 1,
+        "other agent's messages must not be affected"
+    );
+}
+
+#[tokio::test]
+async fn test_complete_all_processing_no_messages() {
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-none", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    let rows = messages::complete_all_processing(&pool, "agent-none")
+        .await
+        .unwrap();
+    assert_eq!(rows, 0, "no processing messages → 0 rows, not error");
+}
+
+#[tokio::test]
 async fn test_signal_uses_current_task_not_fifo() {
     // Simulate: two processing messages, current_task points to the second one.
     // complete_by_id should complete task-2, not task-1 (FIFO would complete task-1).

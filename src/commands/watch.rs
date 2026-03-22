@@ -1,8 +1,5 @@
 use anyhow::{bail, Result};
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-
-use crate::{commands::reconcile, config, db, tmux};
+use crate::{commands::helpers, commands::reconcile, config, db, tmux};
 
 /// Alert state for Pass 3 prolonged busy detection.
 /// Tracks per-agent notification cooldown to avoid spamming the orchestrator.
@@ -97,6 +94,8 @@ pub async fn run(
             if let Ok(content) = std::fs::read_to_string(&pid_file) {
                 if let Ok(pid) = content.trim().parse::<i32>() {
                     #[cfg(unix)]
+                    // SAFETY: signal 0 probes liveness without side effects; SIGTERM is
+                    // the standard graceful-shutdown signal. pid comes from our own PID file.
                     unsafe {
                         if libc::kill(pid, 0) == 0 {
                             libc::kill(pid, libc::SIGTERM);
@@ -121,6 +120,7 @@ pub async fn run(
             if let Ok(pid) = content.trim().parse::<i32>() {
                 #[cfg(unix)]
                 {
+                    // SAFETY: signal 0 is a null signal (no-op liveness probe); pid from our PID file.
                     let alive = unsafe { libc::kill(pid, 0) == 0 };
                     if alive {
                         bail!(
@@ -139,47 +139,9 @@ pub async fn run(
     if daemon {
         #[cfg(unix)]
         {
-            use std::process::Command;
-            let exe = std::env::current_exe()?;
-            let mut cmd = Command::new(exe);
-            cmd.arg("watch")
-                .arg("--interval")
-                .arg(interval_secs.to_string())
-                .arg("--stall-threshold")
-                .arg(stall_threshold_mins.to_string());
-            // Explicitly set CWD to ensure the child finds squad.yml
-            cmd.current_dir(std::env::current_dir()?);
-
-            // Redirect stderr to log file instead of /dev/null so startup
-            // panics and DB errors are captured for diagnostics.
-            let log_dir = squad_dir.join("log");
-            let _ = std::fs::create_dir_all(&log_dir);
-            let stderr_file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log_dir.join("watch-stderr.log"));
-
-            cmd.stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null());
-            match stderr_file {
-                Ok(f) => {
-                    cmd.stderr(std::process::Stdio::from(f));
-                }
-                Err(_) => {
-                    cmd.stderr(std::process::Stdio::null());
-                }
-            }
-
-            // Create new session so SIGHUP from closing the init terminal
-            // doesn't propagate to the watchdog daemon.
-            unsafe {
-                cmd.pre_exec(|| {
-                    libc::setsid();
-                    Ok(())
-                });
-            }
-
-            let child = cmd.spawn()?;
+            let cwd = std::env::current_dir()?;
+            let child =
+                helpers::spawn_watchdog_daemon(&cwd, interval_secs, stall_threshold_mins)?;
             let pid = child.id();
             std::fs::write(&pid_file, pid.to_string())?;
             println!("Watchdog daemon started (PID {})", pid);
@@ -247,6 +209,8 @@ static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 
 fn setup_signal_handlers() {
     #[cfg(unix)]
+    // SAFETY: signal_trampoline is an extern "C" fn that only sets an AtomicBool —
+    // async-signal-safe. We register it for SIGTERM/SIGINT for graceful shutdown.
     unsafe {
         libc::signal(libc::SIGTERM, signal_trampoline as *const () as usize);
         libc::signal(libc::SIGINT, signal_trampoline as *const () as usize);
@@ -402,6 +366,15 @@ async fn tick(
                 &format!(
                     "agent={} busy_minutes={} action=auto_reconcile completed={}",
                     agent.name, busy_mins, completed
+                ),
+            );
+
+            // Leave breadcrumb in agent's pane so the agent sees the reset
+            let _ = tmux::send_keys_literal(
+                &agent.name,
+                &format!(
+                    "# [SQUAD] Auto-healed: DB reset to idle after {}m busy (signal lost)",
+                    busy_mins
                 ),
             );
 
