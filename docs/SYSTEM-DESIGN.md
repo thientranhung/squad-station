@@ -345,8 +345,7 @@ Messaging:
          [--agent <name>]             (auto-detect from tmux if omitted)
 
   signal [agent]                      Hook reports agent has finished
-                                      (accepts name or tmux pane ID like %3)
-                                      (auto-detect from $TMUX_PANE if omitted)
+                                      (agent name resolved via tmux display-message)
 
   peek <agent>                        View highest-priority pending task for agent
 
@@ -384,9 +383,9 @@ Hook logic is embedded in `signal.rs` — there is no separate `hooks/` director
 The `signal` command implements multiple guards to ensure safe, idempotent operation:
 
 ```
-Agent stops → Hook fires → squad-station signal [agent]
+Agent stops → Hook fires → squad-station signal "$(tmux display-message -p '#S')"
                                   ↓
-                    GUARD-03: No agent name? → silent exit 0
+                    GUARD-01: No agent name or empty? → log to signal.log + stderr, exit 0
                     GUARD-02: Config/DB failure? → warn to stderr, exit 0
                     GUARD-03: Agent not found in DB? → silent exit 0
                     GUARD-04: Agent role = orchestrator? → silent exit 0
@@ -394,13 +393,20 @@ Agent stops → Hook fires → squad-station signal [agent]
                     Update message: processing → completed
                     Find orchestrator → send notification via tmux
                                   ↓
+                    Opportunistic watchdog health check (respawn if dead)
+                                  ↓
                     Always returns 0 (never fails the provider)
 ```
 
 ### 5.3 Config per provider
 
 `squad-station init` auto-installs all hooks below. The inline command pattern uses
-`$(tmux display-message -p '#S')` to resolve the agent name from the tmux session.
+`$(tmux display-message -p '#S' 2>/dev/null)` to resolve the agent name from the tmux session.
+This is a tmux server-side query — it works reliably in all hook contexts without depending on
+environment variables like `$SQUAD_AGENT_NAME` or `$TMUX_PANE`.
+
+If tmux resolution fails (e.g. outside tmux, in CI), the agent name is empty and `signal.rs`
+GUARD-1 logs the failure to `.squad/log/signal.log` + stderr, then exits 0.
 
 **Claude Code** (`.claude/settings.json`) — 4 hook events (+ optional SessionStart):
 
@@ -416,14 +422,14 @@ Agent stops → Hook fires → squad-station signal [agent]
 {
   "hooks": {
     "Stop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal $(tmux display-message -p '#S')" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
     ],
     "Notification": [
-      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] },
-      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] },
+      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
     ],
     "PostToolUse": [
-      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
     ],
     "SessionStart": [
       { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station context --inject" }] }
@@ -448,10 +454,10 @@ same settings file receive no injection.
 {
   "hooks": {
     "AfterAgent": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal $(tmux display-message -p '#S')" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" >>.squad/log/signal.log 2>&1; printf '{}'" }] }
     ],
     "Notification": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent $(tmux display-message -p '#S')" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" >>.squad/log/signal.log 2>&1; printf '{}'" }] }
     ],
     "SessionStart": [
       { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station context --inject" }] }
@@ -459,6 +465,8 @@ same settings file receive no injection.
   }
 }
 ```
+
+**Gemini CLI note:** All signal/notify output is redirected to the log file. Stdout MUST emit valid JSON (`printf '{}'`) — Gemini CLI treats non-JSON stdout as a hook failure.
 
 **Antigravity:** No hooks needed — DB-only polling mode (no tmux sessions).
 

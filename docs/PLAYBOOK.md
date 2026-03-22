@@ -174,6 +174,54 @@ The `--inject` command guards on the orchestrator session name — workers shari
 
 ---
 
+## 4. Watchdog — Self-Healing & Monitoring
+
+The watchdog daemon monitors agent health and automatically recovers from stuck states.
+
+### Starting the watchdog
+
+```bash
+# Start as background daemon (default: 30s interval, 5min stall threshold)
+squad-station watch --daemon
+
+# Custom settings
+squad-station watch --daemon --interval 60 --stall-threshold 10
+
+# Stop the daemon
+squad-station watch --stop
+```
+
+The watchdog is also started automatically by `squad-station init`.
+
+### Tiered busy detection
+
+When an agent stays in "busy" status, the watchdog escalates through 4 tiers:
+
+| Duration | Tier | Action |
+|----------|------|--------|
+| 0–10 min | — | Normal operation, no action |
+| 10–30 min | **Tier 1: Log only** | Logs warning to `watch.log`. Long tasks (builds, refactors) are normal. |
+| 30+ min | **Tier 2: Auto-heal** | Checks if the agent's tmux pane is actually idle (prompt visible). If idle → signal was lost, so watchdog completes stuck tasks, resets agent to idle, and notifies the orchestrator. Logs pane content snapshot for false-positive diagnosis. |
+| 60+ min | **Tier 3: Alert** | Pane is active but agent has been busy too long. Sends `[SQUAD WATCHDOG] WARNING` to orchestrator (10 min cooldown per agent). |
+| 120+ min | **Tier 3: Urgent** | Escalates to `[SQUAD WATCHDOG] URGENT` prefix. Same cooldown. |
+
+### Watchdog resilience
+
+- **SIGHUP immunity:** Daemon runs in its own session (`setsid`) — closing the terminal that ran `init` won't kill it
+- **Stderr capture:** Daemon stderr goes to `.squad/log/watch-stderr.log` (not `/dev/null`)
+- **Self-healing:** `signal` and `send` commands opportunistically check if the watchdog is alive and respawn it if dead
+- **Global stall detection:** If all agents are idle with no pending tasks for longer than `--stall-threshold`, the watchdog nudges the orchestrator (up to 3 times with 10 min cooldown)
+
+### Log files
+
+| File | Contents |
+|------|----------|
+| `.squad/log/watch.log` | Watchdog tick events, reconciliation, heal actions, alerts |
+| `.squad/log/watch-stderr.log` | Daemon panics, DB errors, startup failures |
+| `.squad/log/signal.log` | Signal hook events, guard exits, completion records |
+
+---
+
 ## 5. Send Tasks to Agents
 
 ```bash
@@ -504,13 +552,16 @@ The agent name doesn't match any registered agent. Check `squad-station agents` 
 The agent is registered but its tmux session is down. Re-run `squad-station init` or launch the session manually.
 
 **Hook not firing**
-Verify `squad-station` is in PATH: `which squad-station`. Verify the agent is running inside a tmux session: `echo $TMUX_PANE` inside the session. Check that `settings.json` has the correct hook configuration.
+Verify `squad-station` is in PATH: `which squad-station`. Verify the agent is running inside a tmux session (hooks use `tmux display-message -p '#S'` to resolve the agent name). Check that `settings.json` has the correct hook configuration. Check `.squad/log/signal.log` for GUARD entries that show why the signal was skipped.
 
 **Database locked errors**
 Squad-station uses single-writer SQLite with WAL mode. If you see lock errors, ensure only one write operation runs at a time. The 5-second busy timeout handles most concurrent cases.
 
 **Antigravity: orchestrator not receiving completion signals**
 This is expected behavior. With `provider: antigravity`, the orchestrator has no tmux session, so `signal` does not inject a notification. Use `squad-station status` or `squad-station list --status completed` to poll for task completion instead.
+
+**Agent stuck in "busy" for hours**
+The watchdog should auto-heal this. Check if the watchdog is running: look for `.squad/watch.pid`. If the PID file is missing or stale, the next `signal` or `send` command will respawn it. You can also manually run `squad-station watch --daemon`. Check `.squad/log/watch.log` for HEAL entries.
 
 **Full reset when things go wrong**
 Run `squad-station reset` to kill all sessions, delete the database, and start fresh.
