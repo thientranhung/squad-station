@@ -51,7 +51,10 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
     let agent: String = match agent {
         Some(name) if !name.is_empty() => name,
         _ => {
-            // Best-effort log to .squad/log/signal.log (CWD-relative)
+            // Best-effort log to .squad/log/signal.log (CWD-relative).
+            // We use CWD here because this guard fires BEFORE config/DB resolution
+            // (which is where we'd normally get the project root). Provider hooks
+            // always set CWD to the project root, so ".squad" is correct in practice.
             let squad_log = std::path::Path::new(".squad");
             if squad_log.exists() {
                 log_signal(

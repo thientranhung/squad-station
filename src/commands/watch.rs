@@ -354,6 +354,28 @@ async fn tick(
         if tmux::session_exists(&agent.name)
             && reconcile::pane_looks_idle(&agent.name, &agent.tool)
         {
+            // Log pane content snapshot for diagnosing false positives.
+            // pane_looks_idle() is heuristic-based (prompt pattern matching) — if it
+            // misclassifies an active agent as idle, this snapshot lets us diagnose it.
+            let pane_snapshot = reconcile::capture_pane(&agent.name);
+            let snapshot_tail: String = pane_snapshot
+                .lines()
+                .rev()
+                .take(5)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join(" | ");
+            log_watch(
+                squad_dir,
+                "HEAL",
+                &format!(
+                    "agent={} idle_detection_snapshot=\"{}\"",
+                    agent.name, snapshot_tail
+                ),
+            );
+
             // Pane is idle but DB says busy → signal was lost. Fix it.
             let completed =
                 db::messages::complete_all_processing(&pool, &agent.name).await?;
@@ -369,7 +391,9 @@ async fn tick(
                 ),
             );
 
-            // Leave breadcrumb in agent's pane so the agent sees the reset
+            // Leave breadcrumb in agent's pane so the agent sees the reset.
+            // This injects a shell comment — safe because pane_looks_idle() already
+            // confirmed the pane shows a shell prompt (not an editor or TUI).
             let _ = tmux::send_keys_literal(
                 &agent.name,
                 &format!(

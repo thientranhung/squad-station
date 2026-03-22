@@ -69,7 +69,7 @@ fn agent_resolve_snippet() -> &'static str {
 
 #### File: `src/commands/signal.rs`
 
-**Change 5:** GUARD-1 now catches both `None` and empty string, logs to `.squad/log/signal.log`, and prints to stderr:
+**Change 5:** GUARD-1 now catches both `None` and empty string, logs to `.squad/log/signal.log`, and prints to stderr. Uses CWD-relative `.squad` path because this guard fires before config/DB resolution (provider hooks always set CWD to project root):
 ```rust
 let agent: String = match agent {
     Some(name) if !name.is_empty() => name,
@@ -128,7 +128,7 @@ The key insight: reconcile already knows how to detect idle panes and complete s
 |----------|--------|-----------|
 | 0-10min | Skip | Normal operation. Agent is working. |
 | 10-30min | Log only (Tier 1) | Long tasks (builds, large refactors) are normal. |
-| 30min+ | **Reconcile check** (Tier 2) | Call `pane_looks_idle()` for this agent. If idle → auto-heal (complete tasks + notify orchestrator). If active → log and continue waiting. |
+| 30min+ | **Reconcile check** (Tier 2) | Call `pane_looks_idle()` for this agent. If idle → log pane content snapshot (last 5 lines for diagnosing false positives), then auto-heal (complete tasks + notify orchestrator). If active → log and continue waiting. |
 | 60min+ | **Notify orchestrator** (Tier 3) | Send `[SQUAD WATCHDOG] WARNING — Agent 'X' busy for 60m, may be stuck.` with 10min cooldown per agent. |
 | 120min+ | **Urgent notify** (Tier 3) | Send `[SQUAD WATCHDOG] URGENT —` prefix instead of WARNING. Same 10min cooldown. |
 
@@ -165,13 +165,15 @@ unsafe {
 }
 ```
 
+Note: `setsid()` return value is intentionally ignored — failure is benign (only fails if already a session leader, which can't happen for a freshly-forked child).
+
 #### File: `src/commands/reconcile.rs`
 
 **Change 11:** `pane_looks_idle()` changed from `fn` to `pub fn` so `watch.rs` can call it for Tier 2 reconcile checks.
 
 #### File: `src/commands/helpers.rs`
 
-**Change 12:** New `ensure_watchdog()` function — opportunistic PID health check. If PID file exists but process is dead, removes stale PID file and respawns the daemon with stderr redirected to log file. Logs respawn to `watch.log`.
+**Change 12:** New `ensure_watchdog()` function — opportunistic PID health check. If PID file exists but process is dead, removes stale PID file and respawns the daemon with stderr redirected to log file. Logs respawn to `watch.log`. **Note:** Respawn uses hardcoded defaults (interval=30s, stall_threshold=5min) — custom values from original launch are not preserved. This is acceptable as best-effort recovery.
 
 #### File: `src/commands/signal.rs`
 
@@ -226,7 +228,7 @@ unsafe {
 | `tmux display-message` fails outside tmux | GUARD-1 now logs the failure; hooks only run inside tmux |
 | Pass 3 reconcile races with normal signal | Reconcile uses same `update_status()` with `WHERE status='processing'` — idempotent, no double-complete |
 | Watchdog respawn creates infinite respawn loop if DB is corrupt | `ensure_watchdog()` only runs during successful signal/send — if DB is broken, signal/send fail first, respawn never triggered |
-| `pane_looks_idle()` false positive (agent paused but not done) | Only triggers at 30min+. False positive = task completed early, orchestrator gets notified. Low cost. |
+| `pane_looks_idle()` false positive (agent paused but not done) | Only triggers at 30min+. Pane content snapshot (last 5 lines) logged to `watch.log` for post-mortem diagnosis. False positive = task completed early, orchestrator gets notified. Low cost. |
 | Tier 3 notification spam to orchestrator | `BusyAlertState` with 10min per-agent cooldown prevents repeated notifications |
 
 ### Not Addressed (Future Work)

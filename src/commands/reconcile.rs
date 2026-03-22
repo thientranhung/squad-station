@@ -174,7 +174,7 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
     }
 }
 
-fn capture_pane(session: &str) -> String {
+pub(crate) fn capture_pane(session: &str) -> String {
     Command::new("tmux")
         .args(["capture-pane", "-t", session, "-p", "-l", "5"])
         .output()

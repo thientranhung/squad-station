@@ -111,7 +111,10 @@ pub fn spawn_watchdog_daemon(
 
     // Create new session so SIGHUP from closing the terminal
     // doesn't propagate to the watchdog daemon.
-    // SAFETY: setsid() has no preconditions; it creates a new session for the child process.
+    // SAFETY: setsid() creates a new session for the child process. It can return -1 if the
+    // process is already a session leader, but that's benign here — the child is freshly forked
+    // by Command::spawn() and won't be a session leader. Even if it were, the only consequence
+    // is that the existing session is kept, which still provides adequate isolation.
     unsafe {
         cmd.pre_exec(|| {
             libc::setsid();
@@ -125,6 +128,12 @@ pub fn spawn_watchdog_daemon(
 /// Best-effort watchdog health check. If PID file exists but process is dead,
 /// attempt to respawn the daemon. Never fails — watchdog is advisory, not critical path.
 /// Called opportunistically from signal.rs and send.rs on every successful operation.
+///
+/// **Limitation:** Respawn uses hardcoded defaults (interval=30s, stall_threshold=5min).
+/// If the user originally started the watchdog with custom values via `watch --interval`
+/// or `watch --stall-threshold`, the respawned daemon won't honor those. This is acceptable
+/// because ensure_watchdog is a best-effort recovery, not a perfect restart — having a
+/// watchdog with defaults is better than no watchdog at all.
 pub fn ensure_watchdog(project_root: &std::path::Path) {
     let squad_dir = project_root.join(".squad");
     let pid_file = squad_dir.join("watch.pid");

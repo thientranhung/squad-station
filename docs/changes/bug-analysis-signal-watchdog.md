@@ -113,6 +113,7 @@ If signal fires between steps 1 and 3, `current_task` is still NULL. Signal fall
 1. New `ensure_watchdog()` helper in `helpers.rs` — checks PID liveness, respawns dead daemon with stderr to log file
 2. Called opportunistically from `signal.rs` and `send.rs` after every successful operation
 3. Logs respawn events to `watch.log`
+4. **Limitation:** Respawn uses hardcoded defaults (interval=30s, stall_threshold=5min); custom launch values are not preserved. Acceptable as best-effort recovery.
 
 ---
 
@@ -148,7 +149,7 @@ This is exactly the scenario that occurred: implement agent was busy for 13+ hou
 
 **Actual Fix (implemented):** Tiered escalation with 4 levels:
 1. 10-30min: Log only (Tier 1)
-2. 30min+: Reconcile check — if `pane_looks_idle()`, auto-heal (complete tasks + notify orchestrator) (Tier 2)
+2. 30min+: Reconcile check — if `pane_looks_idle()`, log pane content snapshot (last 5 lines) for false-positive diagnosis, then auto-heal (complete tasks + notify orchestrator). Breadcrumb comment injected into pane (safe because idle detection confirmed shell prompt). (Tier 2)
 3. 60min+: Notify orchestrator with WARNING (10min cooldown per agent via `BusyAlertState`) (Tier 3)
 4. 120min+: Notify orchestrator with URGENT prefix (same cooldown) (Tier 3)
 - No auto force-complete — too dangerous (agent might be doing a long build)
@@ -173,7 +174,7 @@ This is exactly the scenario that occurred: implement agent was busy for 13+ hou
 - If the parent shell receives SIGHUP (terminal closes), the watchdog may receive it too
 - File descriptor inheritance from parent could cause unexpected behavior
 
-**Actual Fix (implemented):** Added `pre_exec` with `libc::setsid()` in daemon fork. Watchdog now survives terminal closure.
+**Actual Fix (implemented):** Added `pre_exec` with `libc::setsid()` in daemon fork. Watchdog now survives terminal closure. `setsid()` return value intentionally ignored — failure is benign (only fails if already a session leader, which can't happen for a freshly-forked child).
 
 ---
 
