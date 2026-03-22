@@ -2,6 +2,55 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.1 — Signal Hook Fix & Watchdog Self-Healing (2026-03-22)
+
+Fixes the critical signal hook failure where `$SQUAD_AGENT_NAME` was never available in hook subprocess contexts, causing silent signal drops. Adds tiered watchdog self-healing that auto-recovers stuck agents.
+
+**168 tests passing** (89 lib + 79 integration).
+
+### Fixed
+
+- **Signal hook agent name resolution** (BUG-01, CRITICAL) — switched from `$SQUAD_AGENT_NAME`/`tmux list-panes` to `tmux display-message -p '#S'`, a tmux server-side query that works reliably in all hook subprocess contexts (Claude Code Stop hooks, Gemini CLI AfterAgent). The env var approach from v0.6.0 never worked because hook subprocesses don't inherit the shell's exported variables.
+- **GUARD-1 silent failure** (BUG-02) — empty agent name now logged to `.squad/log/signal.log` + stderr before exit 0, instead of silently swallowed with zero forensic evidence
+- **Watchdog daemon dies silently** (BUG-06) — new `ensure_watchdog()` health check called opportunistically from `signal` and `send`; detects dead PID and respawns daemon
+- **Watchdog stderr sent to /dev/null** (BUG-07) — daemon stderr now redirected to `.squad/log/watch-stderr.log` for crash diagnostics
+- **Watchdog Pass 3 observe-only** (BUG-08) — prolonged busy detection upgraded from log-only to tiered escalation with corrective actions
+- **Watchdog killed by terminal close** (BUG-10) — daemon now calls `setsid()` to create a new session, surviving SIGHUP from parent terminal
+
+### Added
+
+- **Tiered watchdog busy detection** — 4-level escalation for stuck agents:
+  - 10-30min: log only (long tasks are normal)
+  - 30min+: auto-heal if pane is idle (complete stuck tasks, reset to idle, notify orchestrator)
+  - 60min+: alert orchestrator with WARNING (10min per-agent cooldown)
+  - 120min+: escalate to URGENT prefix
+- **Pane content snapshot logging** — Tier 2 idle detection logs last 5 lines of pane content to `watch.log` for diagnosing false positives
+- **`complete_all_processing()` DB function** — batch-completes all processing messages for an agent; used by watchdog self-healing
+- **`BusyAlertState`** — per-agent notification cooldown to prevent orchestrator notification spam
+- **`spawn_watchdog_daemon()` shared helper** — extracted from `watch --daemon` and `ensure_watchdog` to eliminate duplication; configures setsid, stderr-to-log, stdin/stdout null
+- **Unit tests** — `BusyAlertState` (4 tests), `complete_all_processing` (2 tests), `test_guard1_logs_empty_agent_name`
+
+### Changed
+
+- **Hook commands simplified** — removed intermediate `$AGENT` variable, `[ -n "$AGENT" ]` shell guard, `$SQUAD_AGENT_NAME`, `$TMUX_PANE`, and `tmux list-panes` fallback. Signal.rs GUARD-1 handles empty names with logging — no shell-level guard needed.
+- **`agent_resolve_snippet()` renamed to `agent_name_subshell()`** — returns `$(tmux display-message -p '#S' 2>/dev/null)` instead of the old multi-stage resolution
+- **`pane_looks_idle()` visibility** — narrowed from `fn` to `pub(crate)` for watchdog Tier 2 access
+- **`capture_pane()` visibility** — narrowed from `fn` to `pub(crate)` for watchdog pane snapshot logging
+- **`// SAFETY:` comments** — added to all `unsafe` blocks (`setsid`, `kill`, `signal`)
+
+### Removed
+
+- **Vendored GSD plugin files** — removed ~104k lines of `.claude/agents/`, `.claude/commands/gsd/`, `.claude/get-shit-done/`, `.gemini/`, `.planning/` directories
+- **`$SQUAD_AGENT_NAME` env var** — never available in hook contexts; removed entirely
+
+### Documentation
+
+- **SYSTEM-DESIGN.md** — updated section 5.2 (guard chain) and 5.3 (hook commands) to reflect new `tmux display-message` pattern with stderr redirection
+- **PLAYBOOK.md** — added section 4 (Watchdog) documenting tiered escalation, resilience features, and log files; updated troubleshooting
+- **Change analysis archived** — `docs/changes/archive/bug-analysis-signal-watchdog.md` and `solution-signal-watchdog.md`
+
+---
+
 ## v0.6.0 — Signal Reliability (2026-03-20)
 
 Three-layer defense against lost agent completion signals. Zero-config hook setup, project-scoped logging, and a self-healing watchdog daemon.
