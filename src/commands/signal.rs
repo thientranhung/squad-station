@@ -1,7 +1,7 @@
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
-use crate::{config, db, tmux};
+use crate::{commands::helpers, config, db, tmux};
 
 /// Append a structured log line to `.squad/log/signal.log`.
 /// Best-effort: silently ignores write failures. Must never cause signal to fail.
@@ -44,12 +44,26 @@ fn rotate_log(path: &std::path::Path) {
 }
 
 pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
-    // GUARD 1: No explicit agent name provided -- silent exit 0 (HOOK-03)
-    // The hook command passes the session name explicitly via $SQUAD_AGENT_NAME.
-    // If no name is provided (e.g. outside tmux, in CI), we silently exit.
+    // GUARD 1: No agent name or empty string -- log + exit 0 (HOOK-03)
+    // The hook resolves the session name via `tmux display-message -p '#S'`.
+    // If tmux fails (outside tmux, CI), the name is empty. We log for diagnostics
+    // but still exit 0 to avoid failing the provider's hook contract.
     let agent: String = match agent {
-        Some(name) => name,
-        None => return Ok(()),
+        Some(name) if !name.is_empty() => name,
+        _ => {
+            // Best-effort log to .squad/log/signal.log (CWD-relative)
+            let squad_log = std::path::Path::new(".squad");
+            if squad_log.exists() {
+                log_signal(
+                    std::path::Path::new("."),
+                    "GUARD",
+                    "(empty)",
+                    "reason=no_agent_name hook_env_resolution_failed",
+                );
+            }
+            eprintln!("squad-station: signal: no agent name (tmux display-message failed or outside tmux)");
+            return Ok(());
+        }
     };
 
     // GUARD 2: Config/DB connection -- warning to stderr + exit 0 on failure
@@ -257,6 +271,9 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
         }
     }
 
+    // Opportunistic watchdog health check — respawn if dead
+    helpers::ensure_watchdog(&project_root);
+
     // Output result
     if json {
         let out = serde_json::json!({
@@ -336,6 +353,31 @@ mod tests {
         assert!(content.contains("OK"));
         assert!(content.contains("agent=test-agent"));
         assert!(content.contains("task=abc123 rows=1"));
+    }
+
+    #[test]
+    fn test_guard1_logs_empty_agent_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        // Create .squad directory to simulate being in a project
+        let squad_dir = project_root.join(".squad");
+        std::fs::create_dir_all(&squad_dir).unwrap();
+
+        // Simulate what GUARD-1 does when agent name is empty
+        log_signal(
+            project_root,
+            "GUARD",
+            "(empty)",
+            "reason=no_agent_name hook_env_resolution_failed",
+        );
+
+        let log_file = project_root.join(".squad").join("log").join("signal.log");
+        assert!(log_file.exists(), "GUARD-1 must create log entry");
+        let content = std::fs::read_to_string(&log_file).unwrap();
+        assert!(content.contains("GUARD"));
+        assert!(content.contains("(empty)"));
+        assert!(content.contains("no_agent_name"));
     }
 
     #[test]

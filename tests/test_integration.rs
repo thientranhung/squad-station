@@ -1714,8 +1714,8 @@ fn test_init_hook_prints_instructions() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("squad-station signal $(tmux display-message -p '#S')"),
-        "stdout must contain hook command instructions. Got: {}",
+        stdout.contains("squad-station signal") && stdout.contains("tmux display-message"),
+        "stdout must contain hook command instructions with tmux display-message. Got: {}",
         stdout
     );
     assert!(

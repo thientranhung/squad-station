@@ -150,7 +150,8 @@ pub async fn reconcile_agents(
 
 /// Detect if an agent's tmux pane shows an idle prompt.
 /// Provider-aware: each provider has different prompt patterns and terminal modes.
-fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
+/// Public for use by watchdog Pass 3 (prolonged busy self-healing).
+pub fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
     let text = capture_pane(session_name);
 
     // If capture is empty, try alternate screen buffer (Gemini CLI uses full-screen TUI)

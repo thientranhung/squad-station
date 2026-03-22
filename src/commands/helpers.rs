@@ -1,6 +1,8 @@
 use crate::{db, tmux};
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use sqlx::SqlitePool;
 
 /// Reconcile agent statuses against live tmux sessions.
@@ -66,6 +68,94 @@ pub fn pad_colored(raw: &str, colored: &str, width: usize) -> String {
     let raw_len = raw.len();
     let padding = width.saturating_sub(raw_len);
     format!("{}{}", colored, " ".repeat(padding))
+}
+
+/// Best-effort watchdog health check. If PID file exists but process is dead,
+/// attempt to respawn the daemon. Never fails — watchdog is advisory, not critical path.
+/// Called opportunistically from signal.rs and send.rs on every successful operation.
+pub fn ensure_watchdog(project_root: &std::path::Path) {
+    let squad_dir = project_root.join(".squad");
+    let pid_file = squad_dir.join("watch.pid");
+    if !pid_file.exists() {
+        return; // No watchdog was ever started — don't auto-create
+    }
+
+    let pid: i32 = match std::fs::read_to_string(&pid_file)
+        .ok()
+        .and_then(|c| c.trim().parse().ok())
+    {
+        Some(p) => p,
+        None => return,
+    };
+
+    #[cfg(unix)]
+    {
+        let alive = unsafe { libc::kill(pid, 0) == 0 };
+        if alive {
+            return; // Watchdog is running
+        }
+
+        // Dead watchdog — attempt respawn
+        let _ = std::fs::remove_file(&pid_file);
+        let exe = match std::env::current_exe() {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+
+        let log_dir = squad_dir.join("log");
+        let _ = std::fs::create_dir_all(&log_dir);
+        let stderr_file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_dir.join("watch-stderr.log"));
+
+        let mut cmd = std::process::Command::new(exe);
+        cmd.arg("watch")
+            .arg("--interval")
+            .arg("30")
+            .arg("--stall-threshold")
+            .arg("5");
+        cmd.current_dir(project_root);
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null());
+        match stderr_file {
+            Ok(f) => {
+                cmd.stderr(std::process::Stdio::from(f));
+            }
+            Err(_) => {
+                cmd.stderr(std::process::Stdio::null());
+            }
+        }
+
+        // Create new session so SIGHUP from closing the terminal
+        // doesn't propagate to the respawned watchdog daemon.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            });
+        }
+
+        if let Ok(child) = cmd.spawn() {
+            let _ = std::fs::write(&pid_file, child.id().to_string());
+            // Best-effort log to watch.log
+            let log_file = log_dir.join("watch.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_file)
+            {
+                use std::io::Write;
+                let _ = writeln!(
+                    f,
+                    "{} {:<9} watchdog respawned pid={} by=ensure_watchdog",
+                    chrono::Utc::now().to_rfc3339(),
+                    "INFO",
+                    child.id()
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
