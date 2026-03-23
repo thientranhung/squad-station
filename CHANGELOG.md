@@ -2,6 +2,41 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.3 — npm Installer Binary Fix (2026-03-23)
+
+Fixes the npm installer so the downloaded binary is executable and the npm package works correctly out of the box.
+
+### Fixed
+
+- **chmod +x bin/run.js** — npm entry point was not executable after install
+- **npm package fixes** — corrected package configuration for reliable `npx squad-station install` flow
+
+---
+
+## v0.6.2 — Post-Init Health Check, Autonomous Orchestrator, Doctor Command (2026-03-23)
+
+Adds a comprehensive post-init health check that validates 9 components, a standalone `doctor` diagnostic command, autonomous orchestrator mode with clear decision authority boundaries, and fixes the watchdog self-detection race condition.
+
+### Added
+
+- **Post-init health check** — validates 9 components after `squad-station init`: database, log directory, signal hooks, notify hooks (per provider), orchestrator context file, tmux sessions (orchestrator + each agent), and watchdog daemon. Prints pass/fail/warn summary with actionable remediation steps.
+- **`squad-station doctor` command** — standalone health check for diagnosing squad operational issues without re-running init. Exits with code 1 if any checks fail.
+- **Autonomous orchestrator mode** — new "Autonomous Mode" section in generated `squad-orchestrator.md`:
+  - **Decision authority** — orchestrator makes routing, implementation, testing, and technical trade-off decisions without asking the user
+  - **Escalation criteria** — only escalate for ambiguous requirements, destructive actions, external dependencies, or scope conflicts
+  - **Driving to completion** — orchestrator dispatches follow-up tasks on errors, answers agent questions, and verifies work before reporting done
+- **11 E2E lifecycle tests** (`tests/test_e2e_lifecycle.rs`) — covers watchdog daemon lifecycle (start/stop/duplicate/stale PID/logging), init artifact creation, init idempotency, doctor exit codes, and watchdog self-detection regression
+
+### Fixed
+
+- **Watchdog self-detection race condition** — daemon was killing itself immediately after start because it read its own PID from the PID file and treated it as a duplicate. Now compares PID file contents against `std::process::id()` and skips the duplicate check when they match.
+
+### Changed
+
+- **QA Gate instructions refined** — error handling now instructs orchestrator to analyze and fix errors autonomously; technical questions answered from project context; only genuinely ambiguous requirements escalated to user
+
+---
+
 ## v0.6.1 — Signal Hook Fix & Watchdog Self-Healing (2026-03-22)
 
 Fixes the critical signal hook failure where `$SQUAD_AGENT_NAME` was never available in hook subprocess contexts, causing silent signal drops. Adds tiered watchdog self-healing that auto-recovers stuck agents.

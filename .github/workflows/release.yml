@@ -6,8 +6,36 @@ on:
       - 'v*'
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # Extract the section for this version (between ## vX.Y.Z and the next ## vX.Y.Z)
+          NOTES=$(awk "/^## ${TAG//./\\.} /{found=1; next} /^## v[0-9]/{if(found) exit} found" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "WARNING: No CHANGELOG entry found for ${TAG}, using tag message"
+            NOTES="Release ${TAG}"
+          fi
+          # Write to file to preserve formatting
+          echo "$NOTES" > release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+
   build:
     name: Build ${{ matrix.asset_name }}
+    needs: create-release
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -70,4 +98,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset_name }}
-          generate_release_notes: true
