@@ -2,6 +2,26 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.5 — Async Pattern Fixes and Batch DB Queries (2026-03-23)
+
+Fixes blocking async patterns in tmux operations and optimizes the status command with a batch database query.
+
+### Fixed
+
+- **Async sleep in tmux.rs** — converted 3 instances of `std::thread::sleep()` to `tokio::time::sleep().await` in `send_keys_literal()`, `inject_single()`, and `inject_body()`. These were blocking the Tokio executor for 2–5 seconds per call, preventing other async tasks from making progress.
+- **Clippy warnings** — resolved 7 clippy lints: empty doc comment line, `push_str` → `push` for single char, `match` → `matches!` macro (3×), needless borrows (2×)
+
+### Changed
+
+- **Batch DB query in status command** — added `count_processing_per_agent()` single `GROUP BY` aggregate query replacing N sequential `list_messages()` calls (one per agent). Scales O(1) instead of O(N) with agent count.
+- Updated 9 callers across 5 command files (`send.rs`, `notify.rs`, `signal.rs`, `reconcile.rs`, `watch.rs`) to await the now-async tmux functions
+
+### Added
+
+- 3 new unit tests for `count_processing_per_agent()` covering empty DB, single agent, and multiple agents
+
+---
+
 ## v0.6.4 — Smart PATH Detection for npm Installer (2026-03-23)
 
 npm installer now picks install directories already in PATH, adds cross-platform PATH instructions, and adds Windows support.

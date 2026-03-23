@@ -214,7 +214,7 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
                 false
             } else if tmux::session_exists(&orch.name) {
                 // Only notify if orchestrator tmux session is running.
-                match tmux::send_keys_literal(&orch.name, &notification) {
+                match tmux::send_keys_literal(&orch.name, &notification).await {
                     Ok(()) => {
                         log_signal(
                             &project_root,

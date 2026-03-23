@@ -51,7 +51,7 @@ pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Res
             false // DB-only orchestrator
         } else if tmux::session_exists(&orch.name) {
             let notification = format!("[SQUAD INPUT NEEDED] Agent '{}': {}", agent, body);
-            tmux::send_keys_literal(&orch.name, &notification)?;
+            tmux::send_keys_literal(&orch.name, &notification).await?;
             true
         } else {
             false

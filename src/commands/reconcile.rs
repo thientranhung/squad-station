@@ -120,7 +120,7 @@ pub async fn reconcile_agents(
                             "[SQUAD RECONCILE] Agent '{}' completed {} task(s) (signal was lost). Run: squad-station status",
                             agent.name, completed_count
                         );
-                        let _ = tmux::send_keys_literal(&orch.name, &notification);
+                        let _ = tmux::send_keys_literal(&orch.name, &notification).await;
                     }
                 }
 

@@ -125,7 +125,7 @@ const MULTI_CMD_DELAY_SECS: u64 = 5;
 /// Sends Enter as a separate call so it is interpreted as a key, not literal text.
 /// Includes a delay between text and Enter to ensure the target pane
 /// has received and rendered the text before Enter is processed.
-pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
+pub async fn send_keys_literal(target: &str, text: &str) -> Result<()> {
     // Step 1: Send text as literal (no key name interpretation)
     let args = send_keys_args(target, text);
     let status = Command::new("tmux").args(&args).status()?;
@@ -134,7 +134,7 @@ pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
     }
 
     // Step 2: Wait for the pane to receive and render the text
-    std::thread::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS));
+    tokio::time::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS)).await;
 
     // Step 3: Send Enter as separate key (NOT -l, so Enter key is recognized)
     let enter = enter_args(target);
@@ -147,7 +147,7 @@ pub fn send_keys_literal(target: &str, text: &str) -> Result<()> {
 }
 
 /// Inject a single piece of content into a tmux target using load-buffer/paste-buffer.
-fn inject_single(target: &str, text: &str) -> Result<()> {
+async fn inject_single(target: &str, text: &str) -> Result<()> {
     let temp_path =
         std::env::temp_dir().join(format!("squad-station-msg-{}", uuid::Uuid::new_v4()));
     std::fs::write(&temp_path, text)?;
@@ -171,7 +171,7 @@ fn inject_single(target: &str, text: &str) -> Result<()> {
         bail!("tmux paste-buffer failed for target: {}", target);
     }
 
-    std::thread::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS));
+    tokio::time::sleep(std::time::Duration::from_secs(SEND_ENTER_DELAY_SECS)).await;
 
     let enter = enter_args(target);
     let status = Command::new("tmux").args(&enter).status()?;
@@ -209,19 +209,19 @@ fn split_compound_commands(body: &str) -> Option<Vec<&str>> {
 /// Claude Code's TUI cannot parse as one input.
 ///
 /// Plain task text containing `&&` (e.g. "check if A && B") is sent as-is.
-pub fn inject_body(target: &str, body: &str) -> Result<()> {
+pub async fn inject_body(target: &str, body: &str) -> Result<()> {
     if let Some(parts) = split_compound_commands(body) {
         // Multiple slash commands: send each separately with delay between
         for (i, part) in parts.iter().enumerate() {
-            inject_single(target, part)?;
+            inject_single(target, part).await?;
             if i < parts.len() - 1 {
                 // Wait for the command to execute before sending the next
-                std::thread::sleep(std::time::Duration::from_secs(MULTI_CMD_DELAY_SECS));
+                tokio::time::sleep(std::time::Duration::from_secs(MULTI_CMD_DELAY_SECS)).await;
             }
         }
     } else {
         // Single command or plain task text: send as-is
-        inject_single(target, body)?;
+        inject_single(target, body).await?;
     }
 
     Ok(())
@@ -327,7 +327,7 @@ pub fn create_view_session(session_name: &str, agent_sessions: &[String]) -> Res
         let first_worker_cmd =
             format!("sh -c 'TMUX= tmux attach-session -t {}'", agent_sessions[1]);
         Command::new("tmux")
-            .args(&["split-window", "-t", session_name, "-h", &first_worker_cmd])
+            .args(["split-window", "-t", session_name, "-h", &first_worker_cmd])
             .status()?;
 
         // Remaining workers: split vertically within the right column
@@ -335,7 +335,7 @@ pub fn create_view_session(session_name: &str, agent_sessions: &[String]) -> Res
             let cmd = format!("sh -c 'TMUX= tmux attach-session -t {}'", agent);
             // Target the last pane (right column) for vertical split
             Command::new("tmux")
-                .args(&["split-window", "-t", session_name, "-v", &cmd])
+                .args(["split-window", "-t", session_name, "-v", &cmd])
                 .status()?;
         }
     }
