@@ -312,9 +312,257 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             }
         }
         println!();
+
+        // 10. Post-init health check
+        run_health_check(&config, &db_path, &orch_name);
     }
 
     Ok(())
+}
+
+/// Post-init health check: validate all critical components are properly configured.
+/// Prints a clear pass/fail summary with actionable remediation steps.
+/// Returns the number of failed checks.
+pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path, orch_name: &str) -> u32 {
+    let green = |s: &str| {
+        s.if_supports_color(Stream::Stdout, |s| s.green())
+            .to_string()
+    };
+    let red = |s: &str| {
+        s.if_supports_color(Stream::Stdout, |s| s.red())
+            .to_string()
+    };
+    let yellow = |s: &str| {
+        s.if_supports_color(Stream::Stdout, |s| s.yellow())
+            .to_string()
+    };
+    let bold = |s: &str| {
+        s.if_supports_color(Stream::Stdout, |s| s.bold())
+            .to_string()
+    };
+
+    let pass = green("PASS");
+    let fail = red("FAIL");
+    let warn = yellow("WARN");
+
+    println!("{}", bold("Health Check"));
+    println!("{}\n", bold("──────────────────────────────────"));
+
+    let mut pass_count: u32 = 0;
+    let mut fail_count: u32 = 0;
+    let mut warn_count: u32 = 0;
+    let mut remediation: Vec<String> = vec![];
+
+    // 1. Database accessible
+    if db_path.exists() {
+        println!("  {} Database exists: {}", pass, db_path.display());
+        pass_count += 1;
+    } else {
+        println!("  {} Database missing: {}", fail, db_path.display());
+        fail_count += 1;
+        remediation.push("Database file was not created. Re-run `squad-station init`.".into());
+    }
+
+    // 2. Log directory
+    let log_dir = db_path
+        .parent()
+        .unwrap_or(std::path::Path::new(".squad"))
+        .join("log");
+    if log_dir.exists() {
+        println!("  {} Log directory: {}", pass, log_dir.display());
+        pass_count += 1;
+    } else {
+        println!("  {} Log directory missing: {}", fail, log_dir.display());
+        fail_count += 1;
+        remediation.push(format!("Create log directory: mkdir -p {}", log_dir.display()));
+    }
+
+    // 3. Hooks config files — check each provider used
+    let mut providers_seen: Vec<String> = vec![config.orchestrator.provider.clone()];
+    for agent in &config.agents {
+        if !providers_seen.contains(&agent.provider) {
+            providers_seen.push(agent.provider.clone());
+        }
+    }
+
+    for provider in &providers_seen {
+        let settings_path = match provider.as_str() {
+            "claude-code" => Some(".claude/settings.json"),
+            "gemini-cli" => Some(".gemini/settings.json"),
+            _ => None,
+        };
+
+        if let Some(path) = settings_path {
+            let full_path = std::path::Path::new(path);
+            if full_path.exists() {
+                // Verify it contains squad-station hooks
+                match std::fs::read_to_string(full_path) {
+                    Ok(content) => {
+                        if content.contains("squad-station signal") {
+                            println!("  {} Hooks ({}) — signal hook present", pass, provider);
+                            pass_count += 1;
+                        } else {
+                            println!(
+                                "  {} Hooks ({}) — {} exists but missing signal hook",
+                                fail, provider, path
+                            );
+                            fail_count += 1;
+                            remediation.push(format!(
+                                "Re-install hooks: delete {} and re-run `squad-station init`",
+                                path
+                            ));
+                        }
+
+                        if content.contains("squad-station notify") {
+                            println!("  {} Hooks ({}) — notify hook present", pass, provider);
+                            pass_count += 1;
+                        } else {
+                            println!(
+                                "  {} Hooks ({}) — {} exists but missing notify hook",
+                                fail, provider, path
+                            );
+                            fail_count += 1;
+                            remediation.push(format!(
+                                "Re-install hooks: delete {} and re-run `squad-station init`",
+                                path
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        println!("  {} Hooks ({}) — cannot read {}: {}", fail, provider, path, e);
+                        fail_count += 1;
+                        remediation.push(format!("Fix file permissions on {}", path));
+                    }
+                }
+            } else {
+                println!("  {} Hooks ({}) — {} not found", fail, provider, path);
+                fail_count += 1;
+                remediation.push(format!(
+                    "Hooks not injected for {}. Re-run `squad-station init` or manually create {}",
+                    provider, path
+                ));
+            }
+        } else if provider != "antigravity" {
+            println!(
+                "  {} Hooks ({}) — unsupported provider, manual setup required",
+                warn, provider
+            );
+            warn_count += 1;
+        }
+    }
+
+    // 4. Orchestrator context file
+    let context_path = match config.orchestrator.provider.as_str() {
+        "gemini-cli" => ".gemini/commands/squad-orchestrator.toml",
+        _ => ".claude/commands/squad-orchestrator.md",
+    };
+    if std::path::Path::new(context_path).exists() {
+        println!("  {} Orchestrator context: {}", pass, context_path);
+        pass_count += 1;
+    } else {
+        println!("  {} Orchestrator context missing: {}", fail, context_path);
+        fail_count += 1;
+        remediation.push("Regenerate context: `squad-station context`".into());
+    }
+
+    // 5. Tmux sessions alive
+    if !config.orchestrator.is_db_only() {
+        if tmux::session_exists(orch_name) {
+            println!("  {} Orchestrator session: {}", pass, orch_name);
+            pass_count += 1;
+        } else {
+            println!("  {} Orchestrator session not running: {}", fail, orch_name);
+            fail_count += 1;
+            remediation.push(format!(
+                "Orchestrator tmux session '{}' is not running. Re-run `squad-station init`.",
+                orch_name
+            ));
+        }
+    }
+
+    for agent in &config.agents {
+        let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
+        let agent_name =
+            config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+        if tmux::session_exists(&agent_name) {
+            println!("  {} Agent session: {}", pass, agent_name);
+            pass_count += 1;
+        } else {
+            println!("  {} Agent session not running: {}", fail, agent_name);
+            fail_count += 1;
+            remediation.push(format!(
+                "Agent tmux session '{}' is not running. Re-run `squad-station init`.",
+                agent_name
+            ));
+        }
+    }
+
+    // 6. Watchdog running
+    let pid_file = db_path
+        .parent()
+        .unwrap_or(std::path::Path::new(".squad"))
+        .join("watch.pid");
+    let watchdog_alive = if pid_file.exists() {
+        // Check if the PID is actually running
+        match std::fs::read_to_string(&pid_file) {
+            Ok(pid_str) => {
+                if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                    // kill -0 checks if process exists without sending a signal
+                    unsafe { libc::kill(pid, 0) == 0 }
+                } else {
+                    false
+                }
+            }
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
+
+    if watchdog_alive {
+        println!("  {} Watchdog daemon running", pass);
+        pass_count += 1;
+    } else {
+        println!("  {} Watchdog daemon not running", warn);
+        warn_count += 1;
+        remediation.push(
+            "Watchdog not running. Start it: `squad-station watch --daemon`".into(),
+        );
+    }
+
+    // Summary
+    println!();
+    if fail_count == 0 && warn_count == 0 {
+        println!(
+            "  {} All {} checks passed — squad is fully operational!",
+            green("✓"),
+            pass_count
+        );
+    } else if fail_count == 0 {
+        println!(
+            "  {} {}/{} passed, {} warning(s)",
+            yellow("~"),
+            pass_count,
+            pass_count + warn_count,
+            warn_count
+        );
+    } else {
+        println!(
+            "  {} {}/{} passed, {} failed, {} warning(s)",
+            red("✗"),
+            pass_count,
+            pass_count + fail_count + warn_count,
+            fail_count,
+            warn_count
+        );
+        println!("\n  {}", bold("Remediation:"));
+        for (i, step) in remediation.iter().enumerate() {
+            println!("  {}. {}", i + 1, step);
+        }
+    }
+    println!();
+
+    fail_count
 }
 
 fn auto_install_hooks(provider: &str) -> anyhow::Result<bool> {

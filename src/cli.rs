@@ -125,6 +125,8 @@ pub enum Commands {
         #[arg(long)]
         stop: bool,
     },
+    /// Run health check to diagnose squad operational issues
+    Doctor,
     /// Kill all squad tmux sessions and delete the database
     Clean {
         /// Path to squad config file

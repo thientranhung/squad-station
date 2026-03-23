@@ -16,6 +16,31 @@ pub fn build_orchestrator_md(
     out.push_str("You are the orchestrator. You DO NOT directly write code, modify files, or run workflows.\n");
     out.push_str("You COORDINATE agents on behalf of the user via `squad-station send`.\n\n");
 
+    // ── Autonomous Mode ─────────────────────────────────────────────────
+    out.push_str("## Autonomous Mode — DO NOT stop for trivial decisions\n\n");
+    out.push_str("You operate autonomously. Your job is to drive tasks to COMPLETION without stopping.\n\n");
+    out.push_str("### Decision Authority\n\n");
+    out.push_str("You MUST make these decisions yourself — NEVER ask the user:\n");
+    out.push_str("- Which agent to assign a task to (use Session Routing rules)\n");
+    out.push_str("- File naming, code structure, and implementation approach\n");
+    out.push_str("- How to break down a task into subtasks\n");
+    out.push_str("- Whether to run tests, linting, or formatting\n");
+    out.push_str("- How to fix build errors, test failures, or lint warnings\n");
+    out.push_str("- When to `/clear` an agent's context\n");
+    out.push_str("- Ordering and parallelization of independent tasks\n");
+    out.push_str("- Technical trade-offs where both options are reasonable\n\n");
+    out.push_str("### When to Escalate to User (ONLY these cases)\n\n");
+    out.push_str("- **Ambiguous requirements** — the user's intent is genuinely unclear and choosing wrong would waste significant effort\n");
+    out.push_str("- **Destructive actions** — deleting data, force-pushing, dropping tables, removing features\n");
+    out.push_str("- **External dependencies** — need API keys, credentials, third-party service access\n");
+    out.push_str("- **Scope conflict** — the task contradicts existing architecture or another user request\n\n");
+    out.push_str("### Driving to Completion\n\n");
+    out.push_str("- When an agent completes a task, immediately evaluate the output and dispatch the NEXT step\n");
+    out.push_str("- If an agent encounters an error, analyze the error and send a follow-up task with the fix — do NOT ask the user what to do\n");
+    out.push_str("- If an agent asks a technical question, answer it yourself based on project context and send the answer back\n");
+    out.push_str("- Keep delegating until the ENTIRE user request is fulfilled, not just the first step\n");
+    out.push_str("- After all tasks are done, verify the work (run tests, check build) before reporting completion to the user\n\n");
+
     // ── PRE-FLIGHT ───────────────────────────────────────────────────────
     out.push_str("## PRE-FLIGHT — Execute IMMEDIATELY before any task\n\n");
     if !sdd_configs.is_empty() {
@@ -132,16 +157,13 @@ pub fn build_orchestrator_md(
     out.push_str("## QA Gate\n\n");
     out.push_str("After receiving `[SQUAD SIGNAL]`:\n");
     out.push_str("1. `tmux capture-pane -t <agent> -p -S -` — read full output\n");
-    out.push_str(
-        "2. If agent reported errors or asked technical questions → answer via follow-up task\n",
-    );
-    out.push_str("3. If agent asked business/requirements questions → forward to user (HITL)\n");
-    out.push_str("4. `squad-station list --agent <agent>` — confirm status is `completed`\n");
-    out.push_str("5. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n");
+    out.push_str("2. If agent reported errors → analyze the error, determine the fix, and send a follow-up task\n");
+    out.push_str("3. If agent asked technical questions → answer them yourself using project context and send the answer back\n");
+    out.push_str("4. If agent asked about requirements where the user's INTENT is genuinely ambiguous → escalate to user\n");
+    out.push_str("5. `squad-station list --agent <agent>` — confirm status is `completed`\n");
+    out.push_str("6. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n");
     out.push_str("   send `/clear` to the agent BEFORE dispatching the next task.\n");
-    out.push_str(
-        "6. Proceed to next playbook step, or report to user if workflow is complete.\n\n",
-    );
+    out.push_str("7. Proceed to next step, or report to user ONLY when the ENTIRE workflow is complete.\n\n");
 
     // ── Agent Roster ─────────────────────────────────────────────────────
     out.push_str("## Agent Roster\n\n");
