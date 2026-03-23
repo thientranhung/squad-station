@@ -80,8 +80,16 @@ pub async fn run(
         }
         // If remaining > 0, current_task already points to the real task — don't touch it
     } else {
-        // Real task: set current_task and mark agent as busy
-        db::agents::set_current_task(&pool, &agent, &msg_id).await?;
+        // Real task: set current_task only if agent has no active task.
+        // If current_task is already set, the new message stays queued in the DB
+        // and will be picked up by signal.rs after the current task completes
+        // (via the remaining-processing check). Blindly overwriting current_task
+        // causes signal to complete the WRONG message — the newer one instead of
+        // the one the agent actually finished — orphaning the original task in
+        // "processing" forever. (See: kindle-implement stale busy incident)
+        if agent_record.current_task.is_none() {
+            db::agents::set_current_task(&pool, &agent, &msg_id).await?;
+        }
         db::agents::update_agent_status(&pool, &agent, "busy").await?;
     }
 
