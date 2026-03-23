@@ -615,14 +615,15 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
 
-    // Claude Code: stdout is ignored, errors to log file. Always exit 0.
-    // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.
+    // Claude Code: stdout is ignored, stderr goes to /dev/null. Always exit 0.
+    // signal.rs handles its own logging internally via log_signal() — no shell redirect needed.
+    // Previous approach used `2>>.squad/log/signal.log` which broke when CWD != project root.
     let signal_cmd = format!(
-        r#"squad-station signal "{}" 2>>.squad/log/signal.log"#,
+        r#"squad-station signal "{}" 2>/dev/null"#,
         resolve
     );
     let notify_cmd = format!(
-        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>>.squad/log/signal.log"#,
+        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
         resolve
     );
 
@@ -671,14 +672,15 @@ fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
 
-    // Gemini CLI: ALL signal output redirected to log. stdout MUST be valid JSON.
-    // signal.rs GUARD-1 handles empty agent name with logging — no shell guard needed.
+    // Gemini CLI: ALL signal output redirected to /dev/null. stdout MUST be valid JSON.
+    // signal.rs handles its own logging internally — shell redirect only suppresses output.
+    // Previous approach used `>>.squad/log/signal.log` which broke when CWD != project root.
     let signal_cmd = format!(
-        r#"squad-station signal "{}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        r#"squad-station signal "{}" >/dev/null 2>&1; printf '{{}}'"#,
         resolve
     );
     let notify_cmd = format!(
-        r#"squad-station notify --body 'Agent needs input' --agent "{}" >>.squad/log/signal.log 2>&1; printf '{{}}'"#,
+        r#"squad-station notify --body 'Agent needs input' --agent "{}" >/dev/null 2>&1; printf '{{}}'"#,
         resolve
     );
 
@@ -854,8 +856,8 @@ mod tests {
             stop_cmd
         );
         assert!(
-            stop_cmd.contains(".squad/log/signal.log"),
-            "Stop hook must log to .squad/log/signal.log: {}",
+            stop_cmd.contains("2>/dev/null"),
+            "Stop hook must redirect stderr to /dev/null: {}",
             stop_cmd
         );
         assert!(
@@ -952,10 +954,10 @@ mod tests {
             "Gemini hook MUST output valid JSON via printf: {}",
             signal_cmd
         );
-        // Must redirect signal stdout to log (not to Gemini's stdout)
+        // Must redirect signal output to /dev/null (not to Gemini's stdout)
         assert!(
-            signal_cmd.contains(">>.squad/log/signal.log 2>&1"),
-            "Gemini hook must redirect signal output to log: {}",
+            signal_cmd.contains(">/dev/null 2>&1"),
+            "Gemini hook must redirect signal output to /dev/null: {}",
             signal_cmd
         );
     }
@@ -1152,7 +1154,7 @@ fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
         "\nHook setup instructions for {} (event: {}):\n\n  \
         Create the file with the following content, or add to your existing hooks:\n\n  \
         {{\n    \"hooks\": {{\n      \"{}\": [\n        \
-        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>>.squad/log/signal.log\" }} ] }}\n      \
+        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>/dev/null\" }} ] }}\n      \
         ]\n    }}\n  }}",
         settings_path, event, event, matcher
     );

@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.7 — Hook Log Redirect Fix (2026-03-23)
+
+Fixes hook command failures caused by relative shell redirects resolving against the wrong working directory.
+
+### Fixed
+
+- **Hook stderr redirect path** — `squad-station init` generated hook commands with `2>>.squad/log/signal.log` which fails when Claude Code's hook runner CWD differs from the project root. Replaced with `2>/dev/null` since `signal.rs` handles logging internally via `log_signal()`. Gemini hooks similarly updated from `>>.squad/log/signal.log 2>&1` to `>/dev/null 2>&1`.
+- **notify.rs hook safety** — `notify` command used `anyhow::bail!` on errors (non-zero exit), which could break provider hook contracts. Now always exits 0 with best-effort logging via `log_notify()`, matching the `signal.rs` pattern.
+
+### Changed
+
+- Updated SYSTEM-DESIGN.md GUARD flowchart and prose to reflect `/dev/null` redirect pattern
+
+---
+
 ## v0.6.6 — Stale Busy Fix (2026-03-23)
 
 Fixes false positive watchdog warnings caused by orphaned processing messages and missed idle detection.
