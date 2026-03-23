@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.8 — Lean SDD Playbooks (2026-03-23)
+
+Trims SDD playbooks to agent-essential content and adds OpenSpec as a supported SDD framework.
+
+### Changed
+
+- **SDD playbooks trimmed 84%** — Removed installation guides, troubleshooting, mermaid diagrams, verbose prose, and external links from bmad-playbook.md, gsd-playbook.md, and superpowers-playbook.md. Each file now contains only workflow sequences, command reference tables, and critical rules.
+
+### Added
+
+- **OpenSpec SDD playbook** — New `openspec-playbook.md` (74 lines) supporting OpenSpec's spec-driven workflow (propose → apply → archive) with core and expanded profiles
+- **OpenSpec in example configs** — Added OpenSpec as a commented-out SDD option in orchestrator-claude.yml and orchestrator-gemini.yml examples
+
+---
+
 ## v0.6.7 — Hook Log Redirect Fix (2026-03-23)
 
 Fixes hook command failures caused by relative shell redirects resolving against the wrong working directory.
