@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.4 — Smart PATH Detection for npm Installer (2026-03-23)
+
+npm installer now picks install directories already in PATH, adds cross-platform PATH instructions, and adds Windows support.
+
+### Added
+
+- **Smart PATH detection** — `findBestInstallDir()` scans PATH for writable directories (`/usr/local/bin`, `~/.local/bin`, `~/bin`) before falling back to `~/.squad-station/bin`, eliminating manual PATH configuration on most systems
+- **Cross-platform PATH instructions** — when the install directory is not in PATH, prints shell-specific instructions (bash/zsh/fish/PowerShell) for adding it
+- **Windows support** — npm installer handles `.exe` suffix, uses PowerShell for downloads, and supports Windows PATH directories
+
+### Changed
+
+- **Release process codified** — added `/release` slash command (`.claude/commands/release.md`) documenting the full 7-step release checklist with lessons learned
+
+---
+
 ## v0.6.3 — npm Installer Binary Fix (2026-03-23)
 
 Fixes the npm installer so the downloaded binary is executable and the npm package works correctly out of the box.
