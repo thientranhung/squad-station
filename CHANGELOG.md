@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.9 — Remove Idle Nudge (2026-03-23)
+
+Simplifies watchdog by removing idle nudge notifications. Watchdog now focuses solely on stuck-agent detection with tiered escalation.
+
+### Changed
+
+- **Watchdog simplified** — Removed idle nudge (Pass 2) that sent "System idle for Xm" notifications to the orchestrator. Watchdog now only monitors for stuck agents: log-only at 10m, auto-heal at 30m, orchestrator alert at 60m.
+- **`--stall-threshold` hidden** — CLI arg kept for backwards compatibility but hidden from help output (no longer functional).
+
+### Fixed
+
+- **Docs updated** — SYSTEM-DESIGN.md now includes `watch` and `doctor` in CLI reference, `watch.rs` in architecture modules, and updated release history. README watchdog description updated to reflect tiered stuck-agent detection.
+
+---
+
 ## v0.6.8 — Lean SDD Playbooks (2026-03-23)
 
 Trims SDD playbooks to agent-essential content and adds OpenSpec as a supported SDD framework.

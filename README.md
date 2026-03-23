@@ -81,7 +81,7 @@ squad-station reconcile        # Sync agent statuses with live tmux sessions
 **Step 6 — Self-healing watchdog** (auto-started by init):
 
 ```bash
-squad-station watch            # Foreground: reconcile + stall detection + nudges
+squad-station watch            # Foreground: reconcile + stuck-agent detection
 squad-station watch --interval 30  # Custom interval (seconds)
 ```
 
@@ -95,7 +95,7 @@ Squad Station is a stateless Rust CLI. There is no background daemon. Every comm
 - `messages` table — tasks routed to agents with bidirectional `from_agent`/`to_agent` fields, priority (urgent > high > normal), and status lifecycle: `processing → completed`
 - tmux sessions — each agent runs in its own named session; `send-keys -l` prevents shell injection; `$SQUAD_AGENT_NAME` env var set at launch
 - Provider hooks auto-installed by `init` — detect task completion and call `squad-station signal`
-- Watchdog daemon — auto-started by `init`, reconciles sessions, detects stalls, nudges idle orchestrators
+- Watchdog daemon — auto-started by `init`, reconciles sessions, detects stuck agents (tiered: log at 10m, auto-heal at 30m, alert at 60m)
 - Signal logging — structured logs at `.squad/log/signal.log` for debugging signal flow
 
 ## Requirements

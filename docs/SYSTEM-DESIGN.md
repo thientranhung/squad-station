@@ -363,6 +363,11 @@ Lifecycle:
   clean [config] [-y]                 Kill all squad tmux sessions + delete DB
   reset [config] [--no-relaunch]      Clean + optionally relaunch (re-init)
 
+Health:
+  watch [--interval N] [--daemon]     Watchdog: reconcile agents + stuck-agent detection
+       [--stop]                       Tiered: log at 10m, auto-heal at 30m, alert at 60m
+  doctor                              Run health check to diagnose squad issues
+
 Flags:
   --json                              Machine-readable output (global)
 ```
@@ -626,6 +631,7 @@ src/
 │   ├── clean.rs     ← kill all squad tmux sessions + delete DB
 │   ├── reset.rs     ← clean + optionally relaunch (re-init)
 │   ├── freeze.rs    ← freeze/unfreeze agent task dispatch
+│   ├── watch.rs     ← watchdog daemon: reconcile + stuck-agent detection (tiered escalation)
 │   └── helpers.rs   ← shared: colorize_agent_status, format_status_with_duration, reconcile
 └── db/
     ├── mod.rs       ← SQLite pool setup (max_connections=1, busy_timeout=5s)
@@ -647,8 +653,9 @@ src/
 | v0.5.1 | First public release: npm package, colored init, provider-agnostic hooks, full messaging pipeline |
 | v0.5.3 | PostToolUse hook (AskUserQuestion), elicitation_dialog support, orchestrator resolution fix |
 | v0.5.5 | Context auto-inject (SessionStart hook), /clear management, simplified CLI (close removed, clean = kill + delete) |
+| v0.6.8 | Lean SDD Playbooks: trimmed 84%, added OpenSpec playbook |
+| v0.6.9 | Watchdog simplified: removed idle nudge, stuck-agent detection only (tiered: log 10m, heal 30m, alert 60m) |
 
 ---
 
 *Implementation language: Rust (decided in TECH-STACK.md)*
-*171 tests: cargo test (unit + integration, all async tokio)*
