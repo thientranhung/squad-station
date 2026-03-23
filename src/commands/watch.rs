@@ -302,7 +302,7 @@ async fn tick(
                                             idle_mins
                                         ),
                                     };
-                                    let _ = tmux::send_keys_literal(&orch.name, &msg);
+                                    let _ = tmux::send_keys_literal(&orch.name, &msg).await;
                                     log_watch(
                                         squad_dir,
                                         "NUDGE",
@@ -412,7 +412,8 @@ async fn tick(
                     "# [SQUAD] Auto-healed: DB reset to idle after {}m busy (signal lost)",
                     busy_mins
                 ),
-            );
+            )
+            .await;
 
             // Notify orchestrator about the self-heal
             if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
@@ -421,7 +422,7 @@ async fn tick(
                         "[SQUAD WATCHDOG] Auto-healed agent '{}' — stuck busy for {}m (signal lost). {} task(s) completed. Run: squad-station status",
                         agent.name, busy_mins, completed
                     );
-                    let _ = tmux::send_keys_literal(&orch.name, &msg);
+                    let _ = tmux::send_keys_literal(&orch.name, &msg).await;
                 }
             }
 
@@ -444,7 +445,7 @@ async fn tick(
                             "[SQUAD WATCHDOG] {} — Agent '{}' busy for {}m, may be stuck. Check: tmux capture-pane -t {} -p | tail -20",
                             urgency, agent.name, busy_mins, agent.name
                         );
-                        let _ = tmux::send_keys_literal(&orch.name, &msg);
+                        let _ = tmux::send_keys_literal(&orch.name, &msg).await;
                         log_watch(
                             squad_dir,
                             "ALERT",

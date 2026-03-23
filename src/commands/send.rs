@@ -86,7 +86,7 @@ pub async fn run(
     }
 
     // 6. Inject task into agent tmux session via load-buffer/paste-buffer (TMUX-01, TMUX-02)
-    tmux::inject_body(&agent, &body)?;
+    tmux::inject_body(&agent, &body).await?;
 
     // 6b. Opportunistic watchdog health check — respawn if dead
     let project_root = db_path
