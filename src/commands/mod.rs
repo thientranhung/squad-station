@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod clean;
 pub mod context;
+pub mod doctor;
 pub mod freeze;
 pub mod helpers;
 pub mod init;

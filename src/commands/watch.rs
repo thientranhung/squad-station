@@ -120,19 +120,31 @@ pub async fn run(
             if let Ok(pid) = content.trim().parse::<i32>() {
                 #[cfg(unix)]
                 {
-                    // SAFETY: signal 0 is a null signal (no-op liveness probe); pid from our PID file.
-                    let alive = unsafe { libc::kill(pid, 0) == 0 };
-                    if alive {
-                        bail!(
-                            "Watchdog daemon already running (PID {}). Use --stop to kill it first.",
-                            pid
-                        );
+                    let my_pid = std::process::id() as i32;
+                    // If the PID file contains our own PID, we are the daemon child
+                    // that was just spawned — the parent wrote our PID before we started.
+                    // Skip the duplicate check so we can proceed to run.
+                    if pid != my_pid {
+                        // SAFETY: signal 0 is a null signal (no-op liveness probe); pid from our PID file.
+                        let alive = unsafe { libc::kill(pid, 0) == 0 };
+                        if alive {
+                            bail!(
+                                "Watchdog daemon already running (PID {}). Use --stop to kill it first.",
+                                pid
+                            );
+                        }
                     }
                 }
             }
         }
-        // Stale PID file — remove it
-        let _ = std::fs::remove_file(&pid_file);
+        // Stale PID file — remove it (unless it's our own)
+        if let Ok(content) = std::fs::read_to_string(&pid_file) {
+            if let Ok(pid) = content.trim().parse::<i32>() {
+                if pid != std::process::id() as i32 {
+                    let _ = std::fs::remove_file(&pid_file);
+                }
+            }
+        }
     }
 
     // --daemon: fork to background

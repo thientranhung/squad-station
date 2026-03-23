@@ -56,6 +56,7 @@ async fn run(cli: cli::Cli) -> Result<()> {
             daemon,
             stop,
         } => commands::watch::run(interval, stall_threshold, daemon, stop).await,
+        Doctor => commands::doctor::run().await,
         Clean { config, yes, all } => commands::clean::run(config, yes, all, cli.json).await,
     }
 }
