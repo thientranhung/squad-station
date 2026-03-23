@@ -10,6 +10,8 @@ sdd:
   #   playbook: ".squad/sdd/bmad-playbook.md"
   # - name: superpowers
   #   playbook: ".squad/sdd/superpowers-playbook.md"
+  # - name: openspec
+  #   playbook: ".squad/sdd/openspec-playbook.md"
 
 orchestrator:
   provider: gemini-cli
