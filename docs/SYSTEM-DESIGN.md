@@ -422,14 +422,14 @@ GUARD-1 logs the failure to `.squad/log/signal.log` + stderr, then exits 0.
 {
   "hooks": {
     "Stop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] }
     ],
     "Notification": [
-      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] },
-      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] },
+      { "matcher": "elicitation_dialog", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] }
     ],
     "PostToolUse": [
-      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>>.squad/log/signal.log" }] }
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] }
     ],
     "SessionStart": [
       { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station context --inject" }] }
@@ -454,10 +454,10 @@ same settings file receive no injection.
 {
   "hooks": {
     "AfterAgent": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" >>.squad/log/signal.log 2>&1; printf '{}'" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" >/dev/null 2>&1; printf '{}'" }] }
     ],
     "Notification": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" >>.squad/log/signal.log 2>&1; printf '{}'" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" >/dev/null 2>&1; printf '{}'" }] }
     ],
     "SessionStart": [
       { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station context --inject" }] }
