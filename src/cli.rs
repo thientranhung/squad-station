@@ -115,8 +115,8 @@ pub enum Commands {
         /// Poll interval in seconds
         #[arg(long, default_value = "30")]
         interval: u64,
-        /// Minutes of system-wide idle before nudging orchestrator
-        #[arg(long, default_value = "5")]
+        /// Deprecated — idle nudge removed, kept for CLI compatibility
+        #[arg(long, default_value = "5", hide = true)]
         stall_threshold: u64,
         /// Fork to background and write PID to .squad/watch.pid
         #[arg(long)]
