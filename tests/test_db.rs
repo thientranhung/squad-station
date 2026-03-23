@@ -1048,3 +1048,114 @@ async fn test_fire_and_forget_does_not_set_current_task() {
     );
     assert_eq!(agent.status, "busy", "agent must remain busy");
 }
+
+// ============================================================
+// count_processing_per_agent tests — batch aggregate query
+// ============================================================
+
+#[tokio::test]
+async fn test_count_processing_per_agent_empty_db() {
+    let pool = helpers::setup_test_db().await;
+
+    let counts = messages::count_processing_per_agent(&pool).await.unwrap();
+    assert!(counts.is_empty(), "empty DB should return empty map");
+}
+
+#[tokio::test]
+async fn test_count_processing_per_agent_single_agent() {
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-cpa1", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-cpa1",
+        "task_request",
+        "task 1",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+    messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-cpa1",
+        "task_request",
+        "task 2",
+        "high",
+        None,
+    )
+    .await
+    .unwrap();
+
+    let counts = messages::count_processing_per_agent(&pool).await.unwrap();
+    assert_eq!(counts.len(), 1);
+    assert_eq!(counts["agent-cpa1"], 2);
+}
+
+#[tokio::test]
+async fn test_count_processing_per_agent_multiple_agents() {
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-cpa-a", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+    agents::insert_agent(&pool, "agent-cpa-b", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+    agents::insert_agent(&pool, "agent-cpa-c", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    // agent-cpa-a: 3 processing messages
+    for i in 1..=3 {
+        messages::insert_message(
+            &pool,
+            "orchestrator",
+            "agent-cpa-a",
+            "task_request",
+            &format!("a-task {}", i),
+            "normal",
+            None,
+        )
+        .await
+        .unwrap();
+    }
+
+    // agent-cpa-b: 1 processing message
+    messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-cpa-b",
+        "task_request",
+        "b-task 1",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+
+    // agent-cpa-c: 0 processing messages (1 completed)
+    messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-cpa-c",
+        "task_request",
+        "c-task 1",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+    messages::update_status(&pool, "agent-cpa-c").await.unwrap();
+
+    let counts = messages::count_processing_per_agent(&pool).await.unwrap();
+    assert_eq!(counts["agent-cpa-a"], 3, "agent-a should have 3 processing");
+    assert_eq!(counts["agent-cpa-b"], 1, "agent-b should have 1 processing");
+    assert!(
+        !counts.contains_key("agent-cpa-c"),
+        "agent-c has 0 processing — should not appear in map"
+    );
+}

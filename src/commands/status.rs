@@ -40,21 +40,18 @@ pub async fn run(json: bool) -> anyhow::Result<()> {
     // 4. Re-fetch after reconciliation
     let agents = db::agents::list_agents(&pool).await?;
 
-    // 5. Count pending messages per agent
-    let mut summaries: Vec<AgentStatusSummary> = Vec::new();
-    for agent in &agents {
-        let pending =
-            db::messages::list_messages(&pool, Some(&agent.name), Some("processing"), 9999)
-                .await?
-                .len();
-        summaries.push(AgentStatusSummary {
+    // 5. Count pending messages per agent (single aggregate query instead of N queries)
+    let pending_counts = db::messages::count_processing_per_agent(&pool).await?;
+    let summaries: Vec<AgentStatusSummary> = agents
+        .iter()
+        .map(|agent| AgentStatusSummary {
             name: agent.name.clone(),
             role: agent.role.clone(),
             status: agent.status.clone(),
             status_updated_at: agent.status_updated_at.clone(),
-            pending_messages: pending,
-        });
-    }
+            pending_messages: pending_counts.get(&agent.name).copied().unwrap_or(0),
+        })
+        .collect();
 
     if json {
         let output = StatusOutput {

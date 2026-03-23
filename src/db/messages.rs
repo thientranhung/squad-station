@@ -124,6 +124,22 @@ pub async fn list_messages(
     Ok(messages)
 }
 
+/// Count processing messages per agent in a single query.
+/// Returns a map of agent_name → count. Agents with zero processing messages are not included.
+pub async fn count_processing_per_agent(
+    pool: &SqlitePool,
+) -> anyhow::Result<std::collections::HashMap<String, usize>> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT agent_name, COUNT(*) FROM messages WHERE status = 'processing' GROUP BY agent_name",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(name, count)| (name, count as usize))
+        .collect())
+}
+
 /// Count remaining processing messages for an agent.
 pub async fn count_processing(pool: &SqlitePool, agent_name: &str) -> anyhow::Result<i64> {
     let row: (i64,) = sqlx::query_as(
