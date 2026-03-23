@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use crate::{commands::helpers, commands::reconcile, config, db, tmux};
 
-/// Alert state for Pass 3 prolonged busy detection.
+/// Alert state for prolonged busy detection (Pass 2).
 /// Tracks per-agent notification cooldown to avoid spamming the orchestrator.
 struct BusyAlertState {
     last_alert_at: std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
@@ -33,49 +33,9 @@ impl BusyAlertState {
     }
 }
 
-/// Nudge state for global stall detection (Pass 2).
-/// Tracks nudge count, cooldown, and escalation.
-struct NudgeState {
-    count: u32,
-    last_nudge_at: Option<chrono::DateTime<chrono::Utc>>,
-    cooldown_secs: u64,
-    max_nudges: u32,
-}
-
-impl NudgeState {
-    fn new(cooldown_secs: u64, max_nudges: u32) -> Self {
-        Self {
-            count: 0,
-            last_nudge_at: None,
-            cooldown_secs,
-            max_nudges,
-        }
-    }
-
-    fn should_nudge(&self, now: chrono::DateTime<chrono::Utc>) -> bool {
-        if self.count >= self.max_nudges {
-            return false;
-        }
-        match self.last_nudge_at {
-            None => true,
-            Some(last) => (now - last).num_seconds() > self.cooldown_secs as i64,
-        }
-    }
-
-    fn record_nudge(&mut self, now: chrono::DateTime<chrono::Utc>) {
-        self.count += 1;
-        self.last_nudge_at = Some(now);
-    }
-
-    fn reset(&mut self) {
-        self.count = 0;
-        self.last_nudge_at = None;
-    }
-}
-
 pub async fn run(
     interval_secs: u64,
-    stall_threshold_mins: u64,
+    _stall_threshold_mins: u64,
     daemon: bool,
     stop: bool,
 ) -> Result<()> {
@@ -153,7 +113,7 @@ pub async fn run(
         {
             let cwd = std::env::current_dir()?;
             let child =
-                helpers::spawn_watchdog_daemon(&cwd, interval_secs, stall_threshold_mins)?;
+                helpers::spawn_watchdog_daemon(&cwd, interval_secs, _stall_threshold_mins)?;
             let pid = child.id();
             std::fs::write(&pid_file, pid.to_string())?;
             println!("Watchdog daemon started (PID {})", pid);
@@ -171,17 +131,12 @@ pub async fn run(
     // Setup graceful shutdown via SIGTERM/SIGINT
     setup_signal_handlers();
 
-    let mut nudge_state = NudgeState::new(600, 3); // 10min cooldown, 3 max nudges
-    let mut last_msg_count: Option<i64> = None;
     let mut busy_alert_state = BusyAlertState::new(600); // 10min cooldown per agent
 
     log_watch(
         &squad_dir,
         "INFO",
-        &format!(
-            "watchdog started interval={}s stall_threshold={}m",
-            interval_secs, stall_threshold_mins
-        ),
+        &format!("watchdog started interval={}s", interval_secs),
     );
 
     let is_running = || {
@@ -192,9 +147,6 @@ pub async fn run(
         if let Err(e) = tick(
             &db_path,
             &squad_dir,
-            stall_threshold_mins,
-            &mut nudge_state,
-            &mut last_msg_count,
             &mut busy_alert_state,
         )
         .await
@@ -237,9 +189,6 @@ extern "C" fn signal_trampoline(_sig: libc::c_int) {
 async fn tick(
     db_path: &std::path::Path,
     squad_dir: &std::path::Path,
-    stall_threshold_mins: u64,
-    nudge_state: &mut NudgeState,
-    last_msg_count: &mut Option<i64>,
     busy_alert_state: &mut BusyAlertState,
 ) -> Result<()> {
     let pool = db::connect(db_path).await?;
@@ -256,83 +205,11 @@ async fn tick(
         }
     }
 
-    // Check for new message activity (resets nudge state)
-    let current_count = db::messages::total_count(&pool).await?;
-    if let Some(prev) = last_msg_count {
-        if current_count != *prev {
-            nudge_state.reset();
-        }
-    }
-    *last_msg_count = Some(current_count);
-
-    // Pass 2: Global stall detection
-    let agents = db::agents::list_agents(&pool).await?;
-    let non_dead: Vec<_> = agents.iter().filter(|a| a.status != "dead").collect();
-
-    if !non_dead.is_empty() {
-        let all_idle = non_dead.iter().all(|a| a.status == "idle");
-        let processing_count = db::messages::count_processing_all(&pool).await.unwrap_or(0);
-
-        if all_idle && processing_count == 0 {
-            // Check how long since last activity
-            let last_activity = db::messages::last_activity_timestamp(&pool).await?;
-
-            if let Some(ref ts) = last_activity {
-                if let Ok(last_ts) = chrono::DateTime::parse_from_rfc3339(ts) {
-                    let idle_duration = chrono::Utc::now().signed_duration_since(last_ts);
-                    let idle_mins = idle_duration.num_minutes();
-
-                    if idle_mins >= stall_threshold_mins as i64 {
-                        let now = chrono::Utc::now();
-                        if nudge_state.should_nudge(now) {
-                            // Find orchestrator and nudge
-                            if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
-                                if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
-                                    let msg = match nudge_state.count {
-                                        0 => format!(
-                                            "[SQUAD WATCHDOG] System idle for {}m — all agents idle, no pending tasks. Run: squad-station status",
-                                            idle_mins
-                                        ),
-                                        1 => format!(
-                                            "[SQUAD WATCHDOG] System still idle after nudge ({}m). Review agent status and dispatch work.",
-                                            idle_mins
-                                        ),
-                                        _ => format!(
-                                            "[SQUAD WATCHDOG] Final nudge — system idle for {}m. Watchdog stopping nudges. Manual review required.",
-                                            idle_mins
-                                        ),
-                                    };
-                                    let _ = tmux::send_keys_literal(&orch.name, &msg).await;
-                                    log_watch(
-                                        squad_dir,
-                                        "NUDGE",
-                                        &format!(
-                                            "orch={} idle_mins={} nudge_count={}",
-                                            orch.name,
-                                            idle_mins,
-                                            nudge_state.count + 1
-                                        ),
-                                    );
-                                }
-                            }
-                            nudge_state.record_nudge(now);
-                        } else if nudge_state.count >= nudge_state.max_nudges {
-                            log_watch(
-                                squad_dir,
-                                "STALL",
-                                &format!("STALL_UNRESOLVED idle_mins={}", idle_mins),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Pass 3: Prolonged busy detection with tiered escalation
+    // Pass 2: Prolonged busy detection with tiered escalation
     // Tier 1 (10-30min): Log only — long tasks are normal
     // Tier 2 (30min+): Reconcile check — if pane looks idle, auto-heal (signal was lost)
     // Tier 3 (60min+): Notify orchestrator — agent may be stuck, human review needed
+    let agents = db::agents::list_agents(&pool).await?;
     for agent in &agents {
         if agent.status != "busy" {
             continue;
@@ -498,62 +375,6 @@ fn log_watch(squad_dir: &std::path::Path, level: &str, msg: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_nudge_state_first_nudge() {
-        let state = NudgeState::new(600, 3);
-        assert!(state.should_nudge(chrono::Utc::now()));
-    }
-
-    #[test]
-    fn test_nudge_state_respects_cooldown() {
-        let mut state = NudgeState::new(600, 3);
-        let now = chrono::Utc::now();
-        state.record_nudge(now);
-
-        // Immediately after nudge: should NOT nudge (cooldown not elapsed)
-        assert!(!state.should_nudge(now));
-
-        // 5 minutes later: still in cooldown
-        let five_mins = now + chrono::Duration::seconds(300);
-        assert!(!state.should_nudge(five_mins));
-
-        // 11 minutes later: cooldown elapsed
-        let eleven_mins = now + chrono::Duration::seconds(660);
-        assert!(state.should_nudge(eleven_mins));
-    }
-
-    #[test]
-    fn test_nudge_state_max_nudges() {
-        let mut state = NudgeState::new(0, 3); // 0 cooldown for testing
-        let base = chrono::Utc::now();
-
-        for i in 0..3 {
-            // Advance time by 1 second per nudge to satisfy cooldown check
-            let t = base + chrono::Duration::seconds(i as i64 + 1);
-            assert!(state.should_nudge(t), "nudge {} should be allowed", i + 1);
-            state.record_nudge(t);
-        }
-
-        // After 3 nudges: stop regardless of time
-        let future = base + chrono::Duration::seconds(100);
-        assert!(!state.should_nudge(future));
-    }
-
-    #[test]
-    fn test_nudge_state_reset_on_activity() {
-        let mut state = NudgeState::new(0, 3);
-        let now = chrono::Utc::now();
-
-        state.record_nudge(now);
-        state.record_nudge(now);
-        assert_eq!(state.count, 2);
-
-        state.reset();
-        assert_eq!(state.count, 0);
-        assert!(state.last_nudge_at.is_none());
-        assert!(state.should_nudge(now));
-    }
 
     #[test]
     fn test_log_watch_creates_file() {
