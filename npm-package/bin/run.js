@@ -46,7 +46,8 @@ function installBinary() {
   var VERSION = '0.6.3';
   var REPO = 'thientranhung/squad-station';
 
-  var platformMap = { darwin: 'darwin', linux: 'linux' };
+  var isWindows = process.platform === 'win32';
+  var platformMap = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
   var archMap = { x64: 'x86_64', arm64: 'arm64' };
 
   var p = platformMap[process.platform];
@@ -58,21 +59,13 @@ function installBinary() {
     process.exit(1);
   }
 
-  var assetName = 'squad-station-' + p + '-' + a;
+  var binaryName = isWindows ? 'squad-station.exe' : 'squad-station';
+  var assetName = 'squad-station-' + p + '-' + a + (isWindows ? '.exe' : '');
   var url = 'https://github.com/' + REPO + '/releases/download/v' + VERSION + '/' + assetName;
 
-  // Determine install directory
-  var installDir = '/usr/local/bin';
-  var fallback = false;
-  try {
-    fs.accessSync(installDir, fs.constants.W_OK);
-  } catch (_) {
-    installDir = path.join(process.env.HOME || process.env.USERPROFILE || '~', '.local', 'bin');
-    fallback = true;
-    fs.mkdirSync(installDir, { recursive: true });
-  }
-
-  var destPath = path.join(installDir, 'squad-station');
+  // Determine best install directory — pick one already in PATH
+  var installDir = findBestInstallDir();
+  var destPath = path.join(installDir, binaryName);
 
   // Check if binary already exists and is the right version
   if (fs.existsSync(destPath)) {
@@ -89,26 +82,119 @@ function installBinary() {
 
   console.log('  Downloading ' + assetName + ' v' + VERSION + '...');
 
-  // Use curl (available on macOS/Linux) for simplicity
-  var curlResult = spawnSync('curl', [
-    '-fsSL', '--proto', '=https', '--tlsv1.2',
-    '-o', destPath,
-    url
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  if (isWindows) {
+    // Use PowerShell on Windows
+    var psCmd = 'Invoke-WebRequest -Uri "' + url + '" -OutFile "' + destPath + '" -UseBasicParsing';
+    var dlResult = spawnSync('powershell', ['-Command', psCmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+  } else {
+    // Use curl on macOS/Linux
+    var dlResult = spawnSync('curl', [
+      '-fsSL', '--proto', '=https', '--tlsv1.2',
+      '-o', destPath,
+      url
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  }
 
-  if (curlResult.status !== 0) {
-    var stderr = curlResult.stderr ? curlResult.stderr.toString() : '';
+  if (dlResult.status !== 0) {
+    var stderr = dlResult.stderr ? dlResult.stderr.toString() : '';
     console.error('  Download failed: ' + stderr);
     console.error('  Manual install: https://github.com/' + REPO + '/releases');
     process.exit(1);
   }
 
-  fs.chmodSync(destPath, 0o755);
+  if (!isWindows) {
+    fs.chmodSync(destPath, 0o755);
+  }
   console.log('  \x1b[32m✓\x1b[0m Installed squad-station to ' + destPath);
 
-  if (fallback) {
-    console.log('  \x1b[33m!\x1b[0m Add ~/.local/bin to your PATH if not already present.');
+  // Verify the binary is actually callable via PATH
+  verifyInPath(destPath, installDir);
+}
+
+// Find the best install directory that is already in the user's PATH.
+// Returns the first writable candidate in PATH, or falls back to ~/.local/bin.
+function findBestInstallDir() {
+  var home = process.env.HOME || process.env.USERPROFILE || '';
+  var isWindows = process.platform === 'win32';
+  var pathSep = isWindows ? ';' : ':';
+  var pathDirs = (process.env.PATH || '').split(pathSep).filter(Boolean);
+
+  // Candidate directories in preference order
+  var candidates = isWindows
+    ? [
+        path.join(home, '.local', 'bin'),
+        path.join(home, 'AppData', 'Local', 'Microsoft', 'WindowsApps'),
+      ]
+    : [
+        '/usr/local/bin',
+        path.join(home, '.local', 'bin'),
+        path.join(home, '.cargo', 'bin'),
+        '/opt/homebrew/bin',
+      ];
+
+  // Pick the first candidate that is already in PATH and is writable
+  for (var i = 0; i < candidates.length; i++) {
+    var dir = candidates[i];
+    // Check if this directory is in PATH
+    var inPath = pathDirs.some(function(p) {
+      return path.resolve(p) === path.resolve(dir);
+    });
+    if (!inPath) continue;
+
+    // Check if writable (create if needed)
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      return dir;
+    } catch (_) {
+      continue;
+    }
   }
+
+  // Fallback: ~/.local/bin (may not be in PATH — we'll warn later)
+  var fallback = path.join(home, '.local', 'bin');
+  fs.mkdirSync(fallback, { recursive: true });
+  return fallback;
+}
+
+// Verify the installed binary is callable. If not, print PATH instructions.
+function verifyInPath(destPath, installDir) {
+  var isWindows = process.platform === 'win32';
+  var checkCmd = isWindows ? 'where' : 'which';
+  var checkResult = spawnSync(checkCmd, ['squad-station'], { encoding: 'utf8' });
+
+  if (checkResult.status === 0 && checkResult.stdout && checkResult.stdout.trim()) {
+    // Binary is found in PATH — all good
+    return;
+  }
+
+  // Not in PATH — print platform-specific instructions
+  console.log('');
+  console.log('  \x1b[33m⚠  squad-station is not in your PATH\x1b[0m');
+  console.log('  The binary was installed to: \x1b[36m' + installDir + '\x1b[0m');
+  console.log('');
+  console.log('  Add it to your PATH:');
+  console.log('');
+
+  if (process.platform === 'darwin') {
+    console.log('  \x1b[2m# macOS (zsh) — add to ~/.zshrc:\x1b[0m');
+    console.log('  \x1b[36mexport PATH="' + installDir + ':$PATH"\x1b[0m');
+    console.log('');
+    console.log('  Then reload: \x1b[36msource ~/.zshrc\x1b[0m');
+  } else if (isWindows) {
+    console.log('  \x1b[2m# Windows (PowerShell) — run as Administrator:\x1b[0m');
+    console.log('  \x1b[36m[Environment]::SetEnvironmentVariable("Path",\x1b[0m');
+    console.log('  \x1b[36m  [Environment]::GetEnvironmentVariable("Path", "User") + ";' + installDir + '", "User")\x1b[0m');
+    console.log('');
+    console.log('  Then restart your terminal.');
+  } else {
+    // Linux
+    console.log('  \x1b[2m# Linux (bash) — add to ~/.bashrc:\x1b[0m');
+    console.log('  \x1b[36mexport PATH="' + installDir + ':$PATH"\x1b[0m');
+    console.log('');
+    console.log('  Then reload: \x1b[36msource ~/.bashrc\x1b[0m');
+  }
+  console.log('');
 }
 
 function scaffoldProject(force) {
