@@ -385,8 +385,8 @@ The `signal` command implements multiple guards to ensure safe, idempotent opera
 ```
 Agent stops → Hook fires → squad-station signal "$(tmux display-message -p '#S')"
                                   ↓
-                    GUARD-01: No agent name or empty? → log to signal.log + stderr, exit 0
-                    GUARD-02: Config/DB failure? → warn to stderr, exit 0
+                    GUARD-01: No agent name or empty? → log to signal.log, exit 0
+                    GUARD-02: Config/DB failure? → log + exit 0
                     GUARD-03: Agent not found in DB? → silent exit 0
                     GUARD-04: Agent role = orchestrator? → silent exit 0
                                   ↓
@@ -406,7 +406,8 @@ This is a tmux server-side query — it works reliably in all hook contexts with
 environment variables like `$SQUAD_AGENT_NAME` or `$TMUX_PANE`.
 
 If tmux resolution fails (e.g. outside tmux, in CI), the agent name is empty and `signal.rs`
-GUARD-1 logs the failure to `.squad/log/signal.log` + stderr, then exits 0.
+GUARD-1 logs the failure to `.squad/log/signal.log`, then exits 0. Hook stderr is redirected
+to `/dev/null` since internal logging captures all diagnostics.
 
 **Claude Code** (`.claude/settings.json`) — 4 hook events (+ optional SessionStart):
 
