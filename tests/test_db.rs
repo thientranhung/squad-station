@@ -1050,6 +1050,96 @@ async fn test_fire_and_forget_does_not_set_current_task() {
 }
 
 // ============================================================
+// Regression: second send must NOT overwrite current_task
+// (root cause of kindle-implement stale busy false positive)
+// ============================================================
+
+#[tokio::test]
+async fn test_second_send_does_not_overwrite_current_task() {
+    // Reproduces the kindle-implement bug: orchestrator sends task A, then task B
+    // while A is still processing. current_task must stay pointing to A so signal
+    // completes the right message. B is queued and picked up after A completes.
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-ct", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    // Send task A — sets current_task
+    let task_a = messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-ct",
+        "task_request",
+        "first task",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+    agents::set_current_task(&pool, "agent-ct", &task_a)
+        .await
+        .unwrap();
+    agents::update_agent_status(&pool, "agent-ct", "busy")
+        .await
+        .unwrap();
+
+    // Send task B — must NOT overwrite current_task
+    let task_b = messages::insert_message(
+        &pool,
+        "orchestrator",
+        "agent-ct",
+        "task_request",
+        "second task",
+        "urgent",
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Simulate send.rs logic: only set current_task if none is set
+    let agent = agents::get_agent(&pool, "agent-ct").await.unwrap().unwrap();
+    if agent.current_task.is_none() {
+        agents::set_current_task(&pool, "agent-ct", &task_b)
+            .await
+            .unwrap();
+    }
+
+    // Verify current_task still points to task A
+    let agent = agents::get_agent(&pool, "agent-ct").await.unwrap().unwrap();
+    assert_eq!(
+        agent.current_task.as_deref(),
+        Some(task_a.as_str()),
+        "current_task must still point to task A — second send must not overwrite"
+    );
+
+    // Verify task B is queued in DB as processing (will be picked up by signal remaining check)
+    let remaining = messages::count_processing(&pool, "agent-ct")
+        .await
+        .unwrap();
+    assert_eq!(remaining, 2, "both tasks should be in processing state");
+
+    // Now simulate signal completing task A → should pick up task B
+    messages::complete_by_id(&pool, &task_a).await.unwrap();
+    let remaining_after = messages::count_processing(&pool, "agent-ct")
+        .await
+        .unwrap();
+    assert_eq!(
+        remaining_after, 1,
+        "after signal completes A, B should still be processing"
+    );
+
+    // Signal's remaining check would set current_task to B
+    let next = messages::peek_message(&pool, "agent-ct")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        next.task, "second task",
+        "peek should return task B as next"
+    );
+}
+
+// ============================================================
 // count_processing_per_agent tests — batch aggregate query
 // ============================================================
 

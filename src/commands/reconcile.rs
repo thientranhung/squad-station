@@ -161,14 +161,15 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
         text
     };
 
-    let last_line = text
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or("");
-
+    // Check ALL captured lines (not just the last non-empty one) for idle patterns.
+    // Claude Code's TUI renders a status bar below the prompt line, so the last
+    // non-empty line may be "Cost: $1.23 | Tokens: 45k" rather than "❯".
+    // Scanning all 5 captured lines catches the prompt wherever it appears.
     if let Some(patterns) = providers::idle_patterns(provider) {
-        patterns.iter().any(|p| last_line.contains(p))
+        text.lines().any(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && patterns.iter().any(|p| trimmed.contains(p))
+        })
     } else {
         false // Unknown provider: cannot detect idle (safe default — skip reconcile)
     }

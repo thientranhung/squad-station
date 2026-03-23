@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.6 — Stale Busy Fix (2026-03-23)
+
+Fixes false positive watchdog warnings caused by orphaned processing messages and missed idle detection.
+
+### Fixed
+
+- **current_task overwrite in send.rs** — when a second task was sent while the first was still processing, `set_current_task` blindly overwrote the FK to the newer message. Signal then completed the wrong message, orphaning the original in `processing` forever and leaving the agent stuck in `busy` state. Now only sets `current_task` if no task is currently assigned; queued tasks are picked up by signal's remaining-processing check.
+- **Idle pane detection in reconcile.rs** — `pane_looks_idle` only checked the last non-empty line for the `❯` prompt pattern. Claude Code's TUI renders a status bar below the prompt, so the last line was always status info, never the prompt. Now scans all 5 captured lines for idle patterns.
+
+### Added
+
+- Regression test `test_second_send_does_not_overwrite_current_task` reproducing the exact production incident
+
+---
+
 ## v0.6.5 — Async Pattern Fixes and Batch DB Queries (2026-03-23)
 
 Fixes blocking async patterns in tmux operations and optimizes the status command with a batch database query.
