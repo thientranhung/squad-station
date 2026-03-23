@@ -307,8 +307,8 @@ async fn test_build_orchestrator_md_contains_all_sections() {
         "Missing role definition"
     );
     assert!(
-        content.contains("## Completion Notification"),
-        "Missing completion notification section"
+        content.contains("## CRITICAL — Signal-Wait Protocol"),
+        "Missing signal-wait protocol section"
     );
     assert!(
         content.contains("## Session Routing"),
@@ -343,7 +343,7 @@ async fn test_build_orchestrator_md_contains_all_sections() {
         "Missing signal format example"
     );
     assert!(
-        content.contains("DO NOT need to"),
+        content.contains("NEVER poll agents"),
         "Missing anti-polling instruction"
     );
 }

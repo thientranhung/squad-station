@@ -1217,13 +1217,13 @@ async fn test_context_monitor_content() {
     let orchestrator_path = tmp.path().join(".claude/commands/squad-orchestrator.md");
     let content = std::fs::read_to_string(&orchestrator_path).unwrap();
     assert!(
-        content.contains("Completion Notification"),
-        "squad-orchestrator.md must contain Completion Notification section, got:\n{}",
+        content.contains("Signal-Wait Protocol"),
+        "squad-orchestrator.md must contain Signal-Wait Protocol section, got:\n{}",
         content
     );
     assert!(
-        content.contains("DO NOT need to"),
-        "CLAUDE.md must state context is auto-loaded, got:\n{}",
+        content.contains("NEVER poll agents"),
+        "squad-orchestrator.md must contain anti-polling rules, got:\n{}",
         content
     );
 }
