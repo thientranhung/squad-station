@@ -48,7 +48,7 @@ pub fn build_orchestrator_md(
         for sdd in sdd_configs {
             out.push_str(&format!("- [ ] Read `{}`\n", sdd.playbook));
         }
-        out.push_str("\n");
+        out.push('\n');
         out.push_str("Only proceed after reading. The playbook defines your workflow.\n\n");
     }
     out.push_str(&format!("- [ ] Project root: `{}`\n", project_root));
