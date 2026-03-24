@@ -1,6 +1,11 @@
+use std::path::Path;
+
 use crate::config::SddConfig;
 use crate::db::agents::Agent;
 use crate::{config, db};
+
+const BOOTSTRAP_MARKER_START: &str = "<!-- squad-station:bootstrap-start -->";
+const BOOTSTRAP_MARKER_END: &str = "<!-- squad-station:bootstrap-end -->";
 
 pub fn build_orchestrator_md(
     agents: &[Agent],
@@ -217,6 +222,86 @@ pub fn format_inject_output(provider: &str, content: &str) -> String {
     }
 }
 
+/// Build the lightweight bootstrap block that tells the orchestrator to read
+/// its full playbook. This block survives /clear and context compact because
+/// it lives in the provider's project-level instructions file (CLAUDE.md / GEMINI.md).
+pub fn build_bootstrap_block(orch_session_name: &str, playbook_path: &str) -> String {
+    format!(
+        "{}\n\
+         ## Squad Station — Orchestrator Bootstrap\n\
+         \n\
+         If your tmux session is `{orch}`, you ARE the Squad Station orchestrator.\n\
+         On EVERY new turn (including after /clear or context compact):\n\
+         1. Read `{playbook}` — this is your full playbook with PRE-FLIGHT, routing, and SDD instructions.\n\
+         2. Execute PRE-FLIGHT before proceeding.\n\
+         3. Do NOT write code directly. Coordinate agents via `squad-station send`.\n\
+         \n\
+         If your session name does NOT match `{orch}`, ignore this section.\n\
+         {}",
+        BOOTSTRAP_MARKER_START,
+        BOOTSTRAP_MARKER_END,
+        orch = orch_session_name,
+        playbook = playbook_path,
+    )
+}
+
+/// Resolve the provider-specific project doc file path and playbook path.
+/// Returns (doc_file_relative, playbook_relative).
+fn provider_doc_paths(provider: &str) -> (&'static str, &'static str) {
+    match provider {
+        "gemini-cli" => (".gemini/GEMINI.md", ".gemini/commands/squad-orchestrator.toml"),
+        _ => (".claude/CLAUDE.md", ".claude/commands/squad-orchestrator.md"),
+    }
+}
+
+/// Inject the orchestrator bootstrap block into the provider's project doc file.
+/// Idempotent: replaces existing block between markers, appends if no markers,
+/// creates file if it doesn't exist.
+pub fn inject_bootstrap_block(
+    project_root: &Path,
+    provider: &str,
+    orch_session_name: &str,
+) -> anyhow::Result<String> {
+    let (doc_rel, playbook_rel) = provider_doc_paths(provider);
+    let doc_path = project_root.join(doc_rel);
+    let block = build_bootstrap_block(orch_session_name, playbook_rel);
+
+    // Ensure parent directory exists
+    if let Some(parent) = doc_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let content = match std::fs::read_to_string(&doc_path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // File doesn't exist — create with just the block
+            std::fs::write(&doc_path, &block)?;
+            return Ok(doc_rel.to_string());
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let new_content = if let (Some(start), Some(end)) = (
+        content.find(BOOTSTRAP_MARKER_START),
+        content.find(BOOTSTRAP_MARKER_END),
+    ) {
+        // Replace existing block (start marker through end marker)
+        let before = &content[..start];
+        let after = &content[end + BOOTSTRAP_MARKER_END.len()..];
+        format!("{}{}{}", before, block, after)
+    } else {
+        // Append block at end
+        if content.ends_with('\n') {
+            format!("{}\n{}\n", content, block)
+        } else {
+            format!("{}\n\n{}\n", content, block)
+        }
+    };
+
+    std::fs::write(&doc_path, new_content)?;
+    Ok(doc_rel.to_string())
+}
+
 pub async fn run(inject: bool) -> anyhow::Result<()> {
     let project_root = config::find_project_root()?;
     let config = config::load_config(&project_root.join("squad.yml"))?;
@@ -294,4 +379,125 @@ async fn run_inject(
     // Output in provider-appropriate format
     print!("{}", format_inject_output(&config.orchestrator.provider, &content));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bootstrap_block_contains_markers_and_session() {
+        let block = build_bootstrap_block("myproject-orchestrator", ".claude/commands/squad-orchestrator.md");
+        assert!(block.starts_with(BOOTSTRAP_MARKER_START));
+        assert!(block.ends_with(BOOTSTRAP_MARKER_END));
+        assert!(block.contains("myproject-orchestrator"));
+        assert!(block.contains(".claude/commands/squad-orchestrator.md"));
+        assert!(block.contains("Do NOT write code directly"));
+    }
+
+    #[test]
+    fn test_inject_bootstrap_file_not_exists() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = inject_bootstrap_block(
+            tmp.path(),
+            "claude-code",
+            "proj-orchestrator",
+        )
+        .unwrap();
+
+        assert_eq!(result, ".claude/CLAUDE.md");
+
+        let content = std::fs::read_to_string(tmp.path().join(".claude/CLAUDE.md")).unwrap();
+        assert!(content.contains(BOOTSTRAP_MARKER_START));
+        assert!(content.contains(BOOTSTRAP_MARKER_END));
+        assert!(content.contains("proj-orchestrator"));
+        // Exactly one occurrence of each marker
+        assert_eq!(content.matches(BOOTSTRAP_MARKER_START).count(), 1);
+        assert_eq!(content.matches(BOOTSTRAP_MARKER_END).count(), 1);
+    }
+
+    #[test]
+    fn test_inject_bootstrap_file_exists_without_markers() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(claude_dir.join("CLAUDE.md"), "# My Project\n\nExisting content.\n").unwrap();
+
+        inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        // Original content preserved
+        assert!(content.contains("# My Project"));
+        assert!(content.contains("Existing content."));
+        // Bootstrap block appended
+        assert!(content.contains(BOOTSTRAP_MARKER_START));
+        assert!(content.contains(BOOTSTRAP_MARKER_END));
+        assert!(content.contains("proj-orchestrator"));
+        // Only one copy
+        assert_eq!(content.matches(BOOTSTRAP_MARKER_START).count(), 1);
+    }
+
+    #[test]
+    fn test_inject_bootstrap_idempotent_replaces_existing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(claude_dir.join("CLAUDE.md"), "# My Project\n").unwrap();
+
+        // First injection
+        inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
+        let after_first = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        assert_eq!(after_first.matches(BOOTSTRAP_MARKER_START).count(), 1);
+
+        // Second injection with different session name — should replace, not duplicate
+        inject_bootstrap_block(tmp.path(), "claude-code", "proj-v2-orchestrator").unwrap();
+        let after_second = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        assert_eq!(after_second.matches(BOOTSTRAP_MARKER_START).count(), 1);
+        assert_eq!(after_second.matches(BOOTSTRAP_MARKER_END).count(), 1);
+        // Old session name gone, new one present
+        assert!(!after_second.contains("proj-orchestrator"));
+        assert!(after_second.contains("proj-v2-orchestrator"));
+        // Original content still there
+        assert!(after_second.contains("# My Project"));
+    }
+
+    #[test]
+    fn test_inject_bootstrap_gemini_provider() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = inject_bootstrap_block(
+            tmp.path(),
+            "gemini-cli",
+            "proj-orchestrator",
+        )
+        .unwrap();
+
+        assert_eq!(result, ".gemini/GEMINI.md");
+
+        let content = std::fs::read_to_string(tmp.path().join(".gemini/GEMINI.md")).unwrap();
+        assert!(content.contains(BOOTSTRAP_MARKER_START));
+        assert!(content.contains(".gemini/commands/squad-orchestrator.toml"));
+    }
+
+    #[test]
+    fn test_inject_bootstrap_preserves_surrounding_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+
+        // File with content before and after where the block will be inserted
+        let initial = format!(
+            "# Header\n\n{}\nold bootstrap content\n{}\n\n# Footer\n",
+            BOOTSTRAP_MARKER_START, BOOTSTRAP_MARKER_END,
+        );
+        std::fs::write(claude_dir.join("CLAUDE.md"), &initial).unwrap();
+
+        inject_bootstrap_block(tmp.path(), "claude-code", "new-orch").unwrap();
+        let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+
+        assert!(content.contains("# Header"));
+        assert!(content.contains("# Footer"));
+        assert!(content.contains("new-orch"));
+        assert!(!content.contains("old bootstrap content"));
+        assert_eq!(content.matches(BOOTSTRAP_MARKER_START).count(), 1);
+    }
 }

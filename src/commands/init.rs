@@ -282,6 +282,24 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             println!("Warning: Failed to generate context files: {}", e);
         }
 
+        // Inject orchestrator bootstrap block into provider project doc file.
+        // This block survives /clear and context compact, ensuring the orchestrator
+        // always knows its role without user intervention.
+        {
+            let project_root = config_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            match crate::commands::context::inject_bootstrap_block(
+                project_root,
+                &config.orchestrator.provider,
+                &orch_name,
+            ) {
+                Ok(path) => println!("  Bootstrap: injected into {}", path),
+                Err(e) => println!("  Bootstrap: failed ({})", e),
+            }
+        }
+
         // 9b. Install SDD git workflow rules for all providers
         if let Some(sdd_configs) = &config.sdd {
             let project_root = config_path
