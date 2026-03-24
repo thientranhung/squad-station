@@ -223,8 +223,8 @@ pub fn build_bootstrap_block(orch_session_name: &str, playbook_path: &str) -> St
 /// Returns (doc_file_relative, playbook_relative).
 fn provider_doc_paths(provider: &str) -> (&'static str, &'static str) {
     match provider {
-        "gemini-cli" => (".gemini/GEMINI.md", ".gemini/commands/squad-orchestrator.toml"),
-        _ => (".claude/CLAUDE.md", ".claude/commands/squad-orchestrator.md"),
+        "gemini-cli" => ("GEMINI.md", ".gemini/commands/squad-orchestrator.toml"),
+        _ => ("CLAUDE.md", ".claude/commands/squad-orchestrator.md"),
     }
 }
 
@@ -379,9 +379,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(result, ".claude/CLAUDE.md");
+        assert_eq!(result, "CLAUDE.md");
 
-        let content = std::fs::read_to_string(tmp.path().join(".claude/CLAUDE.md")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
         assert!(content.contains(BOOTSTRAP_MARKER_START));
         assert!(content.contains(BOOTSTRAP_MARKER_END));
         assert!(content.contains("proj-orchestrator"));
@@ -393,13 +393,11 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_file_exists_without_markers() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let claude_dir = tmp.path().join(".claude");
-        std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("CLAUDE.md"), "# My Project\n\nExisting content.\n").unwrap();
+        std::fs::write(tmp.path().join("CLAUDE.md"), "# My Project\n\nExisting content.\n").unwrap();
 
         inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
 
-        let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
         // Original content preserved
         assert!(content.contains("# My Project"));
         assert!(content.contains("Existing content."));
@@ -414,18 +412,16 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_idempotent_replaces_existing() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let claude_dir = tmp.path().join(".claude");
-        std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("CLAUDE.md"), "# My Project\n").unwrap();
+        std::fs::write(tmp.path().join("CLAUDE.md"), "# My Project\n").unwrap();
 
         // First injection
         inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
-        let after_first = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        let after_first = std::fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
         assert_eq!(after_first.matches(BOOTSTRAP_MARKER_START).count(), 1);
 
         // Second injection with different session name — should replace, not duplicate
         inject_bootstrap_block(tmp.path(), "claude-code", "proj-v2-orchestrator").unwrap();
-        let after_second = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        let after_second = std::fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
         assert_eq!(after_second.matches(BOOTSTRAP_MARKER_START).count(), 1);
         assert_eq!(after_second.matches(BOOTSTRAP_MARKER_END).count(), 1);
         // Old session name gone, new one present
@@ -445,9 +441,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(result, ".gemini/GEMINI.md");
+        assert_eq!(result, "GEMINI.md");
 
-        let content = std::fs::read_to_string(tmp.path().join(".gemini/GEMINI.md")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("GEMINI.md")).unwrap();
         assert!(content.contains(BOOTSTRAP_MARKER_START));
         assert!(content.contains(".gemini/commands/squad-orchestrator.toml"));
     }
@@ -455,18 +451,16 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_preserves_surrounding_content() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let claude_dir = tmp.path().join(".claude");
-        std::fs::create_dir_all(&claude_dir).unwrap();
 
         // File with content before and after where the block will be inserted
         let initial = format!(
             "# Header\n\n{}\nold bootstrap content\n{}\n\n# Footer\n",
             BOOTSTRAP_MARKER_START, BOOTSTRAP_MARKER_END,
         );
-        std::fs::write(claude_dir.join("CLAUDE.md"), &initial).unwrap();
+        std::fs::write(tmp.path().join("CLAUDE.md"), &initial).unwrap();
 
         inject_bootstrap_block(tmp.path(), "claude-code", "new-orch").unwrap();
-        let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
 
         assert!(content.contains("# Header"));
         assert!(content.contains("# Footer"));
