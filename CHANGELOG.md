@@ -2,9 +2,14 @@
 
 All notable changes to Squad Station are documented in this file.
 
-## v0.6.10 — Watchdog Self-Healing (2026-03-24)
+## v0.7.0 — SDD Git Workflow Rules (2026-03-24)
 
-Three fixes for watchdog false alarms and orphaned agent states.
+Auto-install SDD git workflow rules during squad initialization, plus three watchdog reliability fixes.
+
+### Added
+
+- **SDD git workflow rules auto-install** — During `squad-station init`, for each SDD entry in squad.yml, copies the matching rule template from `.squad/rules/git-workflow-<name>.md` into provider-specific rules directories (`.claude/rules/`, `.gemini/rules/`). Ships with 4 built-in rule templates: get-shit-done, bmad-method, openspec, superpowers.
+- **SDD templates versioned** — `.squad/rules/`, `.squad/sdd/`, and `.squad/examples/` are now tracked in git. Runtime files (station.db, logs, PID) remain ignored via `.gitignore` whitelisting.
 
 ### Fixed
 
