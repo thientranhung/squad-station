@@ -208,7 +208,7 @@ async fn tick(
     // Pass 2: Prolonged busy detection with tiered escalation
     // Pre-check: if DB says "busy" but zero processing messages, agent is orphaned — fix immediately
     // Tier 1 (10-30min): Log only — long tasks are normal
-    // Tier 2 (30min+): Reconcile check — if pane looks idle, auto-heal (signal was lost)
+    // Tier 2 (30-60min): Log with pane snapshot for diagnostics
     // Tier 3 (60min+): Notify orchestrator — agent may be stuck, human review needed
     let agents = db::agents::list_agents(&pool).await?;
     for agent in &agents {
@@ -261,112 +261,68 @@ async fn tick(
             continue;
         }
 
-        // Tier 2 (30min+): Reconcile check — is the pane actually idle?
-        if tmux::session_exists(&agent.name)
-            && reconcile::pane_looks_idle(&agent.name, &agent.tool)
-        {
-            // Log pane content snapshot for diagnosing false positives.
-            // pane_looks_idle() is heuristic-based (prompt pattern matching) — if it
-            // misclassifies an active agent as idle, this snapshot lets us diagnose it.
-            let pane_snapshot = reconcile::capture_pane(&agent.name);
-            let snapshot_tail: String = pane_snapshot
-                .lines()
-                .rev()
-                .take(5)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>()
-                .join(" | ");
-            log_watch(
-                squad_dir,
-                "HEAL",
-                &format!(
-                    "agent={} idle_detection_snapshot=\"{}\"",
-                    agent.name, snapshot_tail
-                ),
-            );
-
-            // Pane is idle but DB says busy → signal was lost. Fix it.
-            let completed =
-                db::messages::complete_all_processing(&pool, &agent.name).await?;
-            db::agents::clear_current_task(&pool, &agent.name).await?;
-            db::agents::update_agent_status(&pool, &agent.name, "idle").await?;
-
-            log_watch(
-                squad_dir,
-                "HEAL",
-                &format!(
-                    "agent={} busy_minutes={} action=auto_reconcile completed={}",
-                    agent.name, busy_mins, completed
-                ),
-            );
-
-            // Leave breadcrumb in agent's pane so the agent sees the reset.
-            // This injects a shell comment — safe because pane_looks_idle() already
-            // confirmed the pane shows a shell prompt (not an editor or TUI).
-            let _ = tmux::send_keys_literal(
-                &agent.name,
-                &format!(
-                    "# [SQUAD] Auto-healed: DB reset to idle after {}m busy (signal lost)",
-                    busy_mins
-                ),
-            )
-            .await;
-
-            // Notify orchestrator about the self-heal
-            if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
-                if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
-                    let msg = format!(
-                        "[SQUAD WATCHDOG] Auto-healed agent '{}' — stuck busy for {}m (signal lost). {} task(s) completed. Run: squad-station status",
-                        agent.name, busy_mins, completed
-                    );
-                    let _ = tmux::send_keys_literal(&orch.name, &msg).await;
-                }
+        // Tier 2 (30-60min): Log with pane snapshot for diagnostics
+        // (Task completion is handled exclusively by the signal hook, not by the watchdog.)
+        if busy_mins < 60 {
+            // Capture pane snapshot for diagnostics
+            if tmux::session_exists(&agent.name) {
+                let pane_snapshot = reconcile::capture_pane(&agent.name);
+                let snapshot_tail: String = pane_snapshot
+                    .lines()
+                    .rev()
+                    .take(5)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                log_watch(
+                    squad_dir,
+                    "WARN",
+                    &format!(
+                        "agent={} busy_minutes={} tier=prolonged_busy pane_snapshot=\"{}\"",
+                        agent.name, busy_mins, snapshot_tail
+                    ),
+                );
+            } else {
+                log_watch(
+                    squad_dir,
+                    "WARN",
+                    &format!(
+                        "agent={} busy_minutes={} tier=prolonged_busy pane=no_session",
+                        agent.name, busy_mins
+                    ),
+                );
             }
-
-            busy_alert_state.clear(&agent.name);
             continue;
         }
 
         // Tier 3 (60min+): Notify orchestrator that agent may be stuck
-        if busy_mins >= 60 {
-            let now = chrono::Utc::now();
-            if busy_alert_state.should_alert(&agent.name, now) {
-                if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
-                    if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
-                        let urgency = if busy_mins >= 120 {
-                            "URGENT"
-                        } else {
-                            "WARNING"
-                        };
-                        let msg = format!(
-                            "[SQUAD WATCHDOG] {} — Agent '{}' busy for {}m, may be stuck. Check: tmux capture-pane -t {} -p | tail -20",
-                            urgency, agent.name, busy_mins, agent.name
-                        );
-                        let _ = tmux::send_keys_literal(&orch.name, &msg).await;
-                        log_watch(
-                            squad_dir,
-                            "ALERT",
-                            &format!(
-                                "agent={} busy_minutes={} tier=notify_orch",
-                                agent.name, busy_mins
-                            ),
-                        );
-                    }
+        let now = chrono::Utc::now();
+        if busy_alert_state.should_alert(&agent.name, now) {
+            if let Ok(Some(orch)) = db::agents::get_orchestrator(&pool).await {
+                if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
+                    let urgency = if busy_mins >= 120 {
+                        "URGENT"
+                    } else {
+                        "WARNING"
+                    };
+                    let msg = format!(
+                        "[SQUAD WATCHDOG] {} — Agent '{}' busy for {}m, may be stuck. Check: tmux capture-pane -t {} -p | tail -20",
+                        urgency, agent.name, busy_mins, agent.name
+                    );
+                    let _ = tmux::send_keys_literal(&orch.name, &msg).await;
+                    log_watch(
+                        squad_dir,
+                        "ALERT",
+                        &format!(
+                            "agent={} busy_minutes={} tier=notify_orch",
+                            agent.name, busy_mins
+                        ),
+                    );
                 }
-                busy_alert_state.record_alert(&agent.name, now);
             }
-        } else {
-            // 30-60min: pane not idle, just log
-            log_watch(
-                squad_dir,
-                "WARN",
-                &format!(
-                    "agent={} busy_minutes={} tier=prolonged_busy pane=active",
-                    agent.name, busy_mins
-                ),
-            );
+            busy_alert_state.record_alert(&agent.name, now);
         }
     }
 

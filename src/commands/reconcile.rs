@@ -2,7 +2,7 @@ use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 use std::process::Command;
 
-use crate::{config, db, providers, tmux};
+use crate::{config, db, tmux};
 
 pub async fn run(dry_run: bool, json: bool) -> anyhow::Result<()> {
     let config_path = std::path::Path::new("squad.yml");
@@ -115,83 +115,20 @@ pub async fn reconcile_agents(
             continue;
         }
 
-        if pane_looks_idle(&agent.name, &agent.tool) {
-            // Agent is idle in tmux but busy in DB — signal was lost
-            if !dry_run {
-                // Complete all processing messages
-                let mut completed_count = 0u32;
-                loop {
-                    let rows = db::messages::update_status(pool, &agent.name).await?;
-                    if rows == 0 {
-                        break;
-                    }
-                    completed_count += 1;
-                }
-                // Clear current_task and set idle
-                db::agents::clear_current_task(pool, &agent.name).await?;
-                db::agents::update_agent_status(pool, &agent.name, "idle").await?;
-
-                // Notify orchestrator
-                if let Ok(Some(orch)) = db::agents::get_orchestrator(pool).await {
-                    if orch.tool != "antigravity" && tmux::session_exists(&orch.name) {
-                        let notification = format!(
-                            "[SQUAD RECONCILE] Agent '{}' completed {} task(s) (signal was lost). Run: squad-station status",
-                            agent.name, completed_count
-                        );
-                        let _ = tmux::send_keys_literal(&orch.name, &notification).await;
-                    }
-                }
-
-                results.push(ReconcileResult {
-                    agent: agent.name.clone(),
-                    action: format!("reconciled ({})", completed_count),
-                    reason: "idle pane + busy DB (signal lost)".to_string(),
-                });
-            } else {
-                results.push(ReconcileResult {
-                    agent: agent.name.clone(),
-                    action: "would_reconcile".to_string(),
-                    reason: "idle pane + busy DB (signal lost)".to_string(),
-                });
-            }
-        } else {
-            results.push(ReconcileResult {
-                agent: agent.name.clone(),
-                action: "skip".to_string(),
-                reason: "pane shows active output".to_string(),
-            });
-        }
+        // Agent has processing messages and session is alive — still working.
+        // (Task completion is handled exclusively by the signal hook, not by reconcile.)
+        results.push(ReconcileResult {
+            agent: agent.name.clone(),
+            action: "skip".to_string(),
+            reason: "agent has live session and processing messages".to_string(),
+        });
     }
 
     Ok(results)
 }
 
-/// Detect if an agent's tmux pane shows an idle prompt.
-/// Provider-aware: each provider has different prompt patterns and terminal modes.
-/// Visible within the crate for use by watchdog Pass 3 (prolonged busy self-healing).
-pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
-    let text = capture_pane(session_name);
-
-    // If capture is empty, try alternate screen buffer (Gemini CLI uses full-screen TUI)
-    let text = if text.trim().is_empty() && providers::uses_alternate_buffer(provider) {
-        capture_pane_alternate(session_name)
-    } else {
-        text
-    };
-
-    // Claude Code's TUI renders 4-5 lines of status bar (model name, progress bar,
-    // cost, permissions toggle) BELOW the prompt "❯". A 5-line capture only sees
-    // the status bar, never the prompt. We capture 20 lines and scan all of them.
-    if let Some(patterns) = providers::idle_patterns(provider) {
-        text.lines().any(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty() && patterns.iter().any(|p| trimmed.contains(p))
-        })
-    } else {
-        false // Unknown provider: cannot detect idle (safe default — skip reconcile)
-    }
-}
-
+/// Capture the last 20 lines of a tmux pane.
+/// Visible within the crate for use by watchdog diagnostic snapshots.
 pub(crate) fn capture_pane(session: &str) -> String {
     // Capture last 20 lines. Uses -S (start line) instead of -l (length) for
     // broader tmux version compatibility (-l is not available in all versions).
@@ -202,48 +139,4 @@ pub(crate) fn capture_pane(session: &str) -> String {
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default()
-}
-
-/// Capture from alternate screen buffer (for full-screen TUI apps like Gemini CLI)
-fn capture_pane_alternate(session: &str) -> String {
-    Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-a", "-S", "-20"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
-        .unwrap_or_default()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_pane_idle_claude_code() {
-        // Test the pattern matching logic (without real tmux)
-        let patterns = providers::idle_patterns("claude-code").unwrap();
-        let line = "❯ ";
-        assert!(patterns.iter().any(|p| line.contains(p)));
-    }
-
-    #[test]
-    fn test_pane_idle_gemini_cli() {
-        let patterns = providers::idle_patterns("gemini-cli").unwrap();
-        let line = "> Type your message";
-        assert!(patterns.iter().any(|p| line.contains(p)));
-    }
-
-    #[test]
-    fn test_pane_idle_rejects_bare_gt() {
-        // A bare ">" should NOT match for claude-code
-        let patterns = providers::idle_patterns("claude-code").unwrap();
-        let line = ">";
-        assert!(!patterns.iter().any(|p| line.contains(p)));
-    }
-
-    #[test]
-    fn test_pane_idle_unknown_provider() {
-        assert!(providers::idle_patterns("unknown-tool").is_none());
-    }
 }
