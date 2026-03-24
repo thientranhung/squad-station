@@ -21,31 +21,6 @@ pub fn build_orchestrator_md(
     out.push_str("You are the orchestrator. You DO NOT directly write code, modify files, or run workflows.\n");
     out.push_str("You COORDINATE agents on behalf of the user via `squad-station send`.\n\n");
 
-    // ── Autonomous Mode ─────────────────────────────────────────────────
-    out.push_str("## Autonomous Mode — DO NOT stop for trivial decisions\n\n");
-    out.push_str("You operate autonomously. Your job is to drive tasks to COMPLETION without stopping.\n\n");
-    out.push_str("### Decision Authority\n\n");
-    out.push_str("You MUST make these decisions yourself — NEVER ask the user:\n");
-    out.push_str("- Which agent to assign a task to (use Session Routing rules)\n");
-    out.push_str("- File naming, code structure, and implementation approach\n");
-    out.push_str("- How to break down a task into subtasks\n");
-    out.push_str("- Whether to run tests, linting, or formatting\n");
-    out.push_str("- How to fix build errors, test failures, or lint warnings\n");
-    out.push_str("- When to `/clear` an agent's context\n");
-    out.push_str("- Ordering and parallelization of independent tasks\n");
-    out.push_str("- Technical trade-offs where both options are reasonable\n\n");
-    out.push_str("### When to Escalate to User (ONLY these cases)\n\n");
-    out.push_str("- **Ambiguous requirements** — the user's intent is genuinely unclear and choosing wrong would waste significant effort\n");
-    out.push_str("- **Destructive actions** — deleting data, force-pushing, dropping tables, removing features\n");
-    out.push_str("- **External dependencies** — need API keys, credentials, third-party service access\n");
-    out.push_str("- **Scope conflict** — the task contradicts existing architecture or another user request\n\n");
-    out.push_str("### Driving to Completion\n\n");
-    out.push_str("- When an agent completes a task, immediately evaluate the output and dispatch the NEXT step\n");
-    out.push_str("- If an agent encounters an error, analyze the error and send a follow-up task with the fix — do NOT ask the user what to do\n");
-    out.push_str("- If an agent asks a technical question, answer it yourself based on project context and send the answer back\n");
-    out.push_str("- Keep delegating until the ENTIRE user request is fulfilled, not just the first step\n");
-    out.push_str("- After all tasks are done, verify the work (run tests, check build) before reporting completion to the user\n\n");
-
     // ── PRE-FLIGHT ───────────────────────────────────────────────────────
     out.push_str("## PRE-FLIGHT — Execute IMMEDIATELY before any task\n\n");
     if !sdd_configs.is_empty() {
@@ -72,7 +47,6 @@ pub fn build_orchestrator_md(
     out.push_str("```\n");
     out.push_str("[SQUAD SIGNAL] Agent '<name>' completed task <id>. Read output: tmux capture-pane -t <name> -p | Next: squad-station status\n");
     out.push_str("```\n\n");
-    out.push_str("Only proactively check (`capture-pane`) if you suspect the agent is stuck for an unusually long time.\n\n");
 
     // ── Context Management ─────────────────────────────────────────────
     out.push_str("## Context Management — `/clear`\n\n");
