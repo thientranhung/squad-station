@@ -223,6 +223,116 @@ async fn test_update_agent_status_dead_to_idle() {
 }
 
 // ============================================================
+// Reconcile orphan_reset tests — watchdog false alarm fix
+// ============================================================
+
+#[tokio::test]
+async fn test_reconcile_resets_busy_agent_with_zero_processing_messages() {
+    // Bug: agent stuck as "busy" in DB but has no processing messages
+    // (signal completed the task but failed to reset agent status).
+    // Reconcile should detect this and reset to idle.
+    let pool = helpers::setup_test_db().await;
+    db::agents::insert_agent(&pool, "worker-a", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    // Set agent to busy (simulates squad-station send)
+    db::agents::update_agent_status(&pool, "worker-a", "busy")
+        .await
+        .unwrap();
+
+    // Insert a task and immediately complete it (simulates signal completing the task
+    // but NOT resetting agent status — the orphan scenario)
+    let msg_id = db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-a",
+        "task_request",
+        "do something",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+    db::messages::complete_by_id(&pool, &msg_id).await.unwrap();
+
+    // Verify: agent is busy, zero processing messages
+    let agent = db::agents::get_agent(&pool, "worker-a")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(agent.status, "busy");
+    let count = db::messages::count_processing(&pool, "worker-a")
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+
+    // Run reconcile — should detect orphan and reset to idle
+    use squad_station::commands::reconcile::reconcile_agents;
+    let results = reconcile_agents(&pool, false).await.unwrap();
+
+    // Verify: agent is now idle
+    let agent = db::agents::get_agent(&pool, "worker-a")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(agent.status, "idle", "Orphaned busy agent must be reset to idle");
+
+    // Verify: reconcile reported the action
+    let orphan_result = results.iter().find(|r| r.agent == "worker-a").unwrap();
+    assert_eq!(orphan_result.action, "orphan_reset");
+}
+
+#[tokio::test]
+async fn test_reconcile_does_not_reset_busy_agent_with_processing_messages() {
+    // Agent is legitimately busy — has a processing message. Should NOT be reset.
+    let pool = helpers::setup_test_db().await;
+    db::agents::insert_agent(&pool, "worker-a", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    db::agents::update_agent_status(&pool, "worker-a", "busy")
+        .await
+        .unwrap();
+
+    // Insert a task that is still processing
+    db::messages::insert_message(
+        &pool,
+        "orchestrator",
+        "worker-a",
+        "task_request",
+        "do something",
+        "normal",
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Verify: agent is busy, has processing messages
+    let count = db::messages::count_processing(&pool, "worker-a")
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+
+    // Run reconcile — should NOT reset (agent is legitimately busy)
+    // Note: will try tmux/pane checks which will fail in test env,
+    // so it should skip (pane not detected as idle)
+    use squad_station::commands::reconcile::reconcile_agents;
+    let results = reconcile_agents(&pool, false).await.unwrap();
+
+    // Agent should still be busy (reconcile skips or marks dead, not orphan_reset)
+    let agent = db::agents::get_agent(&pool, "worker-a")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(agent.status, "idle", "Legitimately busy agent must NOT be reset to idle");
+
+    // No orphan_reset action
+    let orphan = results.iter().find(|r| r.action == "orphan_reset");
+    assert!(orphan.is_none(), "Must not orphan_reset agent with processing messages");
+}
+
+// ============================================================
 // Orchestrator detection tests — HOOK-01
 // ============================================================
 
