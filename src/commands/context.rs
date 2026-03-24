@@ -24,7 +24,7 @@ pub fn build_orchestrator_md(
     // ── PRE-FLIGHT ───────────────────────────────────────────────────────
     out.push_str("## PRE-FLIGHT — Execute IMMEDIATELY before any task\n\n");
     if !sdd_configs.is_empty() {
-        out.push_str("> Read and fully internalize the SDD playbook(s). Do not skip or skim.\n\n");
+        out.push_str("> Read the SDD playbook(s) below. These define your WORKING PRINCIPLES — how to delegate tasks, coordinate agents, and follow the methodology. You MUST reference and follow these guidelines throughout the session. Do NOT invent your own workflow.\n\n");
         for sdd in sdd_configs {
             out.push_str(&format!("- [ ] Read `{}`\n", sdd.playbook));
         }
@@ -206,9 +206,10 @@ pub fn build_bootstrap_block(orch_session_name: &str, playbook_path: &str) -> St
          \n\
          If your tmux session is `{orch}`, you ARE the Squad Station orchestrator.\n\
          On EVERY new turn (including after /clear or context compact):\n\
-         1. Read `{playbook}` — this is your full playbook with PRE-FLIGHT, routing, and SDD instructions.\n\
-         2. Execute PRE-FLIGHT before proceeding.\n\
-         3. Do NOT write code directly. Coordinate agents via `squad-station send`.\n\
+         1. Read `{playbook}` — this defines your WORKING RULES. You MUST follow the principles and workflow described in it. Do NOT invent your own approach.\n\
+         2. The SDD playbook (referenced in PRE-FLIGHT) defines HOW you work — task delegation, coordination, and discipline. Treat it as mandatory guidelines, not optional reading.\n\
+         3. Execute PRE-FLIGHT before proceeding.\n\
+         4. Do NOT write code directly. Coordinate agents via `squad-station send`.\n\
          \n\
          If your session name does NOT match `{orch}`, ignore this section.\n\
          {}",
