@@ -2,6 +2,18 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.6.10 — Watchdog Self-Healing (2026-03-24)
+
+Three fixes for watchdog false alarms and orphaned agent states.
+
+### Fixed
+
+- **Orphan busy state reset** — Reconcile and watchdog now detect agents marked "busy" in DB with zero processing messages (signal completed the task but failed to reset status). Resets to idle immediately without heuristics.
+- **Pane capture window 5→20 lines** — `pane_looks_idle()` captured only 5 lines, missing Claude Code's prompt behind 4-5 status bar lines. Switched from `-l 5` to `-S -20` for broader tmux version compatibility.
+- **Signal completes all processing messages on stop** — When orchestrator rapid-fires N tasks, agent processes all in one turn but only one Stop hook fires. Now uses `complete_all_processing()` to prevent N-1 orphaned "processing" messages.
+
+---
+
 ## v0.6.9 — Remove Idle Nudge (2026-03-23)
 
 Simplifies watchdog by removing idle nudge notifications. Watchdog now focuses solely on stuck-agent detection with tiered escalation.
