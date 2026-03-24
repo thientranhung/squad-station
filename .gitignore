@@ -27,5 +27,8 @@ node_modules/
 # Downloaded platform binary (postinstall)
 bin/squad-station
 
-# Squad Station local DB
-.squad/
+# Squad Station runtime data (ignore DB, logs, PID files; keep templates)
+.squad/*
+!.squad/rules/
+!.squad/sdd/
+!.squad/examples/
