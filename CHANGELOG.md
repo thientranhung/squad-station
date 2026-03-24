@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.2 — npm Installer Hardening (2026-03-24)
+
+Fixes npm installer issues that prevented clean upgrades and macOS Gatekeeper blocks on downloaded binaries.
+
+### Fixed
+
+- **Binary upgrade removes stale symlinks** — `npx squad-station install` now unlinks the old binary before downloading when a version mismatch is detected. Fixes upgrade failures when `~/.cargo/bin/squad-station` is a symlink from `cargo install`.
+- **macOS Gatekeeper bypass** — Strips `com.apple.quarantine` and `com.apple.provenance` xattr after downloading the binary, preventing "cannot be opened because Apple cannot check it for malicious software" errors.
+
+### Added
+
+- **Rules scaffolding in npm installer** — `npx squad-station install` now copies `.squad/rules/` git workflow templates alongside existing sdd/ and examples/ scaffolding.
+
+---
+
 ## v0.7.0 — SDD Git Workflow Rules (2026-03-24)
 
 Auto-install SDD git workflow rules during squad initialization, plus three watchdog reliability fixes.

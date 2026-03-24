@@ -2,6 +2,267 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.2 — npm Installer Hardening (2026-03-24)
+
+Fixes npm installer issues that prevented clean upgrades and macOS Gatekeeper blocks on downloaded binaries.
+
+### Fixed
+
+- **Binary upgrade removes stale symlinks** — `npx squad-station install` now unlinks the old binary before downloading when a version mismatch is detected. Fixes upgrade failures when `~/.cargo/bin/squad-station` is a symlink from `cargo install`.
+- **macOS Gatekeeper bypass** — Strips `com.apple.quarantine` and `com.apple.provenance` xattr after downloading the binary, preventing "cannot be opened because Apple cannot check it for malicious software" errors.
+
+### Added
+
+- **Rules scaffolding in npm installer** — `npx squad-station install` now copies `.squad/rules/` git workflow templates alongside existing sdd/ and examples/ scaffolding.
+
+---
+
+## v0.7.0 — SDD Git Workflow Rules (2026-03-24)
+
+Auto-install SDD git workflow rules during squad initialization, plus three watchdog reliability fixes.
+
+### Added
+
+- **SDD git workflow rules auto-install** — During `squad-station init`, for each SDD entry in squad.yml, copies the matching rule template from `.squad/rules/git-workflow-<name>.md` into provider-specific rules directories (`.claude/rules/`, `.gemini/rules/`). Ships with 4 built-in rule templates: get-shit-done, bmad-method, openspec, superpowers.
+- **SDD templates versioned** — `.squad/rules/`, `.squad/sdd/`, and `.squad/examples/` are now tracked in git. Runtime files (station.db, logs, PID) remain ignored via `.gitignore` whitelisting.
+
+### Fixed
+
+- **Orphan busy state reset** — Reconcile and watchdog now detect agents marked "busy" in DB with zero processing messages (signal completed the task but failed to reset status). Resets to idle immediately without heuristics.
+- **Pane capture window 5→20 lines** — `pane_looks_idle()` captured only 5 lines, missing Claude Code's prompt behind 4-5 status bar lines. Switched from `-l 5` to `-S -20` for broader tmux version compatibility.
+- **Signal completes all processing messages on stop** — When orchestrator rapid-fires N tasks, agent processes all in one turn but only one Stop hook fires. Now uses `complete_all_processing()` to prevent N-1 orphaned "processing" messages.
+
+---
+
+## v0.6.9 — Remove Idle Nudge (2026-03-23)
+
+Simplifies watchdog by removing idle nudge notifications. Watchdog now focuses solely on stuck-agent detection with tiered escalation.
+
+### Changed
+
+- **Watchdog simplified** — Removed idle nudge (Pass 2) that sent "System idle for Xm" notifications to the orchestrator. Watchdog now only monitors for stuck agents: log-only at 10m, auto-heal at 30m, orchestrator alert at 60m.
+- **`--stall-threshold` hidden** — CLI arg kept for backwards compatibility but hidden from help output (no longer functional).
+
+### Fixed
+
+- **Docs updated** — SYSTEM-DESIGN.md now includes `watch` and `doctor` in CLI reference, `watch.rs` in architecture modules, and updated release history. README watchdog description updated to reflect tiered stuck-agent detection.
+
+---
+
+## v0.6.8 — Lean SDD Playbooks (2026-03-23)
+
+Trims SDD playbooks to agent-essential content and adds OpenSpec as a supported SDD framework.
+
+### Changed
+
+- **SDD playbooks trimmed 84%** — Removed installation guides, troubleshooting, mermaid diagrams, verbose prose, and external links from bmad-playbook.md, gsd-playbook.md, and superpowers-playbook.md. Each file now contains only workflow sequences, command reference tables, and critical rules.
+
+### Added
+
+- **OpenSpec SDD playbook** — New `openspec-playbook.md` (74 lines) supporting OpenSpec's spec-driven workflow (propose → apply → archive) with core and expanded profiles
+- **OpenSpec in example configs** — Added OpenSpec as a commented-out SDD option in orchestrator-claude.yml and orchestrator-gemini.yml examples
+
+---
+
+## v0.6.7 — Hook Log Redirect Fix (2026-03-23)
+
+Fixes hook command failures caused by relative shell redirects resolving against the wrong working directory.
+
+### Fixed
+
+- **Hook stderr redirect path** — `squad-station init` generated hook commands with `2>>.squad/log/signal.log` which fails when Claude Code's hook runner CWD differs from the project root. Replaced with `2>/dev/null` since `signal.rs` handles logging internally via `log_signal()`. Gemini hooks similarly updated from `>>.squad/log/signal.log 2>&1` to `>/dev/null 2>&1`.
+- **notify.rs hook safety** — `notify` command used `anyhow::bail!` on errors (non-zero exit), which could break provider hook contracts. Now always exits 0 with best-effort logging via `log_notify()`, matching the `signal.rs` pattern.
+
+### Changed
+
+- Updated SYSTEM-DESIGN.md GUARD flowchart and prose to reflect `/dev/null` redirect pattern
+
+---
+
+## v0.6.6 — Stale Busy Fix (2026-03-23)
+
+Fixes false positive watchdog warnings caused by orphaned processing messages and missed idle detection.
+
+### Fixed
+
+- **current_task overwrite in send.rs** — when a second task was sent while the first was still processing, `set_current_task` blindly overwrote the FK to the newer message. Signal then completed the wrong message, orphaning the original in `processing` forever and leaving the agent stuck in `busy` state. Now only sets `current_task` if no task is currently assigned; queued tasks are picked up by signal's remaining-processing check.
+- **Idle pane detection in reconcile.rs** — `pane_looks_idle` only checked the last non-empty line for the `❯` prompt pattern. Claude Code's TUI renders a status bar below the prompt, so the last line was always status info, never the prompt. Now scans all 5 captured lines for idle patterns.
+
+### Added
+
+- Regression test `test_second_send_does_not_overwrite_current_task` reproducing the exact production incident
+
+---
+
+## v0.6.5 — Async Pattern Fixes and Batch DB Queries (2026-03-23)
+
+Fixes blocking async patterns in tmux operations and optimizes the status command with a batch database query.
+
+### Fixed
+
+- **Async sleep in tmux.rs** — converted 3 instances of `std::thread::sleep()` to `tokio::time::sleep().await` in `send_keys_literal()`, `inject_single()`, and `inject_body()`. These were blocking the Tokio executor for 2–5 seconds per call, preventing other async tasks from making progress.
+- **Clippy warnings** — resolved 7 clippy lints: empty doc comment line, `push_str` → `push` for single char, `match` → `matches!` macro (3×), needless borrows (2×)
+
+### Changed
+
+- **Batch DB query in status command** — added `count_processing_per_agent()` single `GROUP BY` aggregate query replacing N sequential `list_messages()` calls (one per agent). Scales O(1) instead of O(N) with agent count.
+- Updated 9 callers across 5 command files (`send.rs`, `notify.rs`, `signal.rs`, `reconcile.rs`, `watch.rs`) to await the now-async tmux functions
+
+### Added
+
+- 3 new unit tests for `count_processing_per_agent()` covering empty DB, single agent, and multiple agents
+
+---
+
+## v0.6.4 — Smart PATH Detection for npm Installer (2026-03-23)
+
+npm installer now picks install directories already in PATH, adds cross-platform PATH instructions, and adds Windows support.
+
+### Added
+
+- **Smart PATH detection** — `findBestInstallDir()` scans PATH for writable directories (`/usr/local/bin`, `~/.local/bin`, `~/bin`) before falling back to `~/.squad-station/bin`, eliminating manual PATH configuration on most systems
+- **Cross-platform PATH instructions** — when the install directory is not in PATH, prints shell-specific instructions (bash/zsh/fish/PowerShell) for adding it
+- **Windows support** — npm installer handles `.exe` suffix, uses PowerShell for downloads, and supports Windows PATH directories
+
+### Changed
+
+- **Release process codified** — added `/release` slash command (`.claude/commands/release.md`) documenting the full 7-step release checklist with lessons learned
+
+---
+
+## v0.6.3 — npm Installer Binary Fix (2026-03-23)
+
+Fixes the npm installer so the downloaded binary is executable and the npm package works correctly out of the box.
+
+### Fixed
+
+- **chmod +x bin/run.js** — npm entry point was not executable after install
+- **npm package fixes** — corrected package configuration for reliable `npx squad-station install` flow
+
+---
+
+## v0.6.2 — Post-Init Health Check, Autonomous Orchestrator, Doctor Command (2026-03-23)
+
+Adds a comprehensive post-init health check that validates 9 components, a standalone `doctor` diagnostic command, autonomous orchestrator mode with clear decision authority boundaries, and fixes the watchdog self-detection race condition.
+
+### Added
+
+- **Post-init health check** — validates 9 components after `squad-station init`: database, log directory, signal hooks, notify hooks (per provider), orchestrator context file, tmux sessions (orchestrator + each agent), and watchdog daemon. Prints pass/fail/warn summary with actionable remediation steps.
+- **`squad-station doctor` command** — standalone health check for diagnosing squad operational issues without re-running init. Exits with code 1 if any checks fail.
+- **Autonomous orchestrator mode** — new "Autonomous Mode" section in generated `squad-orchestrator.md`:
+  - **Decision authority** — orchestrator makes routing, implementation, testing, and technical trade-off decisions without asking the user
+  - **Escalation criteria** — only escalate for ambiguous requirements, destructive actions, external dependencies, or scope conflicts
+  - **Driving to completion** — orchestrator dispatches follow-up tasks on errors, answers agent questions, and verifies work before reporting done
+- **11 E2E lifecycle tests** (`tests/test_e2e_lifecycle.rs`) — covers watchdog daemon lifecycle (start/stop/duplicate/stale PID/logging), init artifact creation, init idempotency, doctor exit codes, and watchdog self-detection regression
+
+### Fixed
+
+- **Watchdog self-detection race condition** — daemon was killing itself immediately after start because it read its own PID from the PID file and treated it as a duplicate. Now compares PID file contents against `std::process::id()` and skips the duplicate check when they match.
+
+### Changed
+
+- **QA Gate instructions refined** — error handling now instructs orchestrator to analyze and fix errors autonomously; technical questions answered from project context; only genuinely ambiguous requirements escalated to user
+
+---
+
+## v0.6.1 — Signal Hook Fix & Watchdog Self-Healing (2026-03-22)
+
+Fixes the critical signal hook failure where `$SQUAD_AGENT_NAME` was never available in hook subprocess contexts, causing silent signal drops. Adds tiered watchdog self-healing that auto-recovers stuck agents.
+
+**168 tests passing** (89 lib + 79 integration).
+
+### Fixed
+
+- **Signal hook agent name resolution** (BUG-01, CRITICAL) — switched from `$SQUAD_AGENT_NAME`/`tmux list-panes` to `tmux display-message -p '#S'`, a tmux server-side query that works reliably in all hook subprocess contexts (Claude Code Stop hooks, Gemini CLI AfterAgent). The env var approach from v0.6.0 never worked because hook subprocesses don't inherit the shell's exported variables.
+- **GUARD-1 silent failure** (BUG-02) — empty agent name now logged to `.squad/log/signal.log` + stderr before exit 0, instead of silently swallowed with zero forensic evidence
+- **Watchdog daemon dies silently** (BUG-06) — new `ensure_watchdog()` health check called opportunistically from `signal` and `send`; detects dead PID and respawns daemon
+- **Watchdog stderr sent to /dev/null** (BUG-07) — daemon stderr now redirected to `.squad/log/watch-stderr.log` for crash diagnostics
+- **Watchdog Pass 3 observe-only** (BUG-08) — prolonged busy detection upgraded from log-only to tiered escalation with corrective actions
+- **Watchdog killed by terminal close** (BUG-10) — daemon now calls `setsid()` to create a new session, surviving SIGHUP from parent terminal
+
+### Added
+
+- **Tiered watchdog busy detection** — 4-level escalation for stuck agents:
+  - 10-30min: log only (long tasks are normal)
+  - 30min+: auto-heal if pane is idle (complete stuck tasks, reset to idle, notify orchestrator)
+  - 60min+: alert orchestrator with WARNING (10min per-agent cooldown)
+  - 120min+: escalate to URGENT prefix
+- **Pane content snapshot logging** — Tier 2 idle detection logs last 5 lines of pane content to `watch.log` for diagnosing false positives
+- **`complete_all_processing()` DB function** — batch-completes all processing messages for an agent; used by watchdog self-healing
+- **`BusyAlertState`** — per-agent notification cooldown to prevent orchestrator notification spam
+- **`spawn_watchdog_daemon()` shared helper** — extracted from `watch --daemon` and `ensure_watchdog` to eliminate duplication; configures setsid, stderr-to-log, stdin/stdout null
+- **Unit tests** — `BusyAlertState` (4 tests), `complete_all_processing` (2 tests), `test_guard1_logs_empty_agent_name`
+
+### Changed
+
+- **Hook commands simplified** — removed intermediate `$AGENT` variable, `[ -n "$AGENT" ]` shell guard, `$SQUAD_AGENT_NAME`, `$TMUX_PANE`, and `tmux list-panes` fallback. Signal.rs GUARD-1 handles empty names with logging — no shell-level guard needed.
+- **`agent_resolve_snippet()` renamed to `agent_name_subshell()`** — returns `$(tmux display-message -p '#S' 2>/dev/null)` instead of the old multi-stage resolution
+- **`pane_looks_idle()` visibility** — narrowed from `fn` to `pub(crate)` for watchdog Tier 2 access
+- **`capture_pane()` visibility** — narrowed from `fn` to `pub(crate)` for watchdog pane snapshot logging
+- **`// SAFETY:` comments** — added to all `unsafe` blocks (`setsid`, `kill`, `signal`)
+
+### Removed
+
+- **Vendored GSD plugin files** — removed ~104k lines of `.claude/agents/`, `.claude/commands/gsd/`, `.claude/get-shit-done/`, `.gemini/`, `.planning/` directories
+- **`$SQUAD_AGENT_NAME` env var** — never available in hook contexts; removed entirely
+
+### Documentation
+
+- **SYSTEM-DESIGN.md** — updated section 5.2 (guard chain) and 5.3 (hook commands) to reflect new `tmux display-message` pattern with stderr redirection
+- **PLAYBOOK.md** — added section 4 (Watchdog) documenting tiered escalation, resilience features, and log files; updated troubleshooting
+- **Change analysis archived** — `docs/changes/archive/bug-analysis-signal-watchdog.md` and `solution-signal-watchdog.md`
+
+---
+
+## v0.6.0 — Signal Reliability (2026-03-20)
+
+Three-layer defense against lost agent completion signals. Zero-config hook setup, project-scoped logging, and a self-healing watchdog daemon.
+
+**233 tests passing** (84 lib + 149 integration). E2E validated on kindle-ai-export with 3 running Claude Code agents.
+
+### Added
+
+- **`squad-station reconcile` command** — reconcile agent statuses against live tmux sessions; supports `--dry-run` and `--json` output
+- **`squad-station watch` daemon** — background watchdog with 3-pass detection: individual agent reconcile, global stall detection with orchestrator nudge, and prolonged busy warnings; auto-starts on `init`
+- **`clean --all` flag** — deletes logs in addition to DB and sessions
+- **`providers.rs` module** — centralized provider metadata (idle patterns, hook events, settings paths, fire-and-forget prefixes, alternate buffer detection)
+- **`$SQUAD_AGENT_NAME` environment variable** — set in each tmux session at launch for reliable hook identification; eliminates fragile `tmux display-message` in subprocess contexts
+- **Project-scoped signal logging** — all signal events logged to `.squad/log/signal.log` with RFC3339 timestamps, level (OK/WARN/GUARD), agent name, and structured context
+- **Watchdog logging** — daemon activity logged to `.squad/log/watch.log` with nudge tracking and stall detection
+- **Log rotation** — signal.log auto-truncates to 500 lines when exceeding 1MB
+- **Signal uses `current_task` FK** — targeted completion of the exact task being worked on, with FIFO fallback safety net when `current_task` is NULL
+- **DB layer functions** — `set_current_task`, `clear_current_task`, `complete_by_id`, `last_completed_id`, `complete_message_by_id`, `count_processing_all`, `total_count`, `last_activity_timestamp`
+- **Hook templates upgraded** — Claude Code: Stop + Notification + PostToolUse with `$SQUAD_AGENT_NAME` and stderr-to-log redirection; Gemini CLI: AfterAgent + Notification with JSON stdout compliance and 30s timeout
+
+### Changed
+
+- **Signal flow rewritten** — primary path uses `current_task` FK for targeted completion instead of FIFO queue; FIFO retained as fallback with WARN-level logging
+- **Fire-and-forget commands** (`/clear`) no longer set `current_task` — prevents corruption when `/clear` overlaps an in-flight real task
+- **Hook resolution** — switched from `tmux display-message -p '#S'` to `$SQUAD_AGENT_NAME` env var with `tmux list-panes` fallback
+- **Init command** — now creates `.squad/log/` directory, auto-starts watchdog, installs hooks for all providers in the squad (not just orchestrator)
+- **Clean command** — stops watchdog daemon before deleting DB to prevent crash loops
+
+### Fixed
+
+- **current_task corruption** when `/clear` overlaps in-flight task — current_task now correctly reverts to the real task (v0.5.8)
+- **Signal race condition** — `/clear` followed by a real task no longer leaves the real task stuck at `processing` (v0.5.7)
+- **Shell injection in session names** — `sanitize_session_name` now strips all shell metacharacters (`' ` `` ` `` `$ ; () | & <> \ /` space newline null), not just `.` `:` `"` (PR #2)
+- **Unquoted model value in launch commands** — model values validated against `[a-zA-Z0-9._-:]` before shell interpolation (PR #2)
+- **Clean command misses sessions** — `compute_session_names` now calls `sanitize_session_name` to match init naming (PR #2)
+- **Signal exit-0 violation** — `get_agent` error no longer propagates as non-zero exit; uses soft guard matching the rest of the function (PR #2)
+- **Antigravity agents marked dead** — `reconcile_agent_statuses` now skips `tool="antigravity"` agents that never have tmux sessions (PR #2)
+- **inject_body corrupts task text** — `&&` splitting now only triggers when ALL parts are slash commands; plain text like "check if A && B" is sent as-is (PR #2)
+- **Orphan WAL/SHM files** — `delete_db_file` now removes `station.db-wal` and `station.db-shm` alongside the main DB (PR #2)
+
+### Security
+
+- **sanitize_session_name hardened** — prevents shell injection via crafted session names in `sh -c` view commands
+- **Model value validation** — blocks injection via malicious `model` field in `squad.yml`
+
+### Removed
+
+- Raw SQL queries outside `src/db/` — all moved to db layer functions
+
 ## v0.5.8 - 2026-03-20
 
 ### 🐛 Bug Fixes

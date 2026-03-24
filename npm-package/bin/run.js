@@ -43,7 +43,7 @@ function install() {
 
 function installBinary() {
   // Binary version — may differ from npm package version
-  var VERSION = '0.6.9';
+  var VERSION = '0.7.2';
   var REPO = 'thientranhung/squad-station';
 
   var isWindows = process.platform === 'win32';
@@ -78,6 +78,8 @@ function installBinary() {
     } catch (_) {
       // Can't check version, re-download
     }
+    // Version mismatch — remove old binary (may be symlink from cargo install)
+    try { fs.unlinkSync(destPath); } catch (_) {}
   }
 
   console.log('  Downloading ' + assetName + ' v' + VERSION + '...');
@@ -104,6 +106,11 @@ function installBinary() {
 
   if (!isWindows) {
     fs.chmodSync(destPath, 0o755);
+    // macOS Gatekeeper: strip quarantine flag so unsigned binary is not killed
+    if (process.platform === 'darwin') {
+      spawnSync('xattr', ['-d', 'com.apple.quarantine', destPath], { stdio: 'ignore' });
+      spawnSync('xattr', ['-d', 'com.apple.provenance', destPath], { stdio: 'ignore' });
+    }
   }
   console.log('  \x1b[32m✓\x1b[0m Installed squad-station to ' + destPath);
 
@@ -220,6 +227,24 @@ function scaffoldProject(force) {
       console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
     }
   });
+
+  // Copy rules/ (git workflow rules)
+  var rulesSrc = path.join(srcSquad, 'rules');
+  if (fs.existsSync(rulesSrc)) {
+    var rulesDest = path.join(destSquad, 'rules');
+    fs.mkdirSync(rulesDest, { recursive: true });
+
+    var rulesFiles = fs.readdirSync(rulesSrc).filter(function(f) { return f.endsWith('.md'); });
+    rulesFiles.forEach(function(file) {
+      var dest = path.join(rulesDest, file);
+      if (fs.existsSync(dest) && !force) {
+        console.log('  \x1b[33m–\x1b[0m .squad/rules/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
+      } else {
+        fs.copyFileSync(path.join(rulesSrc, file), dest);
+        console.log('  \x1b[32m✓\x1b[0m .squad/rules/' + file);
+      }
+    });
+  }
 
   // Copy examples/
   var exSrc = path.join(srcSquad, 'examples');
