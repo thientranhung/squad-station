@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.3 — Orchestrator Bootstrap & Context Cleanup (2026-03-24)
+
+Ensures the orchestrator automatically knows its role after `/clear` and context compact — no manual re-prompting needed.
+
+### Added
+
+- **Orchestrator bootstrap block** — `squad-station init` now injects a lightweight bootstrap section into the provider's project doc file (`.claude/CLAUDE.md` for Claude Code, `.gemini/GEMINI.md` for Gemini CLI). This file is always loaded into context, surviving `/clear` and context compact. Includes a tmux session-name guard so worker agents ignore it. Idempotent: uses HTML marker comments for replace-on-reinit.
+
+### Changed
+
+- **Removed Autonomous Mode section** from generated orchestrator context — decision authority, escalation rules, and driving-to-completion instructions are now the responsibility of the SDD playbook, not hardcoded in the orchestrator template.
+- **Removed capture-pane polling hint** — the line "Only proactively check (capture-pane) if you suspect the agent is stuck" was encouraging orchestrators to poll agent output instead of waiting for the completion signal.
+
+---
+
 ## v0.7.2 — npm Installer Hardening (2026-03-24)
 
 Fixes npm installer issues that prevented clean upgrades and macOS Gatekeeper blocks on downloaded binaries.
