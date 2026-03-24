@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.4 — Bootstrap Path Fix & Playbook Compliance (2026-03-24)
+
+Fixes bootstrap block writing to the wrong file path and strengthens orchestrator compliance language.
+
+### Fixed
+
+- **Bootstrap block file path** — `inject_bootstrap_block()` was writing to `.claude/CLAUDE.md` and `.gemini/GEMINI.md` inside subdirectories, but Claude Code reads `CLAUDE.md` from the project root and Gemini reads `GEMINI.md` from the project root. Fixed `provider_doc_paths()` to return the correct root-level paths.
+
+### Changed
+
+- **Bootstrap block wording** — Replaced passive "Read playbook" with explicit directive: playbook defines WORKING RULES, must not be treated as optional, do NOT invent your own approach.
+- **PRE-FLIGHT SDD wording** — Reworded from "Read and fully internalize" to "These define your WORKING PRINCIPLES" with mandatory compliance language throughout the session.
+
+---
+
 ## v0.7.3 — Orchestrator Bootstrap & Context Cleanup (2026-03-24)
 
 Ensures the orchestrator automatically knows its role after `/clear` and context compact — no manual re-prompting needed.
