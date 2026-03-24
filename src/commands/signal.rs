@@ -257,21 +257,31 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
         false
     };
 
-    // After successful signal, check remaining tasks and update agent status accordingly.
+    // After successful signal, complete ALL remaining processing messages and go idle.
+    //
+    // The Stop hook fires when the agent's session turn ends. At that point the agent
+    // is definitively not working on any task. If the orchestrator rapid-fired N tasks,
+    // the agent processed all N in a single turn but only one Stop hook fires. Completing
+    // only current_task would leave N-1 messages orphaned as "processing" forever.
+    //
+    // Safe because: the hook fires = the agent stopped = no task is in progress.
     if rows > 0 {
         let remaining = db::messages::count_processing(&pool, &agent).await?;
         if remaining > 0 {
-            // Still has processing tasks — update current_task to next task, stay busy
-            let next = db::messages::peek_message(&pool, &agent).await?;
-            if let Some(next_msg) = next {
-                db::agents::set_current_task(&pool, &agent, &next_msg.id).await?;
-            }
-            // Agent remains busy — don't change status
-        } else {
-            // No remaining tasks — clear current_task and set idle
-            db::agents::clear_current_task(&pool, &agent).await?;
-            db::agents::update_agent_status(&pool, &agent, "idle").await?;
+            let bulk_completed =
+                db::messages::complete_all_processing(&pool, &agent).await?;
+            log_signal(
+                &project_root,
+                "OK",
+                &agent,
+                &format!(
+                    "bulk_completed={} reason=rapid_fire_cleanup",
+                    bulk_completed
+                ),
+            );
         }
+        db::agents::clear_current_task(&pool, &agent).await?;
+        db::agents::update_agent_status(&pool, &agent, "idle").await?;
     }
 
     // Opportunistic watchdog health check — respawn if dead
