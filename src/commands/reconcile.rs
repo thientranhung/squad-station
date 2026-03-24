@@ -179,10 +179,9 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
         text
     };
 
-    // Check ALL captured lines (not just the last non-empty one) for idle patterns.
-    // Claude Code's TUI renders a status bar below the prompt line, so the last
-    // non-empty line may be "Cost: $1.23 | Tokens: 45k" rather than "❯".
-    // Scanning all 5 captured lines catches the prompt wherever it appears.
+    // Claude Code's TUI renders 4-5 lines of status bar (model name, progress bar,
+    // cost, permissions toggle) BELOW the prompt "❯". A 5-line capture only sees
+    // the status bar, never the prompt. We capture 20 lines and scan all of them.
     if let Some(patterns) = providers::idle_patterns(provider) {
         text.lines().any(|line| {
             let trimmed = line.trim();
@@ -194,8 +193,10 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
 }
 
 pub(crate) fn capture_pane(session: &str) -> String {
+    // Capture last 20 lines. Uses -S (start line) instead of -l (length) for
+    // broader tmux version compatibility (-l is not available in all versions).
     Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-l", "5"])
+        .args(["capture-pane", "-t", session, "-p", "-S", "-20"])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -206,7 +207,7 @@ pub(crate) fn capture_pane(session: &str) -> String {
 /// Capture from alternate screen buffer (for full-screen TUI apps like Gemini CLI)
 fn capture_pane_alternate(session: &str) -> String {
     Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-a", "-l", "5"])
+        .args(["capture-pane", "-t", session, "-p", "-a", "-S", "-20"])
         .output()
         .ok()
         .filter(|o| o.status.success())
