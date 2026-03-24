@@ -71,6 +71,24 @@ pub async fn reconcile_agents(
             continue;
         }
 
+        // Pre-check: agent is "busy" but has zero processing messages in DB.
+        // This is definitive — no heuristics needed. The task completed but agent
+        // status was never reset (signal race, duplicate signal, etc).
+        // Runs BEFORE the 2-minute grace period because zero-processing is conclusive.
+        let processing_count = db::messages::count_processing(pool, &agent.name).await?;
+        if processing_count == 0 {
+            if !dry_run {
+                db::agents::clear_current_task(pool, &agent.name).await?;
+                db::agents::update_agent_status(pool, &agent.name, "idle").await?;
+            }
+            results.push(ReconcileResult {
+                agent: agent.name.clone(),
+                action: "orphan_reset".to_string(),
+                reason: "busy in DB but zero processing messages".to_string(),
+            });
+            continue;
+        }
+
         // Skip if agent became busy less than 2 minutes ago (probably still working)
         if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&agent.status_updated_at) {
             let elapsed = chrono::Utc::now().signed_duration_since(ts);
@@ -161,10 +179,9 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
         text
     };
 
-    // Check ALL captured lines (not just the last non-empty one) for idle patterns.
-    // Claude Code's TUI renders a status bar below the prompt line, so the last
-    // non-empty line may be "Cost: $1.23 | Tokens: 45k" rather than "❯".
-    // Scanning all 5 captured lines catches the prompt wherever it appears.
+    // Claude Code's TUI renders 4-5 lines of status bar (model name, progress bar,
+    // cost, permissions toggle) BELOW the prompt "❯". A 5-line capture only sees
+    // the status bar, never the prompt. We capture 20 lines and scan all of them.
     if let Some(patterns) = providers::idle_patterns(provider) {
         text.lines().any(|line| {
             let trimmed = line.trim();
@@ -176,8 +193,10 @@ pub(crate) fn pane_looks_idle(session_name: &str, provider: &str) -> bool {
 }
 
 pub(crate) fn capture_pane(session: &str) -> String {
+    // Capture last 20 lines. Uses -S (start line) instead of -l (length) for
+    // broader tmux version compatibility (-l is not available in all versions).
     Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-l", "5"])
+        .args(["capture-pane", "-t", session, "-p", "-S", "-20"])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -188,7 +207,7 @@ pub(crate) fn capture_pane(session: &str) -> String {
 /// Capture from alternate screen buffer (for full-screen TUI apps like Gemini CLI)
 fn capture_pane_alternate(session: &str) -> String {
     Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-a", "-l", "5"])
+        .args(["capture-pane", "-t", session, "-p", "-a", "-S", "-20"])
         .output()
         .ok()
         .filter(|o| o.status.success())

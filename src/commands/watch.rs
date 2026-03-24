@@ -206,6 +206,7 @@ async fn tick(
     }
 
     // Pass 2: Prolonged busy detection with tiered escalation
+    // Pre-check: if DB says "busy" but zero processing messages, agent is orphaned — fix immediately
     // Tier 1 (10-30min): Log only — long tasks are normal
     // Tier 2 (30min+): Reconcile check — if pane looks idle, auto-heal (signal was lost)
     // Tier 3 (60min+): Notify orchestrator — agent may be stuck, human review needed
@@ -214,6 +215,27 @@ async fn tick(
         if agent.status != "busy" {
             continue;
         }
+
+        // Pre-check: agent is "busy" in DB but has zero processing messages.
+        // This means the signal completed the task but failed to reset agent status
+        // (e.g. duplicate signal, race condition, or signal exited before status update).
+        // This is a definitive check — no heuristics, no pane inspection needed.
+        let processing_count = db::messages::count_processing(&pool, &agent.name).await?;
+        if processing_count == 0 {
+            db::agents::clear_current_task(&pool, &agent.name).await?;
+            db::agents::update_agent_status(&pool, &agent.name, "idle").await?;
+            log_watch(
+                squad_dir,
+                "HEAL",
+                &format!(
+                    "agent={} action=orphan_reset reason=busy_with_zero_processing_messages",
+                    agent.name
+                ),
+            );
+            busy_alert_state.clear(&agent.name);
+            continue;
+        }
+
         let ts = match chrono::DateTime::parse_from_rfc3339(&agent.status_updated_at) {
             Ok(ts) => ts,
             Err(_) => continue,

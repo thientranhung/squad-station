@@ -986,6 +986,64 @@ async fn test_signal_uses_current_task_not_fifo() {
 }
 
 #[tokio::test]
+async fn test_signal_rapid_fire_completes_all_processing() {
+    // Bug: orchestrator rapid-fires N tasks, agent processes all in one turn,
+    // one Stop hook fires. Signal must complete ALL processing messages (not just current_task)
+    // because the agent has stopped and is not working on any of them.
+    let pool = helpers::setup_test_db().await;
+    agents::insert_agent(&pool, "agent-rf", "claude-code", "worker", None, None)
+        .await
+        .unwrap();
+
+    // Rapid-fire 4 tasks
+    let mut task_ids = Vec::new();
+    for i in 1..=4 {
+        let id = messages::insert_message(
+            &pool,
+            "orchestrator",
+            "agent-rf",
+            "task_request",
+            &format!("rapid fire task {}", i),
+            "normal",
+            None,
+        )
+        .await
+        .unwrap();
+        task_ids.push(id);
+    }
+
+    // Set current_task to task 1 (first dispatched)
+    agents::set_current_task(&pool, "agent-rf", &task_ids[0])
+        .await
+        .unwrap();
+    agents::update_agent_status(&pool, "agent-rf", "busy")
+        .await
+        .unwrap();
+
+    // Signal fires (agent stopped): complete current_task
+    let rows = messages::complete_by_id(&pool, &task_ids[0]).await.unwrap();
+    assert_eq!(rows, 1);
+
+    // Check remaining processing — should be 3
+    let remaining = messages::count_processing(&pool, "agent-rf").await.unwrap();
+    assert_eq!(remaining, 3, "3 tasks should still be processing before bulk complete");
+
+    // Now simulate what signal.rs does: bulk complete all remaining
+    let bulk = messages::complete_all_processing(&pool, "agent-rf").await.unwrap();
+    assert_eq!(bulk, 3, "bulk complete should complete the remaining 3 tasks");
+
+    // Verify: zero processing messages remain
+    let final_remaining = messages::count_processing(&pool, "agent-rf").await.unwrap();
+    assert_eq!(final_remaining, 0, "zero processing messages after signal cleanup");
+
+    // Verify: all 4 tasks are completed
+    let completed = messages::list_messages(&pool, Some("agent-rf"), Some("completed"), 10)
+        .await
+        .unwrap();
+    assert_eq!(completed.len(), 4, "all 4 rapid-fired tasks must be completed");
+}
+
+#[tokio::test]
 async fn test_fire_and_forget_does_not_set_current_task() {
     // Simulate: agent has a real task as current_task, then /clear is sent.
     // /clear must NOT overwrite current_task.
