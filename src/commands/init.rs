@@ -282,6 +282,29 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             println!("Warning: Failed to generate context files: {}", e);
         }
 
+        // 9b. Install SDD git workflow rules for all providers
+        if let Some(sdd_configs) = &config.sdd {
+            let project_root = config_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            for sdd in sdd_configs {
+                match install_sdd_rules(&sdd.name, project_root, &providers_seen) {
+                    Ok(installed) if !installed.is_empty() => {
+                        for dest in &installed {
+                            println!("  SDD rule: installed {} → {}", sdd.name, dest);
+                        }
+                    }
+                    Ok(_) => {
+                        println!("  SDD rule: no rule file found for '{}' (looked for .squad/rules/git-workflow-{}.md)", sdd.name, sdd.name);
+                    }
+                    Err(e) => {
+                        println!("  SDD rule: failed for '{}' ({})", sdd.name, e);
+                    }
+                }
+            }
+        }
+
         println!("\n{}", bold("Get Started:"));
         println!();
         println!("  1. Attach to the orchestrator session:");
@@ -1134,6 +1157,101 @@ mod tests {
     }
 
     #[test]
+    fn test_install_sdd_rules_copies_to_claude_and_gemini() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+
+        // Create source rule file
+        let rules_dir = root.join(".squad").join("rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        std::fs::write(
+            rules_dir.join("git-workflow-get-shit-done.md"),
+            "# GSD Git Workflow\nBranch naming: feat/, fix/",
+        )
+        .unwrap();
+
+        let providers = vec!["claude-code".to_string(), "gemini-cli".to_string()];
+        let installed = install_sdd_rules("get-shit-done", root, &providers).unwrap();
+
+        assert_eq!(installed.len(), 2);
+        assert!(installed.contains(&".claude/rules/git-workflow-get-shit-done.md".to_string()));
+        assert!(installed.contains(&".gemini/rules/git-workflow-get-shit-done.md".to_string()));
+
+        // Verify file contents were copied correctly
+        let claude_rule = std::fs::read_to_string(
+            root.join(".claude/rules/git-workflow-get-shit-done.md"),
+        )
+        .unwrap();
+        assert!(claude_rule.contains("GSD Git Workflow"));
+
+        let gemini_rule = std::fs::read_to_string(
+            root.join(".gemini/rules/git-workflow-get-shit-done.md"),
+        )
+        .unwrap();
+        assert!(gemini_rule.contains("GSD Git Workflow"));
+    }
+
+    #[test]
+    fn test_install_sdd_rules_missing_source_returns_empty() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let providers = vec!["claude-code".to_string()];
+        let installed =
+            install_sdd_rules("nonexistent-sdd", tmp.path(), &providers).unwrap();
+        assert!(installed.is_empty());
+    }
+
+    #[test]
+    fn test_install_sdd_rules_skips_unsupported_providers() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+
+        let rules_dir = root.join(".squad").join("rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        std::fs::write(
+            rules_dir.join("git-workflow-bmad-method.md"),
+            "# BMAD Git Workflow",
+        )
+        .unwrap();
+
+        let providers = vec!["antigravity".to_string(), "claude-code".to_string()];
+        let installed = install_sdd_rules("bmad-method", root, &providers).unwrap();
+
+        // antigravity skipped, only claude-code installed
+        assert_eq!(installed.len(), 1);
+        assert!(installed[0].contains(".claude/rules"));
+    }
+
+    #[test]
+    fn test_install_sdd_rules_idempotent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+
+        let rules_dir = root.join(".squad").join("rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        std::fs::write(
+            rules_dir.join("git-workflow-openspec.md"),
+            "# OpenSpec Git Workflow",
+        )
+        .unwrap();
+
+        let providers = vec!["claude-code".to_string()];
+
+        // Run twice — should not fail
+        let first = install_sdd_rules("openspec", root, &providers).unwrap();
+        let second = install_sdd_rules("openspec", root, &providers).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+    }
+
+    #[test]
+    fn test_rules_dir_for_provider() {
+        assert_eq!(rules_dir_for_provider("claude-code"), Some(".claude/rules"));
+        assert_eq!(rules_dir_for_provider("gemini-cli"), Some(".gemini/rules"));
+        assert_eq!(rules_dir_for_provider("antigravity"), None);
+        assert_eq!(rules_dir_for_provider("unknown"), None);
+    }
+
+    #[test]
     fn test_is_safe_model_value_valid() {
         assert!(is_safe_model_value("claude-opus"));
         assert!(is_safe_model_value("gemini-3.1-pro-preview"));
@@ -1147,6 +1265,45 @@ mod tests {
         assert!(!is_safe_model_value("model`id`"));
         assert!(!is_safe_model_value(""));
     }
+}
+
+/// Returns the provider-specific rules directory path for a given provider.
+/// claude-code → .claude/rules/, gemini-cli → .gemini/rules/, others → None.
+fn rules_dir_for_provider(provider: &str) -> Option<&'static str> {
+    match provider {
+        "claude-code" => Some(".claude/rules"),
+        "gemini-cli" => Some(".gemini/rules"),
+        _ => None,
+    }
+}
+
+/// Install SDD git workflow rule file into all provider-specific rules directories.
+/// Looks for `.squad/rules/git-workflow-<sdd_name>.md` relative to project_root.
+/// Returns a list of destination paths where the rule was installed.
+fn install_sdd_rules(
+    sdd_name: &str,
+    project_root: &std::path::Path,
+    providers: &[String],
+) -> anyhow::Result<Vec<String>> {
+    let rule_filename = format!("git-workflow-{}.md", sdd_name);
+    let source = project_root.join(".squad").join("rules").join(&rule_filename);
+
+    if !source.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut installed = vec![];
+    for provider in providers {
+        if let Some(rules_dir) = rules_dir_for_provider(provider) {
+            let dest_dir = project_root.join(rules_dir);
+            std::fs::create_dir_all(&dest_dir)?;
+            let dest = dest_dir.join(&rule_filename);
+            std::fs::copy(&source, &dest)?;
+            installed.push(format!("{}/{}", rules_dir, rule_filename));
+        }
+    }
+
+    Ok(installed)
 }
 
 fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
