@@ -1,6 +1,5 @@
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
-use std::process::Command;
 
 use crate::{config, db, tmux};
 
@@ -125,18 +124,4 @@ pub async fn reconcile_agents(
     }
 
     Ok(results)
-}
-
-/// Capture the last 20 lines of a tmux pane.
-/// Visible within the crate for use by watchdog diagnostic snapshots.
-pub(crate) fn capture_pane(session: &str) -> String {
-    // Capture last 20 lines. Uses -S (start line) instead of -l (length) for
-    // broader tmux version compatibility (-l is not available in all versions).
-    Command::new("tmux")
-        .args(["capture-pane", "-t", session, "-p", "-S", "-20"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
-        .unwrap_or_default()
 }
