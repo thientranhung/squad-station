@@ -2,6 +2,26 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.6 — Orchestrator Tiered Tool Restrictions (2026-03-25)
+
+Added tiered tool model for the orchestrator template — orchestrator acts as a PM who reads dashboards, not a developer who reads code.
+
+### Fixed
+
+- **Orchestrator self-research gap** — The generated `squad-orchestrator.md` forbade writing code but did not prevent the orchestrator from using Read, Bash, grep, or other tools to self-research. Result: orchestrator would read files and run git commands directly instead of delegating to agents.
+
+### Added
+
+- **Tiered tool restrictions section** — New "Tool Restrictions — Tiered" section in the generated orchestrator template with two tiers:
+  - **ALLOWED** (no delegation): squad-station CLI, tmux capture-pane (post-signal), SDD playbooks, tracking/status files (sprint-status.yaml, epics.md, REQUIREMENTS.md, CHANGELOG), basic git status/branch for orientation
+  - **MUST DELEGATE**: source code reading, deep git research (log/diff/blame), code search (grep/Glob), report generation, tests/builds, file writes, Agent subagents
+
+### Changed
+
+- **QA Gate step 3** — Orchestrator now answers agent technical questions from dashboard knowledge first, delegating research only when needed (previously always delegated)
+
+---
+
 ## v0.7.5 — Remove RECONCILE & Simplify Watchdog (2026-03-25)
 
 Removes RECONCILE logic that was prematurely completing tasks and causing signal loss. Strips the watchdog down to a pure health monitor.
