@@ -2,6 +2,28 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.5 — Remove RECONCILE & Simplify Watchdog (2026-03-25)
+
+Removes RECONCILE logic that was prematurely completing tasks and causing signal loss. Strips the watchdog down to a pure health monitor.
+
+### Fixed
+
+- **RECONCILE causing signal loss** — RECONCILE was marking tasks as completed BEFORE agents actually finished. When the real stop hook fired, it found no pending task and skipped orchestrator notification. Removed all task-completion logic from both `reconcile` (when called by watchdog) and the watchdog itself.
+
+### Changed
+
+- **Watchdog is now health monitor only** — The watchdog's sole responsibility is checking tmux session liveness: mark agents "dead" if their session crashed, revive to "idle" if session reappears. Removed: BusyAlertState, tiered escalation (Tier 1–3), pane idle detection, pane content scanning, orchestrator notifications via send-keys, and auto-heal logic.
+- **Reconcile command simplified** — The `reconcile` CLI command still performs orphan reset (busy + zero processing messages) and dead agent detection, but no longer attempts task completion based on pane idle heuristics. Removed `pane_looks_idle()`, `capture_pane_alternate()`, and `[SQUAD RECONCILE]` orchestrator notification.
+
+### Removed
+
+- `BusyAlertState` struct and 4 associated tests
+- `pane_looks_idle()`, `capture_pane()`, `capture_pane_alternate()` from reconcile module
+- 4 pane idle pattern tests from reconcile module
+- All `[SQUAD RECONCILE]` and `[SQUAD WATCHDOG]` auto-heal notifications
+
+---
+
 ## v0.7.4 — Bootstrap Path Fix & Playbook Compliance (2026-03-24)
 
 Fixes bootstrap block writing to the wrong file path and strengthens orchestrator compliance language.
