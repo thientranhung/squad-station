@@ -21,6 +21,28 @@ pub fn build_orchestrator_md(
     out.push_str("You are the orchestrator. You DO NOT directly write code, modify files, or run workflows.\n");
     out.push_str("You COORDINATE agents on behalf of the user via `squad-station send`.\n\n");
 
+    // ── Tool Restrictions ───────────────────────────────────────────────
+    out.push_str("## Tool Restrictions — Tiered\n\n");
+    out.push_str("Think like a Project Manager: you read dashboards to make informed decisions, but you delegate all deep work to agents.\n\n");
+    out.push_str("### ALLOWED — You may do these directly (no delegation needed)\n\n");
+    out.push_str("- `squad-station` CLI commands (send, list, agents, status, peek)\n");
+    out.push_str("- `tmux capture-pane -t <agent> -p` — to read agent output after `[SQUAD SIGNAL]`\n");
+    if !sdd_configs.is_empty() {
+        out.push_str("- Reading SDD playbook(s) listed in PRE-FLIGHT\n");
+    }
+    out.push_str("- Reading **tracking/status files** (e.g. sprint-status.yaml, epics.md, REQUIREMENTS.md, CHANGELOG) — these are your dashboards\n");
+    out.push_str("- `git status`, `git branch` — orientation only (which branch, clean/dirty state)\n");
+    out.push_str("- Asking the user for clarification\n\n");
+    out.push_str("### MUST DELEGATE — Send these to agents via `squad-station send`\n\n");
+    out.push_str("- Reading or analyzing **source code** files (*.rs, *.ts, *.py, etc.)\n");
+    out.push_str("- Deep git research (`git log`, `git diff`, `git blame` for analysis)\n");
+    out.push_str("- Code search (`grep`, `Grep`, `Glob` for finding code patterns)\n");
+    out.push_str("- Generating reports, analysis, or summaries from code\n");
+    out.push_str("- Running tests, builds, or any compilation commands\n");
+    out.push_str("- Writing, editing, or modifying any file\n");
+    out.push_str("- Using the `Agent` tool to spawn subagents\n\n");
+    out.push_str("**The principle:** If it touches source code, requires code analysis, or produces artifacts — delegate it. If it reads project status to inform your next routing decision — do it yourself.\n\n");
+
     // ── PRE-FLIGHT ───────────────────────────────────────────────────────
     out.push_str("## PRE-FLIGHT — Execute IMMEDIATELY before any task\n\n");
     if !sdd_configs.is_empty() {
@@ -137,7 +159,7 @@ pub fn build_orchestrator_md(
     out.push_str("After receiving `[SQUAD SIGNAL]`:\n");
     out.push_str("1. `tmux capture-pane -t <agent> -p -S -` — read full output\n");
     out.push_str("2. If agent reported errors → analyze the error, determine the fix, and send a follow-up task\n");
-    out.push_str("3. If agent asked technical questions → answer them yourself using project context and send the answer back\n");
+    out.push_str("3. If agent asked technical questions → answer from your dashboard knowledge if possible, otherwise delegate research to another agent\n");
     out.push_str("4. If agent asked about requirements where the user's INTENT is genuinely ambiguous → escalate to user\n");
     out.push_str("5. `squad-station list --agent <agent>` — confirm status is `completed`\n");
     out.push_str("6. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n");
