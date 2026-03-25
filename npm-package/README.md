@@ -1,29 +1,37 @@
 # Squad Station
 
-Message routing and orchestration for AI agent squads — stateless CLI, no daemon.
+Message routing and orchestration for AI agent squads — coordinate multiple AI agents through a single orchestrator using tmux sessions and SQLite messaging.
 
-Squad Station routes messages between an AI orchestrator and N agents running in tmux sessions. Provider-agnostic: works with Claude Code, Gemini CLI, or any AI tool.
+Provider-agnostic: works with Claude Code, Gemini CLI, or any terminal-based AI tool.
 
 ## Install
 
 ```bash
-npx squad-station install
+npx squad-station@latest install
 ```
 
-This downloads the `squad-station` binary to your system and scaffolds project files:
+This downloads the `squad-station` binary for your platform and scaffolds project files:
 
 ```
 .squad/
-├── sdd/                          # SDD playbooks
+├── sdd/                              # SDD methodology playbooks
 │   ├── gsd-playbook.md
 │   ├── bmad-playbook.md
+│   ├── openspec-playbook.md
 │   └── superpowers-playbook.md
-└── examples/                     # Example configs
+├── rules/                            # Git workflow rule templates
+│   ├── git-workflow-get-shit-done.md
+│   ├── git-workflow-bmad-method.md
+│   ├── git-workflow-openspec.md
+│   └── git-workflow-superpowers.md
+└── examples/                         # Example squad.yml configs
     ├── orchestrator-claude.yml
     └── orchestrator-gemini.yml
 ```
 
-## Quickstart
+Handles macOS quarantine (xattr removal) and upgrades over existing cargo-installed symlinks automatically.
+
+## Quick Start
 
 ```bash
 # 1. Copy an example config
@@ -62,23 +70,27 @@ agents:
     provider: claude-code
     role: worker
     model: opus
-    description: Technical Lead, planner, analysis, code reviews
+    description: Technical lead, planning, analysis, code reviews
 ```
 
 ## Commands
 
 | Command | Description |
-|---|---|
-| `squad-station init` | Launch squad from `squad.yml` — creates DB, tmux sessions, hooks |
+|---------|-------------|
+| `squad-station init` | Launch squad from `squad.yml` — creates DB, sessions, hooks |
 | `squad-station send <agent> --body "<task>"` | Send a task to an agent |
-| `squad-station signal <agent>` | Signal agent completed its task |
-| `squad-station list` | List messages |
+| `squad-station signal [agent]` | Signal agent task completion |
+| `squad-station list` | List messages (`--agent`, `--status`, `--limit`) |
 | `squad-station agents` | List agents with live status |
 | `squad-station status` | Project and agent summary |
-| `squad-station view` | Open tmux tiled view of all agents |
 | `squad-station ui` | Interactive TUI dashboard |
-| `squad-station close` | Kill all squad tmux sessions |
+| `squad-station view` | Tiled tmux view of all agent sessions |
+| `squad-station doctor` | Health check for diagnosing issues |
+| `squad-station watch --daemon` | Start watchdog health monitor |
 | `squad-station reset` | Kill sessions, delete DB, relaunch |
+| `squad-station clean` | Kill sessions and delete DB (`--all` includes logs) |
+
+All commands support `--json` for machine-readable output.
 
 ## Requirements
 
