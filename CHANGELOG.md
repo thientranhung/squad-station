@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.10 — Always Update SDD Playbooks (2026-03-28)
+
+SDD playbooks are now always overwritten on every `npx squad-station install`, ensuring users always get the latest version without needing `--force`.
+
+### Fixed
+
+- **SDD playbooks not updating on reinstall** — Previously, `install` skipped `.squad/sdd/*.md` files if they already existed, silently leaving users on outdated playbooks. Now they are always overwritten since SDD files are managed entirely by squad-station and not user-editable.
+
+---
+
 ## v0.7.9 — Fix Codex Launch Flag (2026-03-28)
 
 Fixes the Codex agent launch command from `--full-auto` to `--yolo`.

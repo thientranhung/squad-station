@@ -43,7 +43,7 @@ function install() {
 
 function installBinary() {
   // Binary version — may differ from npm package version
-  var VERSION = '0.7.9';
+  var VERSION = '0.7.10';
   var REPO = 'thientranhung/squad-station';
 
   var isWindows = process.platform === 'win32';
@@ -220,12 +220,8 @@ function scaffoldProject(force) {
   var sddFiles = fs.readdirSync(sddSrc).filter(function(f) { return f.endsWith('.md'); });
   sddFiles.forEach(function(file) {
     var dest = path.join(sddDest, file);
-    if (fs.existsSync(dest) && !force) {
-      console.log('  \x1b[33m–\x1b[0m .squad/sdd/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
-    } else {
-      fs.copyFileSync(path.join(sddSrc, file), dest);
-      console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
-    }
+    fs.copyFileSync(path.join(sddSrc, file), dest);
+    console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
   });
 
   // Copy rules/ (git workflow rules)
