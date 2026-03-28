@@ -2,6 +2,28 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.8 — OpenAI Codex Provider (2026-03-28)
+
+Adds OpenAI Codex CLI as a first-class provider alongside `claude-code` and `gemini-cli`. Codex agents can now be orchestrated end-to-end: auto-installed hooks, model validation, launch command generation, and context injection.
+
+### Added
+
+- **Codex provider support** — `provider: codex` is now a valid first-class provider in `squad.yml`
+- **7 Codex model slugs** — validated in config: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`
+- **Auto hook installation** — `squad-station init` writes `.codex/hooks.json` with `Stop` (completion signal) and `PostToolUse` (Bash tool notifications) hooks
+- **Session start hook** — Optional `SessionStart` hook installs context injection for Codex agents
+- **Launch command** — `codex --full-auto` (with `--model <slug>` when model is specified in config)
+- **Context generation** — `squad-station context` generates `squad-orchestrator.md` at `.codex/commands/` for Codex orchestrators
+- **Behavior flags** — Full `providers.rs` coverage: `Stop` completion event, no JSON stdout requirement, no alternate buffer, `/clear` as fire-and-forget
+- **14 new tests** — Covering provider validation, hook structure, launch commands, session start, and context paths
+
+### Changed
+
+- **`providers.rs` comment** — Removed stale "v0.7.0 consideration: refactor to Provider trait" note
+- **`config.rs` test** — `unknown_provider_warns_but_succeeds` now uses `"aider"` as example (not `"codex"` which is now known)
+
+---
+
 ## v0.7.7 — Documentation Rewrite (2026-03-28)
 
 Comprehensive rewrite of both the root README.md and npm-package README.md for the v0.7.x release.
