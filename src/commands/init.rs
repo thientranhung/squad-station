@@ -1438,10 +1438,7 @@ mod tests {
             model: Some("gpt-5.4".to_string()),
             description: None,
         };
-        assert_eq!(
-            get_launch_command(&agent),
-            "codex --yolo --model gpt-5.4"
-        );
+        assert_eq!(get_launch_command(&agent), "codex --yolo --model gpt-5.4");
     }
 
     #[test]
