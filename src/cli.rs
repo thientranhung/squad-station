@@ -125,6 +125,15 @@ pub enum Commands {
         #[arg(long)]
         stop: bool,
     },
+    /// Fully uninstall squad-station from this project (hooks, files, sessions)
+    Uninstall {
+        /// Path to squad config file
+        #[arg(default_value = "squad.yml")]
+        config: PathBuf,
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     /// Run health check to diagnose squad operational issues
     Doctor,
     /// Kill all squad tmux sessions and delete the database

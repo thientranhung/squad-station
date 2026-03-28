@@ -2,6 +2,24 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.11 — Uninstall Command (2026-03-28)
+
+Adds `squad-station uninstall` to cleanly remove squad-station from a project without leaving behind stale hooks, files, or running sessions.
+
+### Added
+
+- **`squad-station uninstall`** — Full project teardown command:
+  - Kills all squad tmux sessions and stops watchdog daemon
+  - Removes squad-station hook entries from provider settings (`.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`) — preserves non-squad hooks
+  - Removes the bootstrap block (`<!-- squad-station:bootstrap-start/end -->`) from `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`
+  - Deletes `squad-orchestrator.md` from provider commands directory
+  - Deletes `.squad/` directory entirely
+  - Preserves `squad.yml` so users can re-init without reconfiguring
+  - Confirmation prompt by default; `--yes` / `-y` to skip
+- **10 unit tests** covering hook removal, bootstrap block removal, and provider path resolution
+
+---
+
 ## v0.7.10 — Always Update SDD Playbooks (2026-03-28)
 
 SDD playbooks are now always overwritten on every `npx squad-station install`, ensuring users always get the latest version without needing `--force`.
