@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.7 — Documentation Rewrite (2026-03-28)
+
+Comprehensive rewrite of both the root README.md and npm-package README.md for the v0.7.x release.
+
+### Changed
+
+- **Root README.md** — Rewritten to reflect current architecture, commands, and workflow
+- **npm-package README.md** — Updated installation and usage instructions for v0.7.x
+
+---
+
 ## v0.7.6 — Orchestrator Tiered Tool Restrictions (2026-03-25)
 
 Added tiered tool model for the orchestrator template — orchestrator acts as a PM who reads dashboards, not a developer who reads code.
