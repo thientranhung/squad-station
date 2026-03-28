@@ -23,6 +23,16 @@ Squad Station is **provider-agnostic**. It does not call AI provider APIs direct
 - Launch command example: `"gemini"`
 - Note: Hook must exit 0; exit 2 would trigger Gemini CLI automatic retry
 
+**Codex (OpenAI):**
+- Integration type: Hook config (`.codex/hooks.json`)
+- Hook event: `Stop` (same as Claude Code)
+- Mechanism: Codex invokes Stop hook after each turn; hook calls `squad-station signal <agent-name>`
+- Config: `.codex/hooks.json` (repo-level), `~/.codex/hooks.json` (user-level)
+- Provider label in config: `"codex"`
+- Launch command example: `"codex --full-auto"`
+- Note: Hooks must be enabled via `[features] codex_hooks = true` in Codex `config.toml`
+- Stdout is not required to be JSON (exit 0 with no output = success)
+
 **Adding new providers:**
 - Create a hook script in `hooks/` following the pattern in `hooks/claude-code.sh`
 - Register it with the provider's hook system

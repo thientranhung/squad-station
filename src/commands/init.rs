@@ -429,6 +429,7 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
     for provider in &providers_seen {
         let settings_path = match provider.as_str() {
             "claude-code" => Some(".claude/settings.json"),
+            "codex" => Some(".codex/hooks.json"),
             "gemini-cli" => Some(".gemini/settings.json"),
             _ => None,
         };
@@ -494,6 +495,7 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
 
     // 4. Orchestrator context file
     let context_path = match config.orchestrator.provider.as_str() {
+        "codex" => ".codex/commands/squad-orchestrator.md",
         "gemini-cli" => ".gemini/commands/squad-orchestrator.toml",
         _ => ".claude/commands/squad-orchestrator.md",
     };
@@ -609,6 +611,7 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
 fn auto_install_hooks(provider: &str) -> anyhow::Result<bool> {
     match provider {
         "claude-code" => install_claude_hooks(".claude/settings.json"),
+        "codex" => install_codex_hooks(".codex/hooks.json"),
         "gemini-cli" => install_gemini_hooks(".gemini/settings.json"),
         _ => Ok(false), // unknown provider: skip auto-install
     }
@@ -702,6 +705,46 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     Ok(true)
 }
 
+/// Install Codex hooks: Stop (signal) + PostToolUse (notify for Bash tool)
+///
+/// Codex hooks are very similar to Claude Code:
+/// - Uses Stop event for completion signals (same as Claude Code)
+/// - Stdout is not required to be JSON (exit 0 with no output = success)
+/// - Hooks configured in `.codex/hooks.json` (not settings.json)
+/// - Matcher patterns use regex (e.g. "Bash", "startup|resume")
+fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
+    let mut settings = read_or_create_settings(settings_file)?;
+    let resolve = agent_name_subshell();
+
+    // Codex: stdout is not required to be JSON. exit 0 = success. Same as Claude Code.
+    let signal_cmd = format!(
+        r#"squad-station signal "{}" 2>/dev/null"#,
+        resolve
+    );
+    let notify_cmd = format!(
+        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
+        resolve
+    );
+
+    // Stop hook — agent finished turn → signal completion
+    settings["hooks"]["Stop"] = serde_json::json!([{
+        "matcher": "",
+        "hooks": [{"type": "command", "command": signal_cmd}]
+    }]);
+
+    // PostToolUse hook — notify orchestrator when Bash tool runs
+    // (Codex currently only supports Bash tool for PreToolUse/PostToolUse)
+    settings["hooks"]["PostToolUse"] = serde_json::json!([
+        {
+            "matcher": "Bash",
+            "hooks": [{"type": "command", "command": notify_cmd}]
+        }
+    ]);
+
+    std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
+    Ok(true)
+}
+
 /// Install Gemini CLI hooks: AfterAgent (signal) + Notification (notify)
 ///
 /// Critical Gemini CLI differences:
@@ -759,6 +802,7 @@ fn install_session_start_hook(
 ) -> anyhow::Result<bool> {
     let rel_path = match provider {
         "claude-code" => ".claude/settings.json",
+        "codex" => ".codex/hooks.json",
         "gemini-cli" => ".gemini/settings.json",
         _ => return Ok(false),
     };
@@ -794,6 +838,20 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
     match agent.provider.as_str() {
         "claude-code" => {
             let mut cmd = "claude --dangerously-skip-permissions".to_string();
+            if let Some(model) = &agent.model {
+                if is_safe_model_value(model) {
+                    cmd.push_str(&format!(" --model {}", model));
+                } else {
+                    eprintln!(
+                        "squad-station: warning: skipping unsafe model value: {:?}",
+                        model
+                    );
+                }
+            }
+            cmd
+        }
+        "codex" => {
+            let mut cmd = "codex --full-auto".to_string();
             if let Some(model) = &agent.model {
                 if is_safe_model_value(model) {
                     cmd.push_str(&format!(" --model {}", model));
@@ -1120,6 +1178,102 @@ mod tests {
     }
 
     #[test]
+    fn test_install_codex_hooks_includes_stop_and_post_tool_use() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let hooks_file = tmp.path().join(".codex").join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        install_codex_hooks(hooks_str).unwrap();
+
+        let content = std::fs::read_to_string(&hooks_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Verify Stop hook exists
+        assert!(settings["hooks"]["Stop"].is_array(), "Stop hook must exist");
+
+        // Verify PostToolUse hook exists with Bash matcher
+        let ptu = &settings["hooks"]["PostToolUse"];
+        assert!(ptu.is_array(), "PostToolUse hook must exist");
+        assert_eq!(ptu[0]["matcher"].as_str().unwrap(), "Bash");
+
+        // Base hooks must NOT include SessionStart (opt-in via install_session_start_hook)
+        assert!(
+            settings["hooks"]["SessionStart"].is_null(),
+            "SessionStart must not be installed by base hooks"
+        );
+    }
+
+    #[test]
+    fn test_install_codex_hooks_uses_tmux_display_message() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let hooks_file = tmp.path().join(".codex").join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        install_codex_hooks(hooks_str).unwrap();
+
+        let content = std::fs::read_to_string(&hooks_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let stop_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            stop_cmd.contains("display-message"),
+            "Codex hook must use tmux display-message for session name: {}",
+            stop_cmd
+        );
+        assert!(
+            !stop_cmd.contains("SQUAD_AGENT_NAME"),
+            "Codex hook must NOT use $SQUAD_AGENT_NAME: {}",
+            stop_cmd
+        );
+    }
+
+    #[test]
+    fn test_install_codex_hooks_no_json_stdout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let hooks_file = tmp.path().join(".codex").join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        install_codex_hooks(hooks_str).unwrap();
+
+        let content = std::fs::read_to_string(&hooks_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let stop_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            !stop_cmd.contains("printf"),
+            "Codex hook must NOT add printf '{{}}' — stdout is not required to be JSON: {}",
+            stop_cmd
+        );
+    }
+
+    #[test]
+    fn test_install_session_start_hook_codex() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let codex_dir = tmp.path().join(".codex");
+        std::fs::create_dir_all(&codex_dir).unwrap();
+        let hooks_file = codex_dir.join("hooks.json");
+        std::fs::write(&hooks_file, r#"{"hooks":{"Stop":[]}}"#).unwrap();
+
+        let result = install_session_start_hook("codex", tmp.path());
+        assert!(result.unwrap());
+
+        let content = std::fs::read_to_string(&hooks_file).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let ss = &settings["hooks"]["SessionStart"];
+        assert!(ss.is_array(), "SessionStart hook must exist");
+        let ss_cmd = ss[0]["hooks"][0]["command"].as_str().unwrap();
+        assert_eq!(ss_cmd, "squad-station context --inject");
+
+        // Existing hooks preserved
+        assert!(settings["hooks"]["Stop"].is_array());
+    }
+
+    #[test]
     fn test_install_session_start_hook_claude() {
         let tmp = tempfile::TempDir::new().unwrap();
         let claude_dir = tmp.path().join(".claude");
@@ -1283,6 +1437,45 @@ mod tests {
         assert!(!is_safe_model_value("model`id`"));
         assert!(!is_safe_model_value(""));
     }
+
+    #[test]
+    fn test_get_launch_command_codex() {
+        let agent = config::AgentConfig {
+            name: Some("coder".to_string()),
+            provider: "codex".to_string(),
+            role: "worker".to_string(),
+            model: Some("gpt-5.4".to_string()),
+            description: None,
+        };
+        assert_eq!(get_launch_command(&agent), "codex --full-auto --model gpt-5.4");
+    }
+
+    #[test]
+    fn test_get_launch_command_codex_no_model() {
+        let agent = config::AgentConfig {
+            name: Some("coder".to_string()),
+            provider: "codex".to_string(),
+            role: "worker".to_string(),
+            model: None,
+            description: None,
+        };
+        assert_eq!(get_launch_command(&agent), "codex --full-auto");
+    }
+
+    #[test]
+    fn test_get_launch_command_claude() {
+        let agent = config::AgentConfig {
+            name: Some("impl".to_string()),
+            provider: "claude-code".to_string(),
+            role: "worker".to_string(),
+            model: Some("sonnet".to_string()),
+            description: None,
+        };
+        assert_eq!(
+            get_launch_command(&agent),
+            "claude --dangerously-skip-permissions --model sonnet"
+        );
+    }
 }
 
 /// Returns the provider-specific rules directory path for a given provider.
@@ -1290,6 +1483,7 @@ mod tests {
 fn rules_dir_for_provider(provider: &str) -> Option<&'static str> {
     match provider {
         "claude-code" => Some(".claude/rules"),
+        "codex" => Some(".codex/rules"),
         "gemini-cli" => Some(".gemini/rules"),
         _ => None,
     }

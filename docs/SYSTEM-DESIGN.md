@@ -64,6 +64,12 @@ agents:
     role: worker
     model: gemini-3.1-pro-preview
     description: "QA engineer. Writes tests, verifies acceptance criteria."
+
+  - name: coder
+    provider: codex
+    role: worker
+    model: gpt-5.4
+    description: "Fast coder. Writes code, fixes bugs."
 ```
 
 **Rules:**
@@ -77,10 +83,11 @@ agents:
 - `#[serde(deny_unknown_fields)]` — unknown fields in agent config are rejected
 
 **Provider validation:**
-- Known providers: `claude-code`, `gemini-cli`, `antigravity`
+- Known providers: `claude-code`, `codex`, `gemini-cli`, `antigravity`
 - Unknown providers: warn to stderr but proceed (extensibility)
 - Model validation per provider:
   - `claude-code` → `opus`, `sonnet`, `haiku`
+  - `codex` → `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`
   - `gemini-cli` → `gemini-3.1-pro-preview`, `gemini-3-flash-preview`
   - `antigravity` → no model validation (DB-only mode, no tmux)
 
@@ -473,6 +480,32 @@ same settings file receive no injection.
 ```
 
 **Gemini CLI note:** All signal/notify output is redirected to the log file. Stdout MUST emit valid JSON (`printf '{}'`) — Gemini CLI treats non-JSON stdout as a hook failure.
+
+**Codex (OpenAI)** (`.codex/hooks.json`) — 2 hook events (+ optional SessionStart):
+
+| Event | Matcher | Command | Purpose |
+|-------|---------|---------|---------|
+| `Stop` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
+| `PostToolUse` | `Bash` | `squad-station notify ...` | Bash tool executed → notify orchestrator |
+| `SessionStart` | `startup\|resume` | `squad-station context --inject` | Auto-inject orchestrator context (opt-in) |
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null" }] }
+    ],
+    "SessionStart": [
+      { "matcher": "startup|resume", "hooks": [{ "type": "command", "command": "squad-station context --inject" }] }
+    ]
+  }
+}
+```
+
+**Codex note:** Hooks must be enabled via `[features] codex_hooks = true` in Codex `config.toml`. Stdout is not required to be JSON — exit 0 with no output means success. Same completion signal pattern as Claude Code (Stop event).
 
 **Antigravity:** No hooks needed — DB-only polling mode (no tmux sessions).
 

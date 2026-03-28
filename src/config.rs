@@ -3,12 +3,21 @@ use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
 /// Allowed provider values for squad.yml
-const VALID_PROVIDERS: &[&str] = &["antigravity", "claude-code", "gemini-cli"];
+const VALID_PROVIDERS: &[&str] = &["antigravity", "claude-code", "codex", "gemini-cli"];
 
 /// Valid model identifiers per provider (provider → allowed model slugs)
 fn valid_models_for(provider: &str) -> Option<&'static [&'static str]> {
     match provider {
         "claude-code" => Some(&["opus", "sonnet", "haiku"]),
+        "codex" => Some(&[
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.3-codex",
+            "gpt-5.2-codex",
+            "gpt-5.2",
+            "gpt-5.1-codex-max",
+            "gpt-5.1-codex-mini",
+        ]),
         "gemini-cli" => Some(&["gemini-3.1-pro-preview", "gemini-3-flash-preview"]),
         _ => None, // no model validation for providers that don't support a model override
     }
@@ -191,6 +200,7 @@ mod tests {
     #[test]
     fn valid_provider_no_model() {
         assert!(validate_agent_config("orch", &make_agent("claude-code", None)).is_ok());
+        assert!(validate_agent_config("orch", &make_agent("codex", None)).is_ok());
         assert!(validate_agent_config("orch", &make_agent("gemini-cli", None)).is_ok());
         assert!(validate_agent_config("orch", &make_agent("antigravity", None)).is_ok());
     }
@@ -199,13 +209,15 @@ mod tests {
     fn unknown_provider_warns_but_succeeds() {
         // GAP-03: unknown providers warn to stderr but don't fail
         assert!(validate_agent_config("agent1", &make_agent("gemini", None)).is_ok());
-        assert!(validate_agent_config("agent1", &make_agent("codex", None)).is_ok());
+        assert!(validate_agent_config("agent1", &make_agent("aider", None)).is_ok());
         assert!(validate_agent_config("agent1", &make_agent("opencode", None)).is_ok());
     }
 
     #[test]
     fn valid_model_accepted() {
         assert!(validate_agent_config("a", &make_agent("claude-code", Some("sonnet"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("codex", Some("gpt-5.4"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("codex", Some("gpt-5.3-codex"))).is_ok());
         assert!(validate_agent_config(
             "a",
             &make_agent("gemini-cli", Some("gemini-3-flash-preview"))
@@ -218,6 +230,10 @@ mod tests {
         let err = validate_agent_config("a", &make_agent("claude-code", Some("claude-code-2")))
             .unwrap_err();
         assert!(err.to_string().contains("opus, sonnet, haiku"));
+
+        let err =
+            validate_agent_config("a", &make_agent("codex", Some("gpt-4o"))).unwrap_err();
+        assert!(err.to_string().contains("gpt-5.4"));
 
         let err =
             validate_agent_config("a", &make_agent("gemini-cli", Some("gemini-pro"))).unwrap_err();

@@ -246,6 +246,7 @@ pub fn build_bootstrap_block(orch_session_name: &str, playbook_path: &str) -> St
 /// Returns (doc_file_relative, playbook_relative).
 fn provider_doc_paths(provider: &str) -> (&'static str, &'static str) {
     match provider {
+        "codex" => ("AGENTS.md", ".codex/commands/squad-orchestrator.md"),
         "gemini-cli" => ("GEMINI.md", ".gemini/commands/squad-orchestrator.toml"),
         _ => ("CLAUDE.md", ".claude/commands/squad-orchestrator.md"),
     }
@@ -318,6 +319,10 @@ pub async fn run(inject: bool) -> anyhow::Result<()> {
 
     // Write slash command in provider-specific format and directory
     let (cmd_subdir, filename, file_content) = match config.orchestrator.provider.as_str() {
+        "codex" => {
+            // Codex: plain markdown (same format as Claude Code, different directory)
+            (".codex/commands", "squad-orchestrator.md", prompt_content)
+        }
         "gemini-cli" => {
             // Gemini CLI: TOML format with description + prompt fields
             let toml = format!(
@@ -328,7 +333,7 @@ pub async fn run(inject: bool) -> anyhow::Result<()> {
             (".gemini/commands", "squad-orchestrator.toml", toml)
         }
         _ => {
-            // Claude Code: plain markdown
+            // Claude Code (and other providers): plain markdown
             (".claude/commands", "squad-orchestrator.md", prompt_content)
         }
     };
