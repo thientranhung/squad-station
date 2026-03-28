@@ -276,7 +276,10 @@ async fn test_reconcile_resets_busy_agent_with_zero_processing_messages() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(agent.status, "idle", "Orphaned busy agent must be reset to idle");
+    assert_eq!(
+        agent.status, "idle",
+        "Orphaned busy agent must be reset to idle"
+    );
 
     // Verify: reconcile reported the action
     let orphan_result = results.iter().find(|r| r.agent == "worker-a").unwrap();
@@ -325,11 +328,17 @@ async fn test_reconcile_does_not_reset_busy_agent_with_processing_messages() {
         .await
         .unwrap()
         .unwrap();
-    assert_ne!(agent.status, "idle", "Legitimately busy agent must NOT be reset to idle");
+    assert_ne!(
+        agent.status, "idle",
+        "Legitimately busy agent must NOT be reset to idle"
+    );
 
     // No orphan_reset action
     let orphan = results.iter().find(|r| r.action == "orphan_reset");
-    assert!(orphan.is_none(), "Must not orphan_reset agent with processing messages");
+    assert!(
+        orphan.is_none(),
+        "Must not orphan_reset agent with processing messages"
+    );
 }
 
 // ============================================================

@@ -1,9 +1,9 @@
 use crate::{db, tmux};
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
+use sqlx::SqlitePool;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
-use sqlx::SqlitePool;
 
 /// Reconcile agent statuses against live tmux sessions.
 /// Marks agents as "dead" if their session is gone, or revives to "idle" if session reappears.

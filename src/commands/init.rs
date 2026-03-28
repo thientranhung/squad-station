@@ -364,15 +364,16 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
 /// Post-init health check: validate all critical components are properly configured.
 /// Prints a clear pass/fail summary with actionable remediation steps.
 /// Returns the number of failed checks.
-pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path, orch_name: &str) -> u32 {
+pub fn run_health_check(
+    config: &config::SquadConfig,
+    db_path: &std::path::Path,
+    orch_name: &str,
+) -> u32 {
     let green = |s: &str| {
         s.if_supports_color(Stream::Stdout, |s| s.green())
             .to_string()
     };
-    let red = |s: &str| {
-        s.if_supports_color(Stream::Stdout, |s| s.red())
-            .to_string()
-    };
+    let red = |s: &str| s.if_supports_color(Stream::Stdout, |s| s.red()).to_string();
     let yellow = |s: &str| {
         s.if_supports_color(Stream::Stdout, |s| s.yellow())
             .to_string()
@@ -415,7 +416,10 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
     } else {
         println!("  {} Log directory missing: {}", fail, log_dir.display());
         fail_count += 1;
-        remediation.push(format!("Create log directory: mkdir -p {}", log_dir.display()));
+        remediation.push(format!(
+            "Create log directory: mkdir -p {}",
+            log_dir.display()
+        ));
     }
 
     // 3. Hooks config files — check each provider used
@@ -471,7 +475,10 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
                         }
                     }
                     Err(e) => {
-                        println!("  {} Hooks ({}) — cannot read {}: {}", fail, provider, path, e);
+                        println!(
+                            "  {} Hooks ({}) — cannot read {}: {}",
+                            fail, provider, path, e
+                        );
                         fail_count += 1;
                         remediation.push(format!("Fix file permissions on {}", path));
                     }
@@ -568,9 +575,7 @@ pub fn run_health_check(config: &config::SquadConfig, db_path: &std::path::Path,
     } else {
         println!("  {} Watchdog daemon not running", warn);
         warn_count += 1;
-        remediation.push(
-            "Watchdog not running. Start it: `squad-station watch --daemon`".into(),
-        );
+        remediation.push("Watchdog not running. Start it: `squad-station watch --daemon`".into());
     }
 
     // Summary
@@ -662,10 +667,7 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     // Claude Code: stdout is ignored, stderr goes to /dev/null. Always exit 0.
     // signal.rs handles its own logging internally via log_signal() — no shell redirect needed.
     // Previous approach used `2>>.squad/log/signal.log` which broke when CWD != project root.
-    let signal_cmd = format!(
-        r#"squad-station signal "{}" 2>/dev/null"#,
-        resolve
-    );
+    let signal_cmd = format!(r#"squad-station signal "{}" 2>/dev/null"#, resolve);
     let notify_cmd = format!(
         r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
         resolve
@@ -717,10 +719,7 @@ fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let resolve = agent_name_subshell();
 
     // Codex: stdout is not required to be JSON. exit 0 = success. Same as Claude Code.
-    let signal_cmd = format!(
-        r#"squad-station signal "{}" 2>/dev/null"#,
-        resolve
-    );
+    let signal_cmd = format!(r#"squad-station signal "{}" 2>/dev/null"#, resolve);
     let notify_cmd = format!(
         r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
         resolve
@@ -904,22 +903,13 @@ mod tests {
         let notif = &settings["hooks"]["Notification"];
         assert!(notif.is_array(), "Notification hook must exist");
         assert_eq!(notif.as_array().unwrap().len(), 2);
-        assert_eq!(
-            notif[0]["matcher"].as_str().unwrap(),
-            "permission_prompt"
-        );
-        assert_eq!(
-            notif[1]["matcher"].as_str().unwrap(),
-            "elicitation_dialog"
-        );
+        assert_eq!(notif[0]["matcher"].as_str().unwrap(), "permission_prompt");
+        assert_eq!(notif[1]["matcher"].as_str().unwrap(), "elicitation_dialog");
 
         // Verify PostToolUse hook exists with AskUserQuestion matcher
         let ptu = &settings["hooks"]["PostToolUse"];
         assert!(ptu.is_array(), "PostToolUse hook must exist");
-        assert_eq!(
-            ptu[0]["matcher"].as_str().unwrap(),
-            "AskUserQuestion"
-        );
+        assert_eq!(ptu[0]["matcher"].as_str().unwrap(), "AskUserQuestion");
 
         // Verify the command calls notify with the standard pattern
         let cmd = ptu[0]["hooks"][0]["command"].as_str().unwrap();
@@ -1011,7 +1001,11 @@ mod tests {
                 "PreToolUse": [{"matcher": "Bash", "hooks": []}]
             }
         });
-        std::fs::write(&settings_file, serde_json::to_string_pretty(&existing).unwrap()).unwrap();
+        std::fs::write(
+            &settings_file,
+            serde_json::to_string_pretty(&existing).unwrap(),
+        )
+        .unwrap();
 
         let settings_str = settings_file.to_str().unwrap();
         install_claude_hooks(settings_str).unwrap();
@@ -1350,16 +1344,14 @@ mod tests {
         assert!(installed.contains(&".gemini/rules/git-workflow-get-shit-done.md".to_string()));
 
         // Verify file contents were copied correctly
-        let claude_rule = std::fs::read_to_string(
-            root.join(".claude/rules/git-workflow-get-shit-done.md"),
-        )
-        .unwrap();
+        let claude_rule =
+            std::fs::read_to_string(root.join(".claude/rules/git-workflow-get-shit-done.md"))
+                .unwrap();
         assert!(claude_rule.contains("GSD Git Workflow"));
 
-        let gemini_rule = std::fs::read_to_string(
-            root.join(".gemini/rules/git-workflow-get-shit-done.md"),
-        )
-        .unwrap();
+        let gemini_rule =
+            std::fs::read_to_string(root.join(".gemini/rules/git-workflow-get-shit-done.md"))
+                .unwrap();
         assert!(gemini_rule.contains("GSD Git Workflow"));
     }
 
@@ -1367,8 +1359,7 @@ mod tests {
     fn test_install_sdd_rules_missing_source_returns_empty() {
         let tmp = tempfile::TempDir::new().unwrap();
         let providers = vec!["claude-code".to_string()];
-        let installed =
-            install_sdd_rules("nonexistent-sdd", tmp.path(), &providers).unwrap();
+        let installed = install_sdd_rules("nonexistent-sdd", tmp.path(), &providers).unwrap();
         assert!(installed.is_empty());
     }
 
@@ -1447,7 +1438,10 @@ mod tests {
             model: Some("gpt-5.4".to_string()),
             description: None,
         };
-        assert_eq!(get_launch_command(&agent), "codex --full-auto --model gpt-5.4");
+        assert_eq!(
+            get_launch_command(&agent),
+            "codex --full-auto --model gpt-5.4"
+        );
     }
 
     #[test]
@@ -1498,7 +1492,10 @@ fn install_sdd_rules(
     providers: &[String],
 ) -> anyhow::Result<Vec<String>> {
     let rule_filename = format!("git-workflow-{}.md", sdd_name);
-    let source = project_root.join(".squad").join("rules").join(&rule_filename);
+    let source = project_root
+        .join(".squad")
+        .join("rules")
+        .join(&rule_filename);
 
     if !source.exists() {
         return Ok(vec![]);

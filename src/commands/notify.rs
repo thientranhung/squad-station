@@ -96,11 +96,7 @@ pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Res
             return Ok(());
         }
         Err(e) => {
-            log_notify(
-                "GUARD",
-                &agent,
-                &format!("reason=get_agent_error err={e}"),
-            );
+            log_notify("GUARD", &agent, &format!("reason=get_agent_error err={e}"));
             eprintln!("squad-station: warning: get_agent failed: {e}");
             return Ok(());
         }
@@ -128,11 +124,7 @@ pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Res
             let notification = format!("[SQUAD INPUT NEEDED] Agent '{}': {}", agent, body);
             match tmux::send_keys_literal(&orch.name, &notification).await {
                 Ok(()) => {
-                    log_notify(
-                        "OK",
-                        &agent,
-                        &format!("notified=true orch={}", orch.name),
-                    );
+                    log_notify("OK", &agent, &format!("notified=true orch={}", orch.name));
                     true
                 }
                 Err(e) => {
@@ -148,7 +140,10 @@ pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Res
             log_notify(
                 "WARN",
                 &agent,
-                &format!("notified=false reason=orch_session_missing orch={}", orch.name),
+                &format!(
+                    "notified=false reason=orch_session_missing orch={}",
+                    orch.name
+                ),
             );
             false
         }

@@ -1026,21 +1026,36 @@ async fn test_signal_rapid_fire_completes_all_processing() {
 
     // Check remaining processing — should be 3
     let remaining = messages::count_processing(&pool, "agent-rf").await.unwrap();
-    assert_eq!(remaining, 3, "3 tasks should still be processing before bulk complete");
+    assert_eq!(
+        remaining, 3,
+        "3 tasks should still be processing before bulk complete"
+    );
 
     // Now simulate what signal.rs does: bulk complete all remaining
-    let bulk = messages::complete_all_processing(&pool, "agent-rf").await.unwrap();
-    assert_eq!(bulk, 3, "bulk complete should complete the remaining 3 tasks");
+    let bulk = messages::complete_all_processing(&pool, "agent-rf")
+        .await
+        .unwrap();
+    assert_eq!(
+        bulk, 3,
+        "bulk complete should complete the remaining 3 tasks"
+    );
 
     // Verify: zero processing messages remain
     let final_remaining = messages::count_processing(&pool, "agent-rf").await.unwrap();
-    assert_eq!(final_remaining, 0, "zero processing messages after signal cleanup");
+    assert_eq!(
+        final_remaining, 0,
+        "zero processing messages after signal cleanup"
+    );
 
     // Verify: all 4 tasks are completed
     let completed = messages::list_messages(&pool, Some("agent-rf"), Some("completed"), 10)
         .await
         .unwrap();
-    assert_eq!(completed.len(), 4, "all 4 rapid-fired tasks must be completed");
+    assert_eq!(
+        completed.len(),
+        4,
+        "all 4 rapid-fired tasks must be completed"
+    );
 }
 
 #[tokio::test]
@@ -1171,16 +1186,12 @@ async fn test_second_send_does_not_overwrite_current_task() {
     );
 
     // Verify task B is queued in DB as processing (will be picked up by signal remaining check)
-    let remaining = messages::count_processing(&pool, "agent-ct")
-        .await
-        .unwrap();
+    let remaining = messages::count_processing(&pool, "agent-ct").await.unwrap();
     assert_eq!(remaining, 2, "both tasks should be in processing state");
 
     // Now simulate signal completing task A → should pick up task B
     messages::complete_by_id(&pool, &task_a).await.unwrap();
-    let remaining_after = messages::count_processing(&pool, "agent-ct")
-        .await
-        .unwrap();
+    let remaining_after = messages::count_processing(&pool, "agent-ct").await.unwrap();
     assert_eq!(
         remaining_after, 1,
         "after signal completes A, B should still be processing"

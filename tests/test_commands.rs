@@ -429,7 +429,10 @@ async fn test_format_inject_output_claude_code_returns_raw_content() {
 
     let content = "You are the orchestrator.\n## Agent Roster\n";
     let output = format_inject_output("claude-code", content);
-    assert_eq!(output, content, "Claude Code inject must return raw content");
+    assert_eq!(
+        output, content,
+        "Claude Code inject must return raw content"
+    );
 }
 
 #[tokio::test]
@@ -438,8 +441,8 @@ async fn test_format_inject_output_gemini_cli_returns_json() {
 
     let content = "You are the orchestrator.";
     let output = format_inject_output("gemini-cli", content);
-    let parsed: serde_json::Value = serde_json::from_str(&output)
-        .expect("Gemini CLI inject output must be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&output).expect("Gemini CLI inject output must be valid JSON");
     assert_eq!(
         parsed["hookSpecificOutput"]["additionalContext"]
             .as_str()

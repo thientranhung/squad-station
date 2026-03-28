@@ -81,7 +81,14 @@ async fn watchdog_daemon_stays_alive_after_start() {
 
     // Start the daemon
     let output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -102,7 +109,10 @@ async fn watchdog_daemon_stays_alive_after_start() {
 
     // PID file must exist
     let pid_file = squad_dir.join("watch.pid");
-    assert!(pid_file.exists(), "watch.pid must be created after daemon start");
+    assert!(
+        pid_file.exists(),
+        "watch.pid must be created after daemon start"
+    );
 
     let pid: i32 = std::fs::read_to_string(&pid_file)
         .unwrap()
@@ -173,10 +183,7 @@ async fn watchdog_daemon_stays_alive_after_start() {
     );
 
     // PID file must be cleaned up
-    assert!(
-        !pid_file.exists(),
-        "watch.pid must be removed after --stop"
-    );
+    assert!(!pid_file.exists(), "watch.pid must be removed after --stop");
 }
 
 /// Starting a second daemon while one is running must fail with an error.
@@ -190,7 +197,14 @@ async fn watchdog_daemon_rejects_duplicate_start() {
 
     // Start first daemon
     let output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -211,12 +225,22 @@ async fn watchdog_daemon_rejects_duplicate_start() {
     #[cfg(unix)]
     {
         let alive = unsafe { libc::kill(pid, 0) == 0 };
-        assert!(alive, "first daemon must be alive before second start attempt");
+        assert!(
+            alive,
+            "first daemon must be alive before second start attempt"
+        );
     }
 
     // Try to start a second daemon — must fail
     let dup_output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -299,7 +323,14 @@ async fn watchdog_cleans_stale_pid_file_on_start() {
 
     // Start daemon — should succeed despite stale PID file
     let output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -317,7 +348,10 @@ async fn watchdog_cleans_stale_pid_file_on_start() {
         .trim()
         .parse()
         .unwrap();
-    assert_ne!(new_pid, 99999999, "PID file must be updated to new daemon PID");
+    assert_ne!(
+        new_pid, 99999999,
+        "PID file must be updated to new daemon PID"
+    );
 
     // Cleanup
     let _ = Command::new(bin())
@@ -339,7 +373,14 @@ async fn watchdog_daemon_writes_log_on_start() {
     let _pool = setup_db(&db_path).await;
 
     let output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -395,18 +436,14 @@ async fn init_creates_all_artifacts() {
     // The JSON output tells us what happened.
 
     // 1. Database must be created
-    assert!(
-        db_path.exists(),
-        "init must create .squad/station.db"
-    );
+    assert!(db_path.exists(), "init must create .squad/station.db");
 
     // 2. Verify DB has correct schema — agents table must exist with our registered agents
     let pool = setup_db(&db_path).await;
-    let agents: Vec<(String,)> =
-        sqlx::query_as("SELECT name FROM agents ORDER BY name")
-            .fetch_all(&pool)
-            .await
-            .expect("query agents");
+    let agents: Vec<(String,)> = sqlx::query_as("SELECT name FROM agents ORDER BY name")
+        .fetch_all(&pool)
+        .await
+        .expect("query agents");
     let agent_names: Vec<&str> = agents.iter().map(|a| a.0.as_str()).collect();
     assert!(
         agent_names.contains(&"e2e-test-orch"),
@@ -423,10 +460,12 @@ async fn init_creates_all_artifacts() {
     // 3. JSON output must be valid
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.trim().is_empty() {
-        let json: serde_json::Value =
-            serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
-                panic!("init JSON output must be valid JSON: {}, got: {}", e, stdout)
-            });
+        let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+            panic!(
+                "init JSON output must be valid JSON: {}, got: {}",
+                e, stdout
+            )
+        });
         assert!(
             json.get("db_path").is_some(),
             "JSON output must contain db_path"
@@ -531,7 +570,14 @@ async fn doctor_detects_running_watchdog() {
 
     // Start watchdog daemon
     let start = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()
@@ -613,7 +659,14 @@ async fn watchdog_self_detection_regression() {
 
     // Start daemon
     let output = Command::new(bin())
-        .args(["watch", "--daemon", "--interval", "5", "--stall-threshold", "1"])
+        .args([
+            "watch",
+            "--daemon",
+            "--interval",
+            "5",
+            "--stall-threshold",
+            "1",
+        ])
         .current_dir(dir.path())
         .env("SQUAD_STATION_DB", db_path.to_str().unwrap())
         .output()

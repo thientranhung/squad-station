@@ -102,9 +102,7 @@ pub async fn run(config_path: PathBuf, yes: bool, delete_all: bool, json: bool) 
     let db_path = config::resolve_db_path(&config)?;
 
     // .squad directory (parent of station.db)
-    let squad_dir = db_path
-        .parent()
-        .unwrap_or(Path::new("."));
+    let squad_dir = db_path.parent().unwrap_or(Path::new("."));
 
     if !yes {
         let prompt = if delete_all {

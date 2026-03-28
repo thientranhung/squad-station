@@ -8,11 +8,7 @@ pub async fn run() -> anyhow::Result<()> {
     // Ensure DB exists and migrations are applied before checking
     let _pool = db::connect(&db_path).await?;
 
-    let orch_role = cfg
-        .orchestrator
-        .name
-        .as_deref()
-        .unwrap_or("orchestrator");
+    let orch_role = cfg.orchestrator.name.as_deref().unwrap_or("orchestrator");
     let orch_name = config::sanitize_session_name(&format!("{}-{}", cfg.project, orch_role));
 
     let failures = super::init::run_health_check(&cfg, &db_path, &orch_name);

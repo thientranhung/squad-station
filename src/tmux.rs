@@ -564,7 +564,8 @@ mod tests {
 
     #[test]
     fn test_wrap_with_agent_env() {
-        let result = wrap_with_agent_env("kindle-implement", "claude --dangerously-skip-permissions");
+        let result =
+            wrap_with_agent_env("kindle-implement", "claude --dangerously-skip-permissions");
         assert_eq!(
             result,
             "export SQUAD_AGENT_NAME='kindle-implement'; claude --dangerously-skip-permissions"

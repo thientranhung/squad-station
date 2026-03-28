@@ -1,5 +1,5 @@
-use anyhow::{bail, Result};
 use crate::{commands::helpers, config, db};
+use anyhow::{bail, Result};
 
 pub async fn run(
     interval_secs: u64,
@@ -80,8 +80,7 @@ pub async fn run(
         #[cfg(unix)]
         {
             let cwd = std::env::current_dir()?;
-            let child =
-                helpers::spawn_watchdog_daemon(&cwd, interval_secs, _stall_threshold_mins)?;
+            let child = helpers::spawn_watchdog_daemon(&cwd, interval_secs, _stall_threshold_mins)?;
             let pid = child.id();
             std::fs::write(&pid_file, pid.to_string())?;
             println!("Watchdog daemon started (PID {})", pid);
@@ -105,9 +104,7 @@ pub async fn run(
         &format!("watchdog started interval={}s", interval_secs),
     );
 
-    let is_running = || {
-        !SHUTDOWN.load(std::sync::atomic::Ordering::Relaxed)
-    };
+    let is_running = || !SHUTDOWN.load(std::sync::atomic::Ordering::Relaxed);
 
     while is_running() {
         if let Err(e) = tick(&db_path, &squad_dir).await {
@@ -147,10 +144,7 @@ extern "C" fn signal_trampoline(_sig: libc::c_int) {
 }
 
 /// Health check tick: verify tmux sessions are alive, mark dead if missing.
-async fn tick(
-    db_path: &std::path::Path,
-    _squad_dir: &std::path::Path,
-) -> Result<()> {
+async fn tick(db_path: &std::path::Path, _squad_dir: &std::path::Path) -> Result<()> {
     let pool = db::connect(db_path).await?;
 
     // Check tmux session liveness for all agents.

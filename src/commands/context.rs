@@ -26,12 +26,16 @@ pub fn build_orchestrator_md(
     out.push_str("Think like a Project Manager: you read dashboards to make informed decisions, but you delegate all deep work to agents.\n\n");
     out.push_str("### ALLOWED — You may do these directly (no delegation needed)\n\n");
     out.push_str("- `squad-station` CLI commands (send, list, agents, status, peek)\n");
-    out.push_str("- `tmux capture-pane -t <agent> -p` — to read agent output after `[SQUAD SIGNAL]`\n");
+    out.push_str(
+        "- `tmux capture-pane -t <agent> -p` — to read agent output after `[SQUAD SIGNAL]`\n",
+    );
     if !sdd_configs.is_empty() {
         out.push_str("- Reading SDD playbook(s) listed in PRE-FLIGHT\n");
     }
     out.push_str("- Reading **tracking/status files** (e.g. sprint-status.yaml, epics.md, REQUIREMENTS.md, CHANGELOG) — these are your dashboards\n");
-    out.push_str("- `git status`, `git branch` — orientation only (which branch, clean/dirty state)\n");
+    out.push_str(
+        "- `git status`, `git branch` — orientation only (which branch, clean/dirty state)\n",
+    );
     out.push_str("- Asking the user for clarification\n\n");
     out.push_str("### MUST DELEGATE — Send these to agents via `squad-station send`\n\n");
     out.push_str("- Reading or analyzing **source code** files (*.rs, *.ts, *.py, etc.)\n");
@@ -75,10 +79,14 @@ pub fn build_orchestrator_md(
     out.push_str("You MUST send `/clear` to an agent BEFORE dispatching a new task if ANY of these conditions are true:\n\n");
     out.push_str("### Mandatory `/clear` Triggers\n\n");
     out.push_str("1. **Topic shift** — The new task is on a DIFFERENT topic/feature than the agent's last completed task.\n");
-    out.push_str("   Examples: bug fix → new feature, UI work → backend work, different file areas.\n\n");
+    out.push_str(
+        "   Examples: bug fix → new feature, UI work → backend work, different file areas.\n\n",
+    );
     out.push_str("2. **Task count threshold** — The agent has completed 3 or more consecutive tasks without a `/clear`.\n");
     out.push_str("   Count resets after each `/clear`.\n\n");
-    out.push_str("3. **Agent hint** — The agent's output mentions context issues, suggests clearing,\n");
+    out.push_str(
+        "3. **Agent hint** — The agent's output mentions context issues, suggests clearing,\n",
+    );
     out.push_str("   or shows signs of confusion (referencing old/irrelevant code).\n\n");
     out.push_str("### `/clear` Checklist (run BEFORE every `squad-station send`)\n\n");
     out.push_str("□ Is this a topic shift from the agent's last task? → /clear\n");
@@ -162,9 +170,13 @@ pub fn build_orchestrator_md(
     out.push_str("3. If agent asked technical questions → answer from your dashboard knowledge if possible, otherwise delegate research to another agent\n");
     out.push_str("4. If agent asked about requirements where the user's INTENT is genuinely ambiguous → escalate to user\n");
     out.push_str("5. `squad-station list --agent <agent>` — confirm status is `completed`\n");
-    out.push_str("6. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n");
+    out.push_str(
+        "6. Run the `/clear` checklist (see Context Management) — if ANY condition matches,\n",
+    );
     out.push_str("   send `/clear` to the agent BEFORE dispatching the next task.\n");
-    out.push_str("7. Proceed to next step, or report to user ONLY when the ENTIRE workflow is complete.\n\n");
+    out.push_str(
+        "7. Proceed to next step, or report to user ONLY when the ENTIRE workflow is complete.\n\n",
+    );
 
     // ── Agent Roster ─────────────────────────────────────────────────────
     out.push_str("## Agent Roster\n\n");
@@ -379,7 +391,10 @@ async fn run_inject(
     let content = build_orchestrator_md(&agents, &project_root_str, sdd_configs);
 
     // Output in provider-appropriate format
-    print!("{}", format_inject_output(&config.orchestrator.provider, &content));
+    print!(
+        "{}",
+        format_inject_output(&config.orchestrator.provider, &content)
+    );
     Ok(())
 }
 
@@ -389,7 +404,10 @@ mod tests {
 
     #[test]
     fn test_bootstrap_block_contains_markers_and_session() {
-        let block = build_bootstrap_block("myproject-orchestrator", ".claude/commands/squad-orchestrator.md");
+        let block = build_bootstrap_block(
+            "myproject-orchestrator",
+            ".claude/commands/squad-orchestrator.md",
+        );
         assert!(block.starts_with(BOOTSTRAP_MARKER_START));
         assert!(block.ends_with(BOOTSTRAP_MARKER_END));
         assert!(block.contains("myproject-orchestrator"));
@@ -400,12 +418,8 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_file_not_exists() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result = inject_bootstrap_block(
-            tmp.path(),
-            "claude-code",
-            "proj-orchestrator",
-        )
-        .unwrap();
+        let result =
+            inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
 
         assert_eq!(result, "CLAUDE.md");
 
@@ -421,7 +435,11 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_file_exists_without_markers() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("CLAUDE.md"), "# My Project\n\nExisting content.\n").unwrap();
+        std::fs::write(
+            tmp.path().join("CLAUDE.md"),
+            "# My Project\n\nExisting content.\n",
+        )
+        .unwrap();
 
         inject_bootstrap_block(tmp.path(), "claude-code", "proj-orchestrator").unwrap();
 
@@ -462,12 +480,7 @@ mod tests {
     #[test]
     fn test_inject_bootstrap_gemini_provider() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result = inject_bootstrap_block(
-            tmp.path(),
-            "gemini-cli",
-            "proj-orchestrator",
-        )
-        .unwrap();
+        let result = inject_bootstrap_block(tmp.path(), "gemini-cli", "proj-orchestrator").unwrap();
 
         assert_eq!(result, "GEMINI.md");
 

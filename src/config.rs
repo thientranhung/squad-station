@@ -72,8 +72,8 @@ pub struct AgentConfig {
 pub fn sanitize_session_name(name: &str) -> String {
     name.chars()
         .map(|c| match c {
-            '.' | ':' | '"' | '\'' | '`' | '$' | ';' | '(' | ')' | '|' | '&' | '<' | '>'
-            | '\\' | ' ' | '\n' | '\0' | '/' => '-',
+            '.' | ':' | '"' | '\'' | '`' | '$' | ';' | '(' | ')' | '|' | '&' | '<' | '>' | '\\'
+            | ' ' | '\n' | '\0' | '/' => '-',
             _ => c,
         })
         .collect()
@@ -231,8 +231,7 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("opus, sonnet, haiku"));
 
-        let err =
-            validate_agent_config("a", &make_agent("codex", Some("gpt-4o"))).unwrap_err();
+        let err = validate_agent_config("a", &make_agent("codex", Some("gpt-4o"))).unwrap_err();
         assert!(err.to_string().contains("gpt-5.4"));
 
         let err =
