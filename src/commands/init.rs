@@ -850,7 +850,7 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
             cmd
         }
         "codex" => {
-            let mut cmd = "codex --full-auto".to_string();
+            let mut cmd = "codex --yolo".to_string();
             if let Some(model) = &agent.model {
                 if is_safe_model_value(model) {
                     cmd.push_str(&format!(" --model {}", model));
@@ -1440,7 +1440,7 @@ mod tests {
         };
         assert_eq!(
             get_launch_command(&agent),
-            "codex --full-auto --model gpt-5.4"
+            "codex --yolo --model gpt-5.4"
         );
     }
 
@@ -1453,7 +1453,7 @@ mod tests {
             model: None,
             description: None,
         };
-        assert_eq!(get_launch_command(&agent), "codex --full-auto");
+        assert_eq!(get_launch_command(&agent), "codex --yolo");
     }
 
     #[test]

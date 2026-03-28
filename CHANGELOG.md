@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.9 — Fix Codex Launch Flag (2026-03-28)
+
+Fixes the Codex agent launch command from `--full-auto` to `--yolo`.
+
+### Fixed
+
+- **Codex launch flag** — `squad-station init` now launches Codex agents with `codex --yolo` (was incorrectly using `codex --full-auto` which is not a valid flag)
+
+---
+
 ## v0.7.8 — OpenAI Codex Provider (2026-03-28)
 
 Adds OpenAI Codex CLI as a first-class provider alongside `claude-code` and `gemini-cli`. Codex agents can now be orchestrated end-to-end: auto-installed hooks, model validation, launch command generation, and context injection.
