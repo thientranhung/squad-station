@@ -295,17 +295,11 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Re-run hooks, regenerate context, restart monitor. Always safe to call.
+/// Re-run hooks and regenerate context. Always safe to call.
 fn run_housekeeping(config: &config::SquadConfig, project_root: &Path) -> Result<()> {
     // Re-install hooks (idempotent)
     let _ = auto_install_hooks_pub(&config.orchestrator.provider);
     let _ = install_session_start_hook_pub(&config.orchestrator.provider, project_root);
-
-    // Restart monitor session
-    let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
-    if tmux::session_exists(&monitor_name) {
-        tmux::kill_session(&monitor_name)?;
-    }
 
     Ok(())
 }

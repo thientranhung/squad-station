@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.13 — Fix Update Kills Monitor Session (2026-03-29)
+
+Fixes a bug where `squad-station update` would kill the monitor tmux session without relaunching it, causing the monitor to go missing after every update call.
+
+### Fixed
+
+- **`squad-station update` kills monitor session** — `run_housekeeping` was killing `<project>-monitor` tmux session as part of cleanup but never relaunching it. Removed the kill-monitor logic since `update` has no responsibility over the monitor session — it should be left running untouched.
+
+---
+
 ## v0.7.12 — Update Command (2026-03-29)
 
 Adds `squad-station update` — a soft update that syncs a running squad with changes in `squad.yml` without tearing down existing sessions.
