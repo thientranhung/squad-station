@@ -200,16 +200,7 @@ pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
                 "[SQUAD SIGNAL] Agent '{}' completed task {}. Read output: tmux capture-pane -t {} -p | Next: squad-station status",
                 agent, task_id_str, agent
             );
-            if orch.tool == "antigravity" {
-                // DB-only orchestrator: polls DB for completions, no push notification needed.
-                log_signal(
-                    &project_root,
-                    "OK",
-                    &agent,
-                    &format!("task={} notified=false reason=antigravity", task_id_str),
-                );
-                false
-            } else if tmux::session_exists(&orch.name) {
+            if tmux::session_exists(&orch.name) {
                 // Only notify if orchestrator tmux session is running.
                 match tmux::send_keys_literal(&orch.name, &notification).await {
                     Ok(()) => {

@@ -2,6 +2,26 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.16 — Remove Antigravity Provider (2026-03-29)
+
+Antigravity is not a CLI agent and has been completely removed from squad-station. All providers now use tmux sessions — the DB-only mode is gone.
+
+### Removed
+
+- **`antigravity` provider** — Removed from `VALID_PROVIDERS`, `is_db_only()` method, all conditional branches in `init`, `signal`, `notify`, `helpers`, and `update`
+- **`is_db_only()` method** on `AgentConfig` — No longer needed; every provider is tmux-based
+- **DB-only orchestrator path** in `init` — Orchestrator always launches in a tmux session
+- **Antigravity skip logic** in `signal` and `notify` — Orchestrator notifications no longer have an antigravity bypass
+- **12 antigravity-specific tests** across `test_config.rs` and `test_integration.rs`
+
+### Changed
+
+- `VALID_PROVIDERS` is now `["claude-code", "codex", "gemini-cli"]`
+- Monitor session in `update` always includes orchestrator (no more `is_db_only` guard)
+- `scripts/_common.sh` VALID_PROVIDERS updated to match
+
+---
+
 ## v0.7.15 — Update Auto-Recovers Dead Monitor Session (2026-03-29)
 
 `squad-station update` now automatically recreates the monitor session if it is missing or dead, completing the full recovery from the v0.7.12 bug.

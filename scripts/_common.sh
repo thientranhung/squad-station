@@ -7,7 +7,7 @@
 # ── Valid providers and models ───────────────────────────────────────────────
 # Single source of truth for provider → model validation.
 
-VALID_PROVIDERS="claude-code gemini-cli antigravity"
+VALID_PROVIDERS="claude-code gemini-cli codex"
 
 valid_models_for() {
   local provider="$1"

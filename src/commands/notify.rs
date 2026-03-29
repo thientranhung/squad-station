@@ -117,10 +117,7 @@ pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Res
     // Find orchestrator and send notification
     let orchestrator = db::agents::get_orchestrator(&pool).await?;
     let notified = if let Some(orch) = orchestrator {
-        if orch.tool == "antigravity" {
-            log_notify("OK", &agent, "notified=false reason=antigravity");
-            false // DB-only orchestrator
-        } else if tmux::session_exists(&orch.name) {
+        if tmux::session_exists(&orch.name) {
             let notification = format!("[SQUAD INPUT NEEDED] Agent '{}': {}", agent, body);
             match tmux::send_keys_literal(&orch.name, &notification).await {
                 Ok(()) => {

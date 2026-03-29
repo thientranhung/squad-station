@@ -7,16 +7,11 @@ use std::os::unix::process::CommandExt;
 
 /// Reconcile agent statuses against live tmux sessions.
 /// Marks agents as "dead" if their session is gone, or revives to "idle" if session reappears.
-/// Skips db-only agents (e.g. antigravity) that never have tmux sessions.
 pub async fn reconcile_agent_statuses(pool: &SqlitePool) -> anyhow::Result<()> {
     let agents = db::agents::list_agents(pool).await?;
     for agent in &agents {
         // Don't override frozen status — user is in control
         if agent.status == "frozen" {
-            continue;
-        }
-        // Skip db-only agents (antigravity) — they never have tmux sessions
-        if agent.tool == "antigravity" {
             continue;
         }
         let session_alive = tmux::session_exists(&agent.name);

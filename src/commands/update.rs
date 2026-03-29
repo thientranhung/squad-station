@@ -317,17 +317,15 @@ fn ensure_monitor(config: &config::SquadConfig) -> Result<()> {
 
     // Build the ordered list of agent sessions (orchestrator first, then workers)
     let mut sessions: Vec<String> = vec![];
-    if !config.orchestrator.is_db_only() {
-        let orch_suffix = config
-            .orchestrator
-            .name
-            .as_deref()
-            .unwrap_or("orchestrator");
-        sessions.push(config::sanitize_session_name(&format!(
-            "{}-{}",
-            config.project, orch_suffix
-        )));
-    }
+    let orch_suffix = config
+        .orchestrator
+        .name
+        .as_deref()
+        .unwrap_or("orchestrator");
+    sessions.push(config::sanitize_session_name(&format!(
+        "{}-{}",
+        config.project, orch_suffix
+    )));
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
         sessions.push(config::sanitize_session_name(&format!(

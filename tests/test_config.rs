@@ -38,27 +38,6 @@ fn test_provider_field() {
 }
 
 #[test]
-fn test_antigravity_provider_parses() {
-    let yaml = "project: p\norchestrator:\n  provider: antigravity\nagents: []";
-    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(cfg.orchestrator.provider, "antigravity");
-}
-
-#[test]
-fn test_is_db_only_antigravity() {
-    let yaml = "project: p\norchestrator:\n  provider: antigravity\nagents: []";
-    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
-    assert!(cfg.orchestrator.is_db_only());
-}
-
-#[test]
-fn test_is_db_only_claude_code_false() {
-    let yaml = "project: p\norchestrator:\n  provider: claude-code\nagents: []";
-    let cfg: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
-    assert!(!cfg.orchestrator.is_db_only());
-}
-
-#[test]
 fn test_sanitize_session_name_shell_metacharacters() {
     assert_eq!(sanitize_session_name("a'b"), "a-b");
     assert_eq!(sanitize_session_name("a`b"), "a-b");

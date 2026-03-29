@@ -32,13 +32,8 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     )
     .await?;
 
-    // 5. Launch orchestrator tmux session (or skip if db-only provider)
-    let mut db_only_names: Vec<String> = vec![];
-    let orch_launched = if config.orchestrator.is_db_only() {
-        // Antigravity: DB-only orchestrator — register to DB only, no tmux session.
-        db_only_names.push(orch_name.clone());
-        false
-    } else if tmux::session_exists(&orch_name) {
+    // 5. Launch orchestrator tmux session
+    let orch_launched = if tmux::session_exists(&orch_name) {
         false
     } else {
         // Orchestrator launches at project root.
@@ -52,7 +47,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         tmux::launch_agent_in_dir(&orch_name, &cmd, &project_root_str)?;
         true
     };
-    let orch_skipped = !orch_launched && !config.orchestrator.is_db_only();
+    let orch_skipped = !orch_launched;
 
     // 6. Register and launch each worker agent — continue on partial failure
     let mut failed: Vec<(String, String)> = vec![];
@@ -104,9 +99,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 7. Create monitor session with interactive panes for all agents
     let monitor_name = format!("{}-monitor", config.project);
     let mut monitor_sessions: Vec<String> = vec![];
-    if !config.orchestrator.is_db_only() {
-        monitor_sessions.push(orch_name.clone());
-    }
+    monitor_sessions.push(orch_name.clone());
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
         let agent_name =
@@ -142,12 +135,6 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         for name in &skipped_names {
             println!("  - {}: already running (skipped)", name);
         }
-        for name in &db_only_names {
-            println!(
-                "  {}: db-only (antigravity orchestrator — no tmux session)",
-                name
-            );
-        }
         for (name, error) in &failed {
             println!("  x {}: {}", name, error);
         }
@@ -155,13 +142,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     }
 
     // 8. Exit code: return Err only if ALL agents failed (including orchestrator)
-    // DB-only orchestrator is excluded from total: it is never launched and never fails.
-    let total = config.agents.len()
-        + if config.orchestrator.is_db_only() {
-            0
-        } else {
-            1
-        };
+    let total = config.agents.len() + 1;
     if !failed.is_empty() && failed.len() == total {
         anyhow::bail!("All {} agent(s) failed to launch", total);
     }
@@ -491,7 +472,7 @@ pub fn run_health_check(
                     provider, path
                 ));
             }
-        } else if provider != "antigravity" {
+        } else {
             println!(
                 "  {} Hooks ({}) — unsupported provider, manual setup required",
                 warn, provider
@@ -516,18 +497,16 @@ pub fn run_health_check(
     }
 
     // 5. Tmux sessions alive
-    if !config.orchestrator.is_db_only() {
-        if tmux::session_exists(orch_name) {
-            println!("  {} Orchestrator session: {}", pass, orch_name);
-            pass_count += 1;
-        } else {
-            println!("  {} Orchestrator session not running: {}", fail, orch_name);
-            fail_count += 1;
-            remediation.push(format!(
-                "Orchestrator tmux session '{}' is not running. Re-run `squad-station init`.",
-                orch_name
-            ));
-        }
+    if tmux::session_exists(orch_name) {
+        println!("  {} Orchestrator session: {}", pass, orch_name);
+        pass_count += 1;
+    } else {
+        println!("  {} Orchestrator session not running: {}", fail, orch_name);
+        fail_count += 1;
+        remediation.push(format!(
+            "Orchestrator tmux session '{}' is not running. Re-run `squad-station init`.",
+            orch_name
+        ));
     }
 
     for agent in &config.agents {
@@ -1335,7 +1314,6 @@ mod tests {
     #[test]
     fn test_install_session_start_hook_unknown_provider_returns_false() {
         let tmp = tempfile::TempDir::new().unwrap();
-        assert!(!install_session_start_hook("antigravity", tmp.path()).unwrap());
         assert!(!install_session_start_hook("unknown-tool", tmp.path()).unwrap());
     }
 
@@ -1393,10 +1371,9 @@ mod tests {
         )
         .unwrap();
 
-        let providers = vec!["antigravity".to_string(), "claude-code".to_string()];
+        let providers = vec!["claude-code".to_string()];
         let installed = install_sdd_rules("bmad-method", root, &providers).unwrap();
 
-        // antigravity skipped, only claude-code installed
         assert_eq!(installed.len(), 1);
         assert!(installed[0].contains(".claude/rules"));
     }
@@ -1427,7 +1404,6 @@ mod tests {
     fn test_rules_dir_for_provider() {
         assert_eq!(rules_dir_for_provider("claude-code"), Some(".claude/rules"));
         assert_eq!(rules_dir_for_provider("gemini-cli"), Some(".gemini/rules"));
-        assert_eq!(rules_dir_for_provider("antigravity"), None);
         assert_eq!(rules_dir_for_provider("unknown"), None);
     }
 

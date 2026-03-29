@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
 /// Allowed provider values for squad.yml
-const VALID_PROVIDERS: &[&str] = &["antigravity", "claude-code", "codex", "gemini-cli"];
+const VALID_PROVIDERS: &[&str] = &["claude-code", "codex", "gemini-cli"];
 
 /// Valid model identifiers per provider (provider → allowed model slugs)
 fn valid_models_for(provider: &str) -> Option<&'static [&'static str]> {
@@ -58,7 +58,7 @@ impl SquadConfig {
 #[serde(deny_unknown_fields)]
 pub struct AgentConfig {
     pub name: Option<String>, // optional; orchestrator name auto-derived in Phase 5
-    pub provider: String,     // CONF-04: provider name (e.g. claude-code, gemini-cli, antigravity)
+    pub provider: String,     // CONF-04: provider name (e.g. claude-code, gemini-cli, codex)
     #[serde(default = "default_role")]
     pub role: String,
     pub model: Option<String>, // CONF-02: optional model override
@@ -77,14 +77,6 @@ pub fn sanitize_session_name(name: &str) -> String {
             _ => c,
         })
         .collect()
-}
-
-impl AgentConfig {
-    /// Returns true when the agent uses DB-only mode (no tmux session).
-    /// Currently only "antigravity" is DB-only. All other provider values use tmux.
-    pub fn is_db_only(&self) -> bool {
-        self.provider == "antigravity"
-    }
 }
 
 fn default_role() -> String {
@@ -202,7 +194,6 @@ mod tests {
         assert!(validate_agent_config("orch", &make_agent("claude-code", None)).is_ok());
         assert!(validate_agent_config("orch", &make_agent("codex", None)).is_ok());
         assert!(validate_agent_config("orch", &make_agent("gemini-cli", None)).is_ok());
-        assert!(validate_agent_config("orch", &make_agent("antigravity", None)).is_ok());
     }
 
     #[test]
@@ -239,14 +230,6 @@ mod tests {
         assert!(err
             .to_string()
             .contains("gemini-3.1-pro-preview, gemini-3-flash-preview"));
-    }
-
-    #[test]
-    fn antigravity_model_not_validated() {
-        // antigravity has no known model list — any model value (or none) is accepted
-        assert!(
-            validate_agent_config("orch", &make_agent("antigravity", Some("anything"))).is_ok()
-        );
     }
 
     #[test]
