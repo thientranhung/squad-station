@@ -9,10 +9,18 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 1. Parse squad.yml
     let config = config::load_config(&config_path)?;
 
-    // 2. Resolve DB path
+    // 2. Pre-flight: detect tmux session name conflicts from other projects.
+    //    If squad.yml was copied without changing `project:`, the session names
+    //    would collide with a running squad in a different directory.
+    //    Skipped in JSON mode (programmatic/CI) and when SQUAD_STATION_DB is set (tests).
+    if !json && std::env::var("SQUAD_STATION_DB").is_err() {
+        check_session_conflicts(&config)?;
+    }
+
+    // 3. Resolve DB path
     let db_path = config::resolve_db_path(&config)?;
 
-    // 3. Connect to DB (creates file + runs migrations)
+    // 4. Connect to DB (creates file + runs migrations)
     let pool = db::connect(&db_path).await?;
 
     // 4. Register orchestrator with hardcoded role="orchestrator"
@@ -590,6 +598,64 @@ pub fn run_health_check(
     println!();
 
     fail_count
+}
+
+/// Check if planned tmux session names conflict with sessions running from a different project.
+fn check_session_conflicts(config: &config::SquadConfig) -> anyhow::Result<()> {
+    let project_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let canonical_root =
+        std::fs::canonicalize(&project_root).unwrap_or(project_root);
+
+    let mut planned: Vec<String> = vec![];
+    let orch_suffix = config
+        .orchestrator
+        .name
+        .as_deref()
+        .unwrap_or("orchestrator");
+    planned.push(config::sanitize_session_name(&format!(
+        "{}-{}",
+        config.project, orch_suffix
+    )));
+    for agent in &config.agents {
+        let suffix = agent.name.as_deref().unwrap_or(&agent.role);
+        planned.push(config::sanitize_session_name(&format!(
+            "{}-{}",
+            config.project, suffix
+        )));
+    }
+
+    let mut conflicts: Vec<(String, String)> = vec![];
+    for name in &planned {
+        if let Some(cwd) = tmux::session_cwd(name) {
+            let session_root =
+                std::fs::canonicalize(&cwd).unwrap_or_else(|_| PathBuf::from(&cwd));
+            if session_root != canonical_root {
+                conflicts.push((name.clone(), cwd));
+            }
+        }
+    }
+
+    if !conflicts.is_empty() {
+        eprintln!();
+        eprintln!("  ⚠️  Session name conflict — tmux sessions already running from a different project:");
+        eprintln!();
+        for (name, cwd) in &conflicts {
+            eprintln!("       • {} → {}", name, cwd);
+        }
+        eprintln!();
+        eprintln!("  This project root : {}", canonical_root.display());
+        eprintln!();
+        eprintln!(
+            "  Likely cause: squad.yml was copied without changing the `project:` field."
+        );
+        eprintln!(
+            "  Fix: update `project:` in squad.yml to a unique name, then re-run `squad-station init`."
+        );
+        eprintln!();
+        anyhow::bail!("Aborting init — session name conflict with another project");
+    }
+
+    Ok(())
 }
 
 fn auto_install_hooks(provider: &str) -> anyhow::Result<bool> {

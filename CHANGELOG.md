@@ -2,6 +2,18 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.21 — Init detects tmux session name conflicts (2026-03-29)
+
+`squad-station init` now checks if planned tmux session names are already in use by another project, preventing accidental collisions when `squad.yml` is copied without changing the `project:` field.
+
+### Added
+
+- **Session conflict detection** — Before creating any sessions, `init` queries each planned session's CWD via `tmux display-message`. If a session exists but its working directory differs from the current project root, init aborts with a clear error showing which sessions conflict and where they're running from.
+- `tmux::session_cwd()` helper — Returns the active pane's current working directory for a given tmux session.
+- **SDD playbook updates** — All bundled playbooks (bmad, gsd, openspec, superpowers) streamlined.
+
+---
+
 ## v0.7.20 — Update SDD playbooks (2026-03-29)
 
 Refined all bundled SDD (Solution Design Document) playbooks with streamlined content.
