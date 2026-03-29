@@ -343,7 +343,7 @@ async fn test_build_orchestrator_md_contains_all_sections() {
         "Missing signal format example"
     );
     assert!(
-        content.contains("DO NOT need to"),
+        content.contains("DO NOT poll"),
         "Missing anti-polling instruction"
     );
 }

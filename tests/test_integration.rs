@@ -1222,8 +1222,8 @@ async fn test_context_monitor_content() {
         content
     );
     assert!(
-        content.contains("DO NOT need to"),
-        "CLAUDE.md must state context is auto-loaded, got:\n{}",
+        content.contains("DO NOT poll"),
+        "squad-orchestrator.md must contain anti-polling instruction, got:\n{}",
         content
     );
 }

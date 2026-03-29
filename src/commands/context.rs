@@ -61,15 +61,10 @@ pub fn build_orchestrator_md(
     out.push_str("- [ ] Verify agents are alive: `squad-station agents`\n\n");
 
     // ── Completion Notification ──────────────────────────────────────────
-    out.push_str("## Completion Notification (Automatic)\n\n");
-    out.push_str("Agents have a stop hook configured. When an agent completes a task, the hook\n");
-    out.push_str(
-        "**automatically sends a signal** back to your session. You **DO NOT need to**:\n",
-    );
-    out.push_str("- Continuously poll `tmux capture-pane` to track progress.\n");
-    out.push_str("- Run `sleep`, `squad-station list`, or `squad-station agents` in a loop.\n");
-    out.push_str("- Use the `Agent` tool to spawn subagents.\n\n");
-    out.push_str("After assigning a task, **stop and wait for the signal**:\n\n");
+    out.push_str("## Completion Notification — NO POLLING\n\n");
+    out.push_str("**CRITICAL: DO NOT poll agents.** No `tmux capture-pane` loops, no `sleep` + check cycles, no `squad-station list` polling. ");
+    out.push_str("Agents have stop hooks that **automatically signal you** when done.\n\n");
+    out.push_str("After assigning a task: **stop and wait.** The signal will arrive:\n\n");
     out.push_str("```\n");
     out.push_str("[SQUAD SIGNAL] Agent '<name>' completed task <id>. Read output: tmux capture-pane -t <name> -p | Next: squad-station status\n");
     out.push_str("```\n\n");

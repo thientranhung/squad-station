@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.23 — Stronger anti-polling instruction in orchestrator context (2026-03-29)
+
+Reinforced the "no polling" message in `squad-orchestrator.md` so the orchestrator stops using `tmux capture-pane` loops to check agent progress.
+
+### Changed
+
+- **Orchestrator context: "NO POLLING" section** — Replaced soft "you DO NOT need to" with explicit `CRITICAL: DO NOT poll agents`. Shorter, more direct, harder to ignore.
+
+---
+
 ## v0.7.22 — Simplify session conflict check (2026-03-29)
 
 Simplified the init session conflict detection — now uses a straightforward name match against live tmux sessions instead of querying each session's working directory.
