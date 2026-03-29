@@ -881,6 +881,23 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
     }
 }
 
+// ── Public shims for update.rs ───────────────────────────────────────────────
+
+pub fn get_launch_command_pub(agent: &config::AgentConfig) -> String {
+    get_launch_command(agent)
+}
+
+pub fn auto_install_hooks_pub(provider: &str) -> anyhow::Result<bool> {
+    auto_install_hooks(provider)
+}
+
+pub fn install_session_start_hook_pub(
+    provider: &str,
+    project_root: &std::path::Path,
+) -> anyhow::Result<bool> {
+    install_session_start_hook(provider, project_root)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

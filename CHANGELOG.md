@@ -2,6 +2,24 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.12 — Update Command (2026-03-29)
+
+Adds `squad-station update` — a soft update that syncs a running squad with changes in `squad.yml` without tearing down existing sessions.
+
+### Added
+
+- **`squad-station update`** — Soft squad update command:
+  - Diffs `squad.yml` agents against DB agents and categorises each as: `[NEW]`, `[REMOVED]`, `[WARN] provider changed`, or `[OK] unchanged`
+  - Launches new agents that appear in `squad.yml` but not in DB
+  - Kills and relaunches agents whose provider has changed
+  - Skips agents currently processing a task — prints a warning instead of disrupting live work
+  - Leaves unchanged agents running untouched
+  - Re-runs hook installation and context regeneration (idempotent housekeeping) on every call
+  - Orchestrator is never counted as a "removed" agent — managed separately
+- **10 unit tests** covering all classify_changes edge cases and `has_processing_message` logic (TDD)
+
+---
+
 ## v0.7.11 — Uninstall Command (2026-03-28)
 
 Adds `squad-station uninstall` to cleanly remove squad-station from a project without leaving behind stale hooks, files, or running sessions.

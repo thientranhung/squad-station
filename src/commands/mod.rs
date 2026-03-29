@@ -16,5 +16,6 @@ pub mod signal;
 pub mod status;
 pub mod ui;
 pub mod uninstall;
+pub mod update;
 pub mod view;
 pub mod watch;

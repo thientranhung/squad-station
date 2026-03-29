@@ -125,6 +125,12 @@ pub enum Commands {
         #[arg(long)]
         stop: bool,
     },
+    /// Update squad from squad.yml — launch new agents, restart changed ones, skip running
+    Update {
+        /// Path to squad config file
+        #[arg(default_value = "squad.yml")]
+        config: PathBuf,
+    },
     /// Fully uninstall squad-station from this project (hooks, files, sessions)
     Uninstall {
         /// Path to squad config file
