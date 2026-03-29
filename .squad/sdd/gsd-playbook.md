@@ -1,107 +1,59 @@
 # GSD (Get Shit Done) — Agent Playbook
 
+## How GSD Works
+
+GSD is **phase-based** — work flows through sequential phases within milestones. Each phase: discuss → plan → execute → verify. GSD has its own auto-advance (`/gsd:next`) that determines the correct next step.
+
+## Orchestrator Routing
+
+GSD commands are slash commands that the agent executes. The orchestrator sends commands, not task descriptions:
+
+- ✅ `"/gsd:next"` → agent auto-determines and runs next step
+- ✅ `"/gsd:execute-phase 3"` → agent executes phase 3
+- ❌ `"implement the login feature"` → GSD expects its own commands
+
+### Task Classification
+
+| Situation | Command to send |
+|---|---|
+| Starting brand new project | `/gsd:new-project` |
+| Existing codebase, new milestone | `/gsd:map-codebase` → `/gsd:new-milestone <name>` |
+| Small standalone fix/task | `/gsd:quick` (add `--discuss` or `--research` if needed) |
+| Don't know what's next | `/gsd:next` (auto-advance) |
+| Resuming from previous session | `/gsd:resume-work` |
+| Bug investigation | `/gsd:debug "description"` |
+| Check project status | `/gsd:progress` |
+
 ## Workflow Sequence
 
-**New project (greenfield):**
-1. `/gsd:new-project` — Initialize: Q&A → Research → Requirements → Roadmap
-2. `/clear`
-3. **Phase loop** (repeat for each phase N):
-   - `/gsd:discuss-phase N` — Lock in preferences
-   - `/gsd:ui-phase N` — UI design contract (frontend phases only)
-   - `/gsd:plan-phase N` — Research + Plan + Verify
-   - `/gsd:execute-phase N` — Parallel wave execution + regression gate
-   - `/gsd:verify-work N` — Manual UAT + auto-diagnosis
-   - `/gsd:ui-review N` — Visual audit (frontend phases only)
-   - `/clear`
-4. `/gsd:audit-milestone` — Check Definition of Done
-5. `/gsd:ship` — Create PR from planning artifacts
-6. `/gsd:complete-milestone` — Archive + Tag release
+**Phase loop** (repeat for each phase N):
+1. `/gsd:discuss-phase N` — lock in preferences (invest time here!)
+2. `/gsd:plan-phase N` — research + plan + verify
+3. `/gsd:execute-phase N` — parallel wave execution + regression gate
+4. `/gsd:verify-work N` — manual UAT + auto-diagnosis
+5. `/clear` — clean context before next phase
 
-**Existing project (brownfield):**
-1. `/gsd:map-codebase [area]` — Full codebase analysis (4 parallel mappers)
-2. `/gsd:new-milestone [name]` — Start milestone
-3. Continue with phase loop above
+**After all phases:**
+`/gsd:audit-milestone` → `/gsd:plan-milestone-gaps` (if gaps) → `/gsd:ship` → `/gsd:complete-milestone`
 
-**Quick task:** `/gsd:quick [--discuss] [--research] [--full]` — Ad-hoc task with GSD guarantees
+**UI phases** add extra steps: `/gsd:ui-phase N` (before plan) and `/gsd:ui-review N` (after verify).
 
-**Auto-advance:** `/gsd:next` — Determines and runs the next logical step
+## Document Discipline
 
-**Autonomous:** `/gsd:autonomous [--from N]` — Run all remaining phases automatically
+GSD manages its own state in `.planning/`:
+- Phase plans, research notes, verification results — all auto-generated
+- `STATE.md` — current position (auto-updated by GSD)
+- `HANDOFF.json` — session handoff state (via `/gsd:pause-work`)
 
-## Command Reference
-
-### Initialization
-
-| Command | Description |
-|---|---|
-| `/gsd:new-project [--auto @file.md]` | Initialize project: Q&A → Research → Roadmap |
-| `/gsd:new-milestone [name]` | Start new milestone |
-| `/gsd:map-codebase [area]` | Analyze existing codebase (4 parallel mappers) |
-
-### Core Phase Loop
-
-| Command | Description |
-|---|---|
-| `/gsd:discuss-phase [N] [--auto] [--batch]` | Lock in preferences before planning |
-| `/gsd:ui-phase [N]` | UI design contract (frontend phases) |
-| `/gsd:plan-phase [N] [--auto] [--skip-research] [--skip-verify]` | Research + Plan + Verify |
-| `/gsd:execute-phase N` | Parallel wave execution + node repair + regression gate |
-| `/gsd:verify-work [N]` | Manual UAT + auto-diagnosis |
-| `/gsd:ui-review [N]` | 6-pillar visual audit (frontend) |
-| `/gsd:validate-phase [N]` | Retroactive test coverage audit |
-| `/gsd:ship [N] [--draft]` | Create PR from planning artifacts |
-
-### Milestone Management
-
-| Command | Description |
-|---|---|
-| `/gsd:audit-milestone` | Check Definition of Done |
-| `/gsd:complete-milestone` | Archive + Tag release |
-| `/gsd:plan-milestone-gaps` | Create phases for gaps from audit |
-| `/gsd:stats` | Project statistics dashboard |
-
-### Phase Management
-
-| Command | Description |
-|---|---|
-| `/gsd:add-phase` | Add phase to end of roadmap |
-| `/gsd:insert-phase [N]` | Insert emergency phase (decimal numbering) |
-| `/gsd:remove-phase [N]` | Remove phase + renumber |
-| `/gsd:list-phase-assumptions [N]` | View AI's intended approach |
-| `/gsd:research-phase [N]` | Dedicated deep research |
-| `/gsd:add-tests [N]` | Generate tests for completed phase |
-
-### Session & Navigation
-
-| Command | Description |
-|---|---|
-| `/gsd:progress` | Where am I? What's next? |
-| `/gsd:next` | Auto-advance to next logical step |
-| `/gsd:resume-work` | Restore context from previous session |
-| `/gsd:pause-work` | Save handoff state for later |
-| `/gsd:session-report` | Session summary |
-| `/gsd:help` | All commands |
-| `/gsd:update` | Update GSD + changelog preview |
-
-### Utilities
-
-| Command | Description |
-|---|---|
-| `/gsd:quick [--discuss] [--research] [--full]` | Ad-hoc task with GSD guarantees |
-| `/gsd:autonomous [--from N]` | Run all remaining phases autonomously |
-| `/gsd:do` | Freeform text → auto-route to right command |
-| `/gsd:note [text\|list\|promote N]` | Zero-friction idea capture |
-| `/gsd:debug [desc]` | Systematic debugging + persistent knowledge base |
-| `/gsd:profile-user` | Developer behavioral profile |
-| `/gsd:health [--repair]` | Check + repair `.planning/` integrity |
-| `/gsd:cleanup` | Archive completed milestone directories |
-| `/gsd:set-profile <quality\|balanced\|budget>` | Switch model profile |
-| `/gsd:settings` | Configure workflow + model |
+Orchestrator must verify:
+- After `/gsd:verify-work`: check if verification passed or has issues
+- After `/gsd:audit-milestone`: check for gaps before completing
+- After `/gsd:ship`: confirm PR was created
 
 ## Critical Rules
 
-1. **`/clear` between phases** — Clean context window after every verify/review cycle.
-2. **Invest time in discuss-phase** — The clearer the preferences, the more accurate the plan.
-3. **Vertical slices over horizontal layers** — Split features end-to-end, not by layer.
-4. **Always audit before completing a milestone** — `audit-milestone` → `plan-milestone-gaps` → `complete-milestone`.
-5. **Use `/gsd:next` when unsure** — It auto-determines the correct next step.
+1. **`/clear` between phases** — clean context after every verify/review cycle.
+2. **Invest time in discuss-phase** — preferences drive planning accuracy.
+3. **Use `/gsd:next` when unsure** — it auto-determines the correct next step.
+4. **Always audit before completing** — `audit-milestone` → `plan-milestone-gaps` → `complete-milestone`.
+5. **Verify agent completion after SQUAD SIGNAL** — SQUAD SIGNAL means the agent processed your message, not that the workflow is complete. Check if the agent is still in discussion, waiting for answers, or mid-execution before marking done.

@@ -1,86 +1,61 @@
 # BMad Method — Agent Playbook
 
-## Workflow Sequence
+## Workflow Selection
 
-**Greenfield (new project):**
-1. `/bmad-brainstorming` — Explore ideas
-2. `/bmad-product-brief-preview` — Create product brief (guided/yolo/autonomous)
-3. `/bmad-create-prd` — Write requirements
-4. `/bmad-create-ux-design` — UX design document
-5. `/bmad-create-architecture` — Architecture document
-6. `/bmad-create-epics-and-stories` — Break PRD into epics
-7. `/bmad-check-implementation-readiness` — Validate planning cohesion
-8. `/bmad-sprint-planning` — Initialize sprint tracking
-9. **Build Cycle** (repeat per story): `create-story` → `dev-story` → `code-review` → `retrospective`
+Classify every incoming task BEFORE delegating. The agent — not bmad-help — decides the workflow.
 
-**Brownfield (existing project):**
-1. `/bmad-help` — Detect project state, get recommendations
-2. `/bmad-generate-project-context` — Document tech preferences
-3. Pick appropriate phase above based on project state
+| Task type | Workflow | Agent code |
+|---|---|---|
+| Bug fix, refactor, quick change, one-off task | **QD** (Quick Dev) | Barry 🚀 |
+| Bug/task that needs a written spec first | **QS** → **QD** (Quick Spec then Quick Dev) | Barry 🚀 |
+| Planned story from sprint backlog | **CS → DS → CR** (Create Story → Dev Story → Code Review) | Bob 🏃 → Amelia 💻 |
+| New feature, no plan exists yet | Start from **Phase 2** or earlier — see Phase Sequence below | John 📋 |
+| Scope changed, existing plan is now wrong | **CC** (Correct Course) → update epics → resume story cycle | Bob 🏃 |
+| Need to understand project position | **BH** (bmad-help) — GPS only, shows where you are | — |
+| Documentation needed | **WD / VD / MG / EC** (Tech Writer) | Paige 📚 |
+| Review code or artifacts | **CR / AR / ECH** (Code Review / Adversarial / Edge Case) | Amelia 💻 |
 
-**Quick fix / small change:** `/bmad-quick-dev` — Unified workflow (clarify → plan → implement → review → present)
+### Decision shortcut
 
-## Command Reference
+```
+Does this task change existing PRD, Architecture, or Epics?
+  YES → CC (Correct Course) first, then resume story cycle
+  NO  → Is there a story in the sprint backlog for this?
+          YES → CS → DS → CR (story cycle)
+          NO  → QD (Quick Dev) — or QS → QD if spec needed
+```
 
-### Phase 1: Analysis
+## Phase Sequence (for planned work)
 
-| Command | Description |
-|---|---|
-| `/bmad-brainstorming` | Guided ideation session |
-| `/bmad-product-brief-preview` | Guided/yolo/autonomous product brief |
-| `/bmad-create-product-brief` | Foundation document |
-| `/bmad-market-research` | Market analysis, competitive landscape |
-| `/bmad-domain-research` | Industry domain deep dive |
-| `/bmad-technical-research` | Technical feasibility analysis |
-| `/bmad-document-project` | Analyze existing project for docs |
+When building from scratch or adding major features, follow phases in order.
+Each workflow runs in a **fresh chat**. Never chain workflows.
 
-### Phase 2: Planning
+**Phase 1 — Analysis** (optional):
+`BP` Brainstorm → `MR/DR/TR` Research → `CB` Product Brief
 
-| Command | Description |
-|---|---|
-| `/bmad-create-prd` | Product Requirements Document |
-| `/bmad-validate-prd` | Validate PRD completeness |
-| `/bmad-edit-prd` | Improve existing PRD |
-| `/bmad-create-ux-design` | UX Design document |
+**Phase 2 — Planning** (required):
+`CP` Create PRD → `CU` Create UX (if UI needed)
 
-### Phase 3: Solutioning
+**Phase 3 — Solutioning** (required for complex projects):
+`CA` Create Architecture → `CE` Create Epics & Stories → `IR` Implementation Readiness check
 
-| Command | Description |
-|---|---|
-| `/bmad-create-architecture` | Architecture document |
-| `/bmad-create-epics-and-stories` | Break PRD into epics |
-| `/bmad-check-implementation-readiness` | Validate cohesion between PRD, Architecture, Epics |
-| `/bmad-generate-project-context` | Generate project context from codebase |
+**Phase 4 — Implementation**:
+`SP` Sprint Planning (once) → **story cycle**: `CS → DS → CR` (repeat) → `ER` Retrospective (per epic)
 
-### Phase 4: Implementation
+## Document Discipline
 
-| Command | Description |
-|---|---|
-| `/bmad-sprint-planning` | Initialize sprint tracking |
-| `/bmad-sprint-status` | Summarize sprint status |
-| `/bmad-create-story` | Create story file from epic |
-| `/bmad-dev-story` | Implement story |
-| `/bmad-quick-dev` | Unified quick flow |
-| `/bmad-code-review` | Sharded parallel code review (4 steps) |
-| `/bmad-qa-generate-e2e-tests` | Generate E2E tests |
-| `/bmad-correct-course` | Handle scope changes |
-| `/bmad-retrospective` | Epic retrospective |
+A task is NOT done until its artifacts are updated:
 
-### Utilities
-
-| Command | Description |
-|---|---|
-| `/bmad-help` | Intelligent guide — ask anything |
-| `/bmad-party-mode` | Multi-agent collaboration |
-| `/bmad-review-adversarial-general` | Adversarial content review |
-| `/bmad-review-edge-case-hunter` | Edge case analysis for code |
-| `/bmad-distillator` | Lossless LLM-optimized document compression |
-| `/bmad-index-docs` | Create doc index for LLM scanning |
-| `/bmad-shard-doc` | Split large markdown file |
+- **After story**: sprint-status.yaml status → `done`
+- **After Quick Dev**: log change in CHANGELOG.md or docs/ (Quick Dev does NOT update sprint tracking)
+- **After Correct Course**: PRD/Architecture/Epics are now updated — verify consistency
+- **After epic complete**: run Retrospective (`ER`)
+- **After any architecture change**: update relevant docs
 
 ## Critical Rules
 
-1. **Fresh chat per workflow** — Each workflow must run in a clean context. Never chain workflows.
-2. **Run implementation-readiness before coding** — Validates cohesion between PRD, Architecture, and Epics.
-3. **Code review every story** — Always `/bmad-code-review` after `/bmad-dev-story`.
-4. **Start with `/bmad-help`** — It inspects project state and recommends the exact next step.
+1. **Fresh chat per workflow** — never chain workflows in one session.
+2. **Code review every story** — CR after every DS, no exceptions.
+3. **Quick Dev lives outside sprint** — it does not create stories or update sprint-status.yaml. Bridge manually if tracking matters.
+4. **bmad-help is GPS, not autopilot** — use it to check project position, not to select workflows. YOU select the workflow.
+5. **Verify agent completion after SQUAD SIGNAL** — SQUAD SIGNAL means the agent processed your message, not that the workflow is complete. Check if the agent is still waiting (questions, menus, confirmations) before marking done.

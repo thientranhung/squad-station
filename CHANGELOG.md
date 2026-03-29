@@ -2,6 +2,19 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.20 — Update SDD playbooks (2026-03-29)
+
+Refined all bundled SDD (Solution Design Document) playbooks with streamlined content.
+
+### Changed
+
+- **bmad-playbook.md** — Streamlined BMAD method playbook
+- **gsd-playbook.md** — Streamlined GSD playbook
+- **openspec-playbook.md** — Streamlined OpenSpec playbook
+- **superpowers-playbook.md** — Streamlined Superpowers playbook
+
+---
+
 ## v0.7.19 — Fix Codex hooks not firing SQUAD SIGNAL (2026-03-29)
 
 `squad-station update` now installs hooks for all providers (not just the orchestrator's), and Codex agents get the required `config.toml` feature flag so their Stop hook actually fires.
