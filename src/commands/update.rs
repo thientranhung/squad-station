@@ -286,8 +286,13 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         }
     }
 
-    // 4. Housekeeping: hooks + context + monitor restart
-    run_housekeeping(&config, &project_root)?;
+    // 4. Housekeeping: hooks + context
+    let killed = run_housekeeping(&config, &project_root)?;
+    debug_assert!(
+        killed.is_empty(),
+        "run_housekeeping must never kill sessions — got: {:?}",
+        killed
+    );
     println!();
     println!("  ✓ Update complete.");
     println!();
@@ -296,12 +301,17 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
 }
 
 /// Re-run hooks and regenerate context. Always safe to call.
-fn run_housekeeping(config: &config::SquadConfig, project_root: &Path) -> Result<()> {
+///
+/// INVARIANT: must never kill any tmux sessions — agents and monitor
+/// sessions are managed exclusively by the explicit plan execution above.
+/// Returns the list of sessions killed (MUST always be empty).
+pub fn run_housekeeping(config: &config::SquadConfig, project_root: &Path) -> Result<Vec<String>> {
     // Re-install hooks (idempotent)
     let _ = auto_install_hooks_pub(&config.orchestrator.provider);
     let _ = install_session_start_hook_pub(&config.orchestrator.provider, project_root);
 
-    Ok(())
+    // Return empty — housekeeping NEVER kills sessions.
+    Ok(vec![])
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -538,5 +548,37 @@ mod tests {
 
         let result = has_processing_message(&pool, "test-agent").await.unwrap();
         assert!(!result);
+    }
+
+    // ── Regression: run_housekeeping must NEVER kill sessions ─────────────
+    // Bug v0.7.12: housekeeping killed the monitor session without relaunching it.
+    // This test enforces the invariant: run_housekeeping returns an empty killed list.
+    // If someone adds kill_session() to run_housekeeping, they MUST add it to the
+    // returned Vec — and this test will catch the regression immediately.
+    #[test]
+    fn test_housekeeping_never_kills_any_sessions() {
+        // Build a minimal SquadConfig with a real temp dir as project_root
+        let tmp = tempfile::tempdir().unwrap();
+        let config = config::SquadConfig {
+            project: "test-proj".to_string(),
+            sdd: None,
+            orchestrator: config::AgentConfig {
+                name: None,
+                provider: "claude-code".to_string(),
+                role: "orchestrator".to_string(),
+                model: None,
+                description: None,
+            },
+            agents: vec![],
+        };
+
+        let killed =
+            run_housekeeping(&config, tmp.path()).expect("run_housekeeping should not error");
+
+        assert!(
+            killed.is_empty(),
+            "REGRESSION: run_housekeeping killed sessions {:?} — it must never kill any sessions",
+            killed
+        );
     }
 }

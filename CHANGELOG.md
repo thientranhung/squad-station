@@ -2,6 +2,18 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.14 — Regression Guard for Update Housekeeping (2026-03-29)
+
+Adds a regression test that enforces `run_housekeeping` must never kill any tmux sessions, preventing a repeat of the v0.7.12 monitor-killing bug.
+
+### Added
+
+- **Regression test `test_housekeeping_never_kills_any_sessions`** — `run_housekeeping` now returns `Vec<String>` (killed sessions) instead of `()`. The test asserts this Vec is always empty. If anyone re-adds `kill_session` to housekeeping, the test fails immediately with a descriptive message.
+- **`debug_assert!` in production path** — additional runtime guard in the `run` function to catch violations in debug builds.
+- **`run_housekeeping` is now `pub`** — enables direct testing without going through the full async `run` path.
+
+---
+
 ## v0.7.13 — Fix Update Kills Monitor Session (2026-03-29)
 
 Fixes a bug where `squad-station update` would kill the monitor tmux session without relaunching it, causing the monitor to go missing after every update call.
