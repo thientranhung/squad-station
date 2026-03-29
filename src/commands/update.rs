@@ -162,8 +162,10 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         && plan.provider_changed.is_empty()
     {
         println!("  ✓ No agent changes detected.");
-        // Still re-run hooks + context (idempotent)
         run_housekeeping(&config, &project_root)?;
+        if let Err(e) = super::context::run(false).await {
+            eprintln!("  [WARN] Could not regenerate orchestrator context: {e}");
+        }
         ensure_monitor(&config, false)?; // no changes — only recreate if dead
         println!();
         return Ok(());
@@ -287,7 +289,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         }
     }
 
-    // 4. Housekeeping: hooks + context
+    // 4. Housekeeping: hooks
     let killed = run_housekeeping(&config, &project_root)?;
     debug_assert!(
         killed.is_empty(),
@@ -295,7 +297,12 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         killed
     );
 
-    // 5. Rebuild monitor to reflect the new agent set
+    // 5. Regenerate squad-orchestrator.md so orchestrator sees the updated agent list
+    if let Err(e) = super::context::run(false).await {
+        eprintln!("  [WARN] Could not regenerate orchestrator context: {e}");
+    }
+
+    // 6. Rebuild monitor to reflect the new agent set
     ensure_monitor(&config, true)?;
 
     println!();

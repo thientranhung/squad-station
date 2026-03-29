@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.18 — Update Regenerates Orchestrator Context (2026-03-29)
+
+`squad-station update` now regenerates `squad-orchestrator.md` after every run, so the orchestrator always sees the current agent list including newly added or removed agents.
+
+### Fixed
+
+- **`squad-orchestrator.md` not updated after `update`** — Adding a new agent via `update` launched the session and updated the monitor, but the orchestrator's context file still listed the old agents. Now `context::run(false)` is called after every `update` (both the changes path and no-changes path), ensuring the agent list, routing rules, and `squad-station send` examples in `squad-orchestrator.md` are always in sync with the actual squad.
+
+---
+
 ## v0.7.17 — Update Rebuilds Monitor on Agent Changes (2026-03-29)
 
 `squad-station update` now rebuilds the monitor session whenever the agent set changes, so new agents appear as panes immediately after update.
