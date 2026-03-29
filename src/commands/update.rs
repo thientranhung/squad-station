@@ -164,6 +164,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         println!("  ✓ No agent changes detected.");
         // Still re-run hooks + context (idempotent)
         run_housekeeping(&config, &project_root)?;
+        ensure_monitor(&config)?;
         println!();
         return Ok(());
     }
@@ -293,9 +294,56 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         "run_housekeeping must never kill sessions — got: {:?}",
         killed
     );
+
+    // 5. Ensure monitor session is alive (recreate if dead)
+    ensure_monitor(&config)?;
+
     println!();
     println!("  ✓ Update complete.");
     println!();
+
+    Ok(())
+}
+
+/// Recreate the monitor session if it is missing or dead.
+/// The monitor is a tmux view session with one pane per agent (same as init creates).
+/// Safe to call when monitor is already alive — it is a no-op in that case.
+fn ensure_monitor(config: &config::SquadConfig) -> Result<()> {
+    let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
+
+    if tmux::session_exists(&monitor_name) {
+        return Ok(()); // already alive — nothing to do
+    }
+
+    // Build the ordered list of agent sessions (orchestrator first, then workers)
+    let mut sessions: Vec<String> = vec![];
+    if !config.orchestrator.is_db_only() {
+        let orch_suffix = config
+            .orchestrator
+            .name
+            .as_deref()
+            .unwrap_or("orchestrator");
+        sessions.push(config::sanitize_session_name(&format!(
+            "{}-{}",
+            config.project, orch_suffix
+        )));
+    }
+    for agent in &config.agents {
+        let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
+        sessions.push(config::sanitize_session_name(&format!(
+            "{}-{}",
+            config.project, role_suffix
+        )));
+    }
+
+    if sessions.is_empty() {
+        return Ok(());
+    }
+
+    match tmux::create_view_session(&monitor_name, &sessions) {
+        Ok(()) => println!("  [MONITOR] {} recreated", monitor_name),
+        Err(e) => eprintln!("  [WARN] Could not recreate monitor session: {e}"),
+    }
 
     Ok(())
 }

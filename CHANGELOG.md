@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.15 — Update Auto-Recovers Dead Monitor Session (2026-03-29)
+
+`squad-station update` now automatically recreates the monitor session if it is missing or dead, completing the full recovery from the v0.7.12 bug.
+
+### Fixed
+
+- **Monitor session not recovered after update** — Even after v0.7.13 stopped killing the monitor, a monitor that was already dead (killed by the v0.7.12 bug) would remain dead after every `update` call. `update` now calls `ensure_monitor()` which checks if `<project>-monitor` is alive and recreates it via `tmux create_view_session` if not. Prints `[MONITOR] <name> recreated` when it acts.
+- **`ensure_monitor` is a no-op when monitor is alive** — safe to call unconditionally; only acts when the session is actually missing.
+
+---
+
 ## v0.7.14 — Regression Guard for Update Housekeeping (2026-03-29)
 
 Adds a regression test that enforces `run_housekeeping` must never kill any tmux sessions, preventing a repeat of the v0.7.12 monitor-killing bug.
