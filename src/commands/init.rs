@@ -600,11 +600,13 @@ pub fn run_health_check(
     fail_count
 }
 
-/// Check if planned tmux session names conflict with sessions running from a different project.
+/// Check if planned tmux session names already exist as live tmux sessions.
+/// Simple name-based check — if session exists, it's a conflict.
 fn check_session_conflicts(config: &config::SquadConfig) -> anyhow::Result<()> {
-    let project_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let canonical_root =
-        std::fs::canonicalize(&project_root).unwrap_or(project_root);
+    let live = tmux::list_live_session_names();
+    if live.is_empty() {
+        return Ok(());
+    }
 
     let mut planned: Vec<String> = vec![];
     let orch_suffix = config
@@ -624,35 +626,20 @@ fn check_session_conflicts(config: &config::SquadConfig) -> anyhow::Result<()> {
         )));
     }
 
-    let mut conflicts: Vec<(String, String)> = vec![];
-    for name in &planned {
-        if let Some(cwd) = tmux::session_cwd(name) {
-            let session_root =
-                std::fs::canonicalize(&cwd).unwrap_or_else(|_| PathBuf::from(&cwd));
-            if session_root != canonical_root {
-                conflicts.push((name.clone(), cwd));
-            }
-        }
-    }
+    let conflicts: Vec<&String> = planned.iter().filter(|n| live.contains(n)).collect();
 
     if !conflicts.is_empty() {
         eprintln!();
-        eprintln!("  ⚠️  Session name conflict — tmux sessions already running from a different project:");
+        eprintln!("  ⚠️  Session name conflict — these tmux sessions are already running:");
         eprintln!();
-        for (name, cwd) in &conflicts {
-            eprintln!("       • {} → {}", name, cwd);
+        for name in &conflicts {
+            eprintln!("       • {}", name);
         }
         eprintln!();
-        eprintln!("  This project root : {}", canonical_root.display());
+        eprintln!("  Likely cause: squad.yml was copied without changing the `project:` field.");
+        eprintln!("  Fix: update `project:` in squad.yml to a unique name, then re-run `squad-station init`.");
         eprintln!();
-        eprintln!(
-            "  Likely cause: squad.yml was copied without changing the `project:` field."
-        );
-        eprintln!(
-            "  Fix: update `project:` in squad.yml to a unique name, then re-run `squad-station init`."
-        );
-        eprintln!();
-        anyhow::bail!("Aborting init — session name conflict with another project");
+        anyhow::bail!("Aborting init — session name conflict");
     }
 
     Ok(())

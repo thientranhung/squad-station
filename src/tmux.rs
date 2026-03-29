@@ -250,25 +250,6 @@ pub fn list_live_session_names() -> Vec<String> {
         .collect()
 }
 
-/// Get the current working directory of a tmux session's active pane.
-/// Returns None if the session doesn't exist or the query fails.
-pub fn session_cwd(session_name: &str) -> Option<String> {
-    Command::new("tmux")
-        .args([
-            "display-message",
-            "-p",
-            "-t",
-            session_name,
-            "#{pane_current_path}",
-        ])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| {
-            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() { None } else { Some(s) }
-        })
-}
 
 /// Kill a tmux window by name (idempotent — ignores errors if window does not exist).
 pub fn kill_window(window_name: &str) -> Result<()> {

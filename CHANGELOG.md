@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.22 — Simplify session conflict check (2026-03-29)
+
+Simplified the init session conflict detection — now uses a straightforward name match against live tmux sessions instead of querying each session's working directory.
+
+### Changed
+
+- **Conflict check uses name-only matching** — Replaced CWD-based comparison (`session_cwd` + `canonicalize`) with a simple `list_live_session_names().contains()` check. Much less code, same result.
+- Removed unused `tmux::session_cwd()` helper.
+
+---
+
 ## v0.7.21 — Init detects tmux session name conflicts (2026-03-29)
 
 `squad-station init` now checks if planned tmux session names are already in use by another project, preventing accidental collisions when `squad.yml` is copied without changing the `project:` field.
