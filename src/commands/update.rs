@@ -164,7 +164,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         println!("  ✓ No agent changes detected.");
         // Still re-run hooks + context (idempotent)
         run_housekeeping(&config, &project_root)?;
-        ensure_monitor(&config)?;
+        ensure_monitor(&config, false)?; // no changes — only recreate if dead
         println!();
         return Ok(());
     }
@@ -295,8 +295,8 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         killed
     );
 
-    // 5. Ensure monitor session is alive (recreate if dead)
-    ensure_monitor(&config)?;
+    // 5. Rebuild monitor to reflect the new agent set
+    ensure_monitor(&config, true)?;
 
     println!();
     println!("  ✓ Update complete.");
@@ -305,14 +305,20 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Recreate the monitor session if it is missing or dead.
-/// The monitor is a tmux view session with one pane per agent (same as init creates).
-/// Safe to call when monitor is already alive — it is a no-op in that case.
-fn ensure_monitor(config: &config::SquadConfig) -> Result<()> {
+/// Ensure the monitor session reflects the current agent set.
+///
+/// - `force = false`: recreate only if dead (no-op when alive)
+/// - `force = true`: kill and recreate unconditionally — use after agent changes
+///   so new/removed agents are reflected in monitor panes.
+fn ensure_monitor(config: &config::SquadConfig, force: bool) -> Result<()> {
     let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
 
     if tmux::session_exists(&monitor_name) {
-        return Ok(()); // already alive — nothing to do
+        if !force {
+            return Ok(()); // alive and no changes — nothing to do
+        }
+        // force=true: kill first so we recreate with updated pane list
+        let _ = tmux::kill_session(&monitor_name);
     }
 
     // Build the ordered list of agent sessions (orchestrator first, then workers)

@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.17 — Update Rebuilds Monitor on Agent Changes (2026-03-29)
+
+`squad-station update` now rebuilds the monitor session whenever the agent set changes, so new agents appear as panes immediately after update.
+
+### Fixed
+
+- **Monitor not updated after adding new agent** — When `update` detected new/removed/provider-changed agents, the monitor session was left stale. Now `ensure_monitor(force: true)` kills and recreates the monitor after any agent changes so its panes always reflect the current squad.
+- **No-change path unaffected** — When there are no agent changes, `ensure_monitor(force: false)` still only recreates the monitor if it is dead (same behavior as before).
+
+---
+
 ## v0.7.16 — Remove Antigravity Provider (2026-03-29)
 
 Antigravity is not a CLI agent and has been completely removed from squad-station. All providers now use tmux sessions — the DB-only mode is gone.
