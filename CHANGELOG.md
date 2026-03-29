@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.7.19 — Fix Codex hooks not firing SQUAD SIGNAL (2026-03-29)
+
+`squad-station update` now installs hooks for all providers (not just the orchestrator's), and Codex agents get the required `config.toml` feature flag so their Stop hook actually fires.
+
+### Fixed
+
+- **Update housekeeping only installed hooks for orchestrator provider** — `run_housekeeping` called `auto_install_hooks` with only the orchestrator's provider (e.g. `claude-code`), skipping worker providers like `codex` or `gemini-cli`. Now it collects all unique providers across orchestrator + workers and installs hooks for each.
+- **Codex `config.toml` feature flag not created** — Codex requires `[features] codex_hooks = true` in `.codex/config.toml` to activate its hooks subsystem. Without it, Codex ignores `hooks.json` entirely. `install_codex_hooks` now creates/updates `config.toml` with the feature flag automatically.
+
+### Added
+
+- `ensure_codex_feature_flag()` helper — derives `config.toml` path from `hooks.json`, idempotently appends the feature flag, preserves existing config content.
+- 3 new tests: feature flag creation, preservation of existing config, idempotency.
+
+---
+
 ## v0.7.18 — Update Regenerates Orchestrator Context (2026-03-29)
 
 `squad-station update` now regenerates `squad-orchestrator.md` after every run, so the orchestrator always sees the current agent list including newly added or removed agents.

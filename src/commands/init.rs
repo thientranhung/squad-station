@@ -720,7 +720,42 @@ fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     ]);
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
+
+    // Codex requires [features] codex_hooks = true in config.toml to activate hooks.
+    // Without this, Codex ignores hooks.json entirely.
+    ensure_codex_feature_flag(settings_file)?;
+
     Ok(true)
+}
+
+/// Ensure `.codex/config.toml` has `[features] codex_hooks = true`.
+/// Derives the config.toml path from the hooks.json path (sibling file).
+fn ensure_codex_feature_flag(hooks_file: &str) -> anyhow::Result<()> {
+    let hooks_path = std::path::Path::new(hooks_file);
+    let config_toml = hooks_path
+        .parent()
+        .unwrap_or(std::path::Path::new(".codex"))
+        .join("config.toml");
+
+    let content = std::fs::read_to_string(&config_toml).unwrap_or_default();
+
+    // Already enabled — nothing to do
+    if content.contains("codex_hooks") {
+        return Ok(());
+    }
+
+    // Append the feature flag (preserve existing content)
+    let mut new_content = content.clone();
+    if !new_content.is_empty() && !new_content.ends_with('\n') {
+        new_content.push('\n');
+    }
+    if !new_content.contains("[features]") {
+        new_content.push_str("\n[features]\n");
+    }
+    new_content.push_str("codex_hooks = true\n");
+
+    std::fs::write(&config_toml, new_content)?;
+    Ok(())
 }
 
 /// Install Gemini CLI hooks: AfterAgent (signal) + Notification (notify)
@@ -1237,6 +1272,73 @@ mod tests {
             !stop_cmd.contains("printf"),
             "Codex hook must NOT add printf '{{}}' — stdout is not required to be JSON: {}",
             stop_cmd
+        );
+    }
+
+    #[test]
+    fn test_install_codex_hooks_creates_config_toml_with_feature_flag() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let hooks_file = tmp.path().join(".codex").join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        install_codex_hooks(hooks_str).unwrap();
+
+        let config_toml = tmp.path().join(".codex").join("config.toml");
+        assert!(config_toml.exists(), "config.toml must be created");
+        let content = std::fs::read_to_string(&config_toml).unwrap();
+        assert!(
+            content.contains("[features]"),
+            "config.toml must contain [features] section"
+        );
+        assert!(
+            content.contains("codex_hooks = true"),
+            "config.toml must enable codex_hooks feature flag"
+        );
+    }
+
+    #[test]
+    fn test_install_codex_hooks_preserves_existing_config_toml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let codex_dir = tmp.path().join(".codex");
+        std::fs::create_dir_all(&codex_dir).unwrap();
+
+        // Pre-existing config.toml with other settings
+        let config_toml = codex_dir.join("config.toml");
+        std::fs::write(&config_toml, "[model]\ndefault = \"gpt-5.4\"\n").unwrap();
+
+        let hooks_file = codex_dir.join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        install_codex_hooks(hooks_str).unwrap();
+
+        let content = std::fs::read_to_string(&config_toml).unwrap();
+        assert!(
+            content.contains("default = \"gpt-5.4\""),
+            "existing config must be preserved"
+        );
+        assert!(
+            content.contains("codex_hooks = true"),
+            "feature flag must be appended"
+        );
+    }
+
+    #[test]
+    fn test_install_codex_hooks_idempotent_config_toml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let hooks_file = tmp.path().join(".codex").join("hooks.json");
+        let hooks_str = hooks_file.to_str().unwrap();
+
+        // Install twice
+        install_codex_hooks(hooks_str).unwrap();
+        install_codex_hooks(hooks_str).unwrap();
+
+        let config_toml = tmp.path().join(".codex").join("config.toml");
+        let content = std::fs::read_to_string(&config_toml).unwrap();
+        let count = content.matches("codex_hooks").count();
+        assert_eq!(
+            count, 1,
+            "codex_hooks must appear exactly once after double install, got {}",
+            count
         );
     }
 

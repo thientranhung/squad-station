@@ -365,9 +365,19 @@ fn ensure_monitor(config: &config::SquadConfig, force: bool) -> Result<()> {
 /// sessions are managed exclusively by the explicit plan execution above.
 /// Returns the list of sessions killed (MUST always be empty).
 pub fn run_housekeeping(config: &config::SquadConfig, project_root: &Path) -> Result<Vec<String>> {
-    // Re-install hooks (idempotent)
-    let _ = auto_install_hooks_pub(&config.orchestrator.provider);
-    let _ = install_session_start_hook_pub(&config.orchestrator.provider, project_root);
+    // Collect all unique providers (orchestrator + workers)
+    let mut providers: Vec<&str> = vec![config.orchestrator.provider.as_str()];
+    for agent in &config.agents {
+        if !providers.contains(&agent.provider.as_str()) {
+            providers.push(agent.provider.as_str());
+        }
+    }
+
+    // Re-install hooks for every provider (idempotent)
+    for provider in &providers {
+        let _ = auto_install_hooks_pub(provider);
+        let _ = install_session_start_hook_pub(provider, project_root);
+    }
 
     // Return empty — housekeeping NEVER kills sessions.
     Ok(vec![])
