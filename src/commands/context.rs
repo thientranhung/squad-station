@@ -305,4 +305,3 @@ async fn run_inject(
     );
     Ok(())
 }
-
