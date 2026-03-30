@@ -441,17 +441,15 @@ If tmux resolution fails (e.g. outside tmux, in CI), the agent name is empty and
 GUARD-1 logs the failure to `.squad/log/signal.log`, then exits 0. Hook stderr is redirected
 to `/dev/null` since internal logging captures all diagnostics.
 
-**Claude Code** (`.claude/settings.json`) — 4 hook events (+ optional SessionStart):
+**Claude Code** (`.claude/settings.json`) — 3 hook events (+ optional SessionStart):
 
 | Event | Matcher | Command | Purpose |
 |-------|---------|---------|---------|
 | `Stop` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
 | `Stop` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram notification on task completion |
 | `Notification` | `permission_prompt` | `squad-station notify ...` | Permission dialog blocking agent |
-| `Notification` | `permission_prompt` | `.squad/hooks/notify-telegram.sh` | Telegram alert for permission prompt |
 | `Notification` | `elicitation_dialog` | `squad-station notify ...` | MCP server input form blocking agent |
 | `PostToolUse` | `AskUserQuestion` | `squad-station notify ...` | Agent asking clarifying question |
-| `PostToolUse` | `AskUserQuestion` | `.squad/hooks/notify-telegram.sh` | Telegram alert for clarifying question |
 | `SessionStart` | `*` | `squad-station context --inject` | Auto-inject orchestrator context (opt-in) |
 
 ```json
@@ -485,7 +483,6 @@ same settings file receive no injection.
 | `AfterAgent` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
 | `AfterAgent` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram notification on task completion |
 | `Notification` | `*` | `squad-station notify ...` | Any notification (permissions, alerts) |
-| `Notification` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram alert for notifications |
 | `SessionStart` | `*` | `squad-station context --inject` | Auto-inject orchestrator context (opt-in) |
 
 ```json
