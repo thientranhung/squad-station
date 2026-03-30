@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::{config, tmux};
 
 /// Compute the expected tmux session names for all agents in a squad config.
-/// Mirrors the naming logic in init.rs: `sanitize_session_name("{project}-{name_or_role}")`.
+/// Mirrors the naming logic in init.rs: `build_session_name(project, suffix)`.
 pub fn compute_session_names(config: &config::SquadConfig) -> Vec<String> {
     let mut names = Vec::new();
 
@@ -14,17 +14,11 @@ pub fn compute_session_names(config: &config::SquadConfig) -> Vec<String> {
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    names.push(config::sanitize_session_name(&format!(
-        "{}-{}",
-        config.project, orch_role
-    )));
+    names.push(config::build_session_name(&config.project, orch_role));
 
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
-        names.push(config::sanitize_session_name(&format!(
-            "{}-{}",
-            config.project, role_suffix
-        )));
+        names.push(config::build_session_name(&config.project, role_suffix));
     }
 
     names
@@ -87,7 +81,7 @@ pub fn kill_all_sessions(config: &config::SquadConfig) -> Result<(u32, Vec<Strin
     }
 
     // Also kill the monitor session
-    let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
+    let monitor_name = config::build_session_name(&config.project, "monitor");
     if tmux::session_exists(&monitor_name) {
         tmux::kill_session(&monitor_name)?;
         killed += 1;

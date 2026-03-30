@@ -50,7 +50,7 @@ fn remove_squad_hooks(settings_file: &str) -> Result<bool> {
                         Some(hooks) => !hooks.iter().any(|h| {
                             h.get("command")
                                 .and_then(|c| c.as_str())
-                                .map(|cmd| cmd.contains("squad-station"))
+                                .map(|cmd| cmd.contains("squad-station") || cmd.contains(".squad/hooks/"))
                                 .unwrap_or(false)
                         }),
                     }
@@ -247,6 +247,12 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
         println!("  [SKIP]    .squad/ — not found");
     }
 
+    // 8. Note about .env.squad (credentials file at project root, not inside .squad/)
+    let project_root = squad_dir.parent().unwrap_or(Path::new("."));
+    if project_root.join(".env.squad").exists() {
+        println!("  [SKIP]    .env.squad preserved (contains credentials)");
+    }
+
     println!();
     println!("  squad.yml preserved — re-run `squad-station init` to reinstall.");
     println!();
@@ -392,5 +398,31 @@ mod tests {
         assert_eq!(hooks, ".gemini/settings.json");
         assert_eq!(doc, "GEMINI.md");
         assert_eq!(orch, ".gemini/commands/squad-orchestrator.md");
+    }
+
+    #[test]
+    fn test_remove_squad_hooks_removes_telegram() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let content = serde_json::json!({
+            "hooks": {
+                "Stop": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "squad-station signal \"x\" 2>/dev/null"}]},
+                    {"matcher": "", "hooks": [{"type": "command", "command": "SQUAD_PROJECT_ROOT=\"/tmp\" \"/tmp/.squad/hooks/notify-telegram.sh\" 2>/dev/null; true"}]}
+                ],
+                "OtherHook": [{"matcher": "", "hooks": [{"type": "command", "command": "my-other-tool"}]}]
+            }
+        });
+        fs::write(&path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
+
+        let result = remove_squad_hooks(path.to_str().unwrap()).unwrap();
+        assert!(result);
+
+        let updated: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        // Both squad-station and telegram hooks removed
+        assert!(updated["hooks"]["Stop"].is_null());
+        // OtherHook preserved
+        assert!(updated["hooks"]["OtherHook"].is_array());
     }
 }

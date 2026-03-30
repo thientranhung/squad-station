@@ -30,11 +30,42 @@ pub struct SddConfig {
     pub playbook: String, // absolute path to playbook .md file
 }
 
+/// Which agents to send Telegram notifications for
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum NotifyAgents {
+    All(String),         // "all"
+    List(Vec<String>),   // ["orchestrator", "implement"]
+}
+
+impl NotifyAgents {
+    /// Serialize to the comma-separated format used in .squad/telegram.env
+    pub fn to_env_value(&self) -> String {
+        match self {
+            NotifyAgents::All(s) => s.clone(),
+            NotifyAgents::List(v) => v.join(","),
+        }
+    }
+}
+
+/// Telegram notification configuration (non-sensitive parts only; secrets live in .env.squad)
+#[derive(Deserialize, Debug, Clone)]
+pub struct TelegramConfig {
+    pub enabled: bool,
+    #[serde(default = "default_notify_agents")]
+    pub notify_agents: NotifyAgents,
+}
+
+fn default_notify_agents() -> NotifyAgents {
+    NotifyAgents::All("all".to_string())
+}
+
 /// Top-level squad configuration
 #[derive(Deserialize, Debug)]
 pub struct SquadConfig {
     pub project: String,             // CONF-01: plain string (not a nested struct)
     pub sdd: Option<Vec<SddConfig>>, // optional SDD workflow configs
+    pub telegram: Option<TelegramConfig>, // optional Telegram notifications
     pub orchestrator: AgentConfig,
     pub agents: Vec<AgentConfig>,
 }
@@ -49,7 +80,23 @@ impl SquadConfig {
             let label = agent.name.as_deref().unwrap_or(&agent.role);
             validate_agent_config(label, agent)?;
         }
+        // Validate telegram.notify_agents if present
+        if let Some(tg) = &self.telegram {
+            if let NotifyAgents::All(ref s) = tg.notify_agents {
+                if s != "all" {
+                    bail!(
+                        "telegram.notify_agents must be \"all\" or a list of agent names, got \"{}\"",
+                        s
+                    );
+                }
+            }
+        }
         Ok(())
+    }
+
+    /// Returns true if Telegram notifications are enabled in the config.
+    pub fn is_telegram_enabled(&self) -> bool {
+        self.telegram.as_ref().map_or(false, |t| t.enabled)
     }
 }
 
@@ -77,6 +124,20 @@ pub fn sanitize_session_name(name: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+/// Build a tmux session name from project name and agent suffix, avoiding duplication.
+/// If `suffix` already starts with `{project}-`, the project prefix is not added again.
+/// Example: project="squad-demo", suffix="orchestrator" → "squad-demo-orchestrator"
+/// Example: project="squad-demo", suffix="squad-demo-orchestrator" → "squad-demo-orchestrator"
+pub fn build_session_name(project: &str, suffix: &str) -> String {
+    let prefix = format!("{}-", sanitize_session_name(project));
+    let sanitized_suffix = sanitize_session_name(suffix);
+    if sanitized_suffix.starts_with(&prefix) {
+        sanitized_suffix
+    } else {
+        format!("{}{}", prefix, sanitized_suffix)
+    }
 }
 
 fn default_role() -> String {
@@ -255,6 +316,126 @@ mod tests {
         assert_eq!(
             sanitize_session_name("squad-station-implement"),
             "squad-station-implement"
+        );
+    }
+
+    #[test]
+    fn telegram_config_all_agents() {
+        let yaml = r#"
+project: test
+telegram:
+  enabled: true
+  notify_agents: all
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        config.validate().unwrap();
+        let tg = config.telegram.unwrap();
+        assert!(tg.enabled);
+        assert_eq!(tg.notify_agents.to_env_value(), "all");
+    }
+
+    #[test]
+    fn telegram_config_agent_list() {
+        let yaml = r#"
+project: test
+telegram:
+  enabled: true
+  notify_agents:
+    - orchestrator
+    - implement
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        config.validate().unwrap();
+        let tg = config.telegram.unwrap();
+        assert_eq!(tg.notify_agents.to_env_value(), "orchestrator,implement");
+    }
+
+    #[test]
+    fn telegram_config_optional() {
+        let yaml = r#"
+project: test
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        assert!(config.telegram.is_none());
+    }
+
+    #[test]
+    fn telegram_config_validates_all_string() {
+        let yaml = r#"
+project: test
+telegram:
+  enabled: true
+  notify_agents: foo
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("notify_agents"));
+    }
+
+    #[test]
+    fn telegram_config_defaults_notify_agents() {
+        let yaml = r#"
+project: test
+telegram:
+  enabled: true
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker
+    provider: claude-code
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        config.validate().unwrap();
+        let tg = config.telegram.unwrap();
+        assert_eq!(tg.notify_agents.to_env_value(), "all");
+    }
+
+    #[test]
+    fn build_session_name_no_duplication() {
+        assert_eq!(
+            build_session_name("squad-demo", "orchestrator"),
+            "squad-demo-orchestrator"
+        );
+    }
+
+    #[test]
+    fn build_session_name_skips_prefix_when_already_present() {
+        assert_eq!(
+            build_session_name("squad-demo", "squad-demo-orchestrator"),
+            "squad-demo-orchestrator"
+        );
+    }
+
+    #[test]
+    fn build_session_name_sanitizes() {
+        assert_eq!(
+            build_session_name("my.app", "worker"),
+            "my-app-worker"
         );
     }
 

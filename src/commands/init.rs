@@ -1,3 +1,4 @@
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 
 use owo_colors::OwoColorize;
@@ -29,7 +30,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    let orch_name = config::sanitize_session_name(&format!("{}-{}", config.project, orch_role));
+    let orch_name = config::build_session_name(&config.project, orch_role);
     db::agents::insert_agent(
         &pool,
         &orch_name,
@@ -70,7 +71,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
         let agent_name =
-            config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+            config::build_session_name(&config.project, role_suffix);
         if let Err(e) = db::agents::insert_agent(
             &pool,
             &agent_name,
@@ -105,13 +106,13 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     }
 
     // 7. Create monitor session with interactive panes for all agents
-    let monitor_name = format!("{}-monitor", config.project);
+    let monitor_name = config::build_session_name(&config.project, "monitor");
     let mut monitor_sessions: Vec<String> = vec![];
     monitor_sessions.push(orch_name.clone());
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
         let agent_name =
-            config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+            config::build_session_name(&config.project, role_suffix);
         monitor_sessions.push(agent_name);
     }
     // Kill existing monitor session before recreating
@@ -231,38 +232,42 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         // Ask user if they want auto-inject of orchestrator context on session start/compact/clear.
         // Only prompt when base hooks were successfully auto-installed (supported provider).
         if hook_installed {
+
             println!();
             println!(
                 "  {}",
-                bold("Auto-inject orchestrator context on session start?")
+                bold("Remember orchestrator role across /clear and restarts?")
             );
             println!(
-                "  When enabled, the orchestrator automatically receives its role and agent roster"
+                "  If enabled, the orchestrator keeps its context automatically."
             );
-            println!("  whenever the AI starts a new session, resumes, or compacts context.");
             println!(
-                "  If disabled, you must manually run {} each time.",
+                "  If disabled, you must run {} after each /clear.",
                 yellow("/squad-orchestrator")
             );
-            print!("\n  Enable auto-inject? [y/N] ");
-            use std::io::Write;
+            println!();
+            print!("  Enable? [y/N] ");
             std::io::stdout().flush().ok();
 
             let mut answer = String::new();
-            if std::io::stdin().read_line(&mut answer).is_ok()
-                && answer.trim().eq_ignore_ascii_case("y")
-            {
+            let accepted = std::io::stdin().read_line(&mut answer).is_ok()
+                && answer.trim().eq_ignore_ascii_case("y");
+            // Ensure result appears on a new line after the prompt
+            if !answer.ends_with('\n') {
+                println!();
+            }
+            if accepted {
                 let project_root = config_path
                     .parent()
                     .filter(|p| !p.as_os_str().is_empty())
                     .unwrap_or(std::path::Path::new("."));
                 match install_session_start_hook(&config.orchestrator.provider, project_root) {
-                    Ok(true) => println!("  SessionStart hook: installed"),
-                    Ok(false) => println!("  SessionStart hook: skipped (unsupported provider)"),
-                    Err(e) => println!("  SessionStart hook: failed ({})", e),
+                    Ok(true) => println!("  Context auto-inject: installed"),
+                    Ok(false) => println!("  Context auto-inject: skipped (unsupported provider)"),
+                    Err(e) => println!("  Context auto-inject: failed ({})", e),
                 }
             } else {
-                println!("  SessionStart hook: skipped");
+                println!("  Context auto-inject: skipped");
             }
         }
 
@@ -312,6 +317,68 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             }
         }
 
+        // 9c. Telegram notification hooks
+        {
+
+            let project_root = config_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+
+            if config.is_telegram_enabled() {
+                // Already configured in squad.yml → install hooks automatically
+                ensure_gitignore_env_squad(project_root)?;
+
+                // Check if .env.squad has actual credentials
+                if !env_squad_has_credentials(project_root) && std::io::stdin().is_terminal() {
+                    // Credentials missing — prompt interactively
+                    println!();
+                    println!(
+                        "  Telegram is enabled but .env.squad has no credentials."
+                    );
+                    prompt_telegram_credentials(project_root)?;
+                } else {
+                    ensure_env_squad(project_root)?;
+                }
+
+                if let Some(tg) = &config.telegram {
+                    match install_telegram_hooks(tg, project_root, &providers_seen) {
+                        Ok(()) => println!("  Telegram: enabled — you will receive notifications when agents finish tasks or need input"),
+                        Err(e) => println!("  Telegram: failed ({})", e),
+                    }
+                }
+            } else if std::io::stdin().is_terminal() {
+                // No telegram section in squad.yml → prompt user
+                println!();
+                print!("  Enable Telegram notifications? [y/N] ");
+                std::io::stdout().flush().ok();
+
+                let mut answer = String::new();
+                let accepted = std::io::stdin().read_line(&mut answer).is_ok()
+                    && answer.trim().eq_ignore_ascii_case("y");
+                if !answer.ends_with('\n') {
+                    println!();
+                }
+                if accepted {
+                    if prompt_telegram_credentials(project_root)? {
+                        ensure_gitignore_env_squad(project_root)?;
+                        append_telegram_to_squad_yml(&config_path)?;
+
+                        let tg = config::TelegramConfig {
+                            enabled: true,
+                            notify_agents: config::NotifyAgents::All("all".to_string()),
+                        };
+                        match install_telegram_hooks(&tg, project_root, &providers_seen) {
+                            Ok(()) => println!("  Telegram: enabled — you will receive notifications when agents finish tasks or need input"),
+                            Err(e) => println!("  Telegram: failed ({})", e),
+                        }
+                    }
+                } else {
+                    println!("  Telegram: skipped");
+                }
+            }
+        }
+
         println!("\n{}", bold("Get Started:"));
         println!();
         println!("  1. Attach to the orchestrator session:");
@@ -327,6 +394,12 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         println!();
         println!("  Monitor all agents (read-only view):");
         println!("     {}", cyan("squad-station view"));
+        if config.is_telegram_enabled() {
+            println!();
+            println!(
+                "  Telegram notifications: active (configure agents in squad.yml)"
+            );
+        }
         println!();
 
         // Auto-start watchdog daemon for self-healing
@@ -520,7 +593,7 @@ pub fn run_health_check(
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
         let agent_name =
-            config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+            config::build_session_name(&config.project, role_suffix);
         if tmux::session_exists(&agent_name) {
             println!("  {} Agent session: {}", pass, agent_name);
             pass_count += 1;
@@ -563,6 +636,57 @@ pub fn run_health_check(
         println!("  {} Watchdog daemon not running", warn);
         warn_count += 1;
         remediation.push("Watchdog not running. Start it: `squad-station watch --daemon`".into());
+    }
+
+    // 7. Telegram notifications (only if enabled)
+    if config.is_telegram_enabled() {
+        let script_path = db_path
+            .parent()
+            .unwrap_or(std::path::Path::new(".squad"))
+            .join("hooks")
+            .join("notify-telegram.sh");
+        if script_path.exists() {
+            println!("  {} Telegram script: {}", pass, script_path.display());
+            pass_count += 1;
+        } else {
+            println!("  {} Telegram script missing: {}", fail, script_path.display());
+            fail_count += 1;
+            remediation.push("Re-run `squad-station init` to install Telegram hooks.".into());
+        }
+
+        // Check .env.squad for credentials (reuse existing helper)
+        let project_root = db_path
+            .parent()
+            .and_then(|p| p.parent())
+            .unwrap_or(std::path::Path::new("."));
+        if env_squad_has_credentials(project_root) {
+            println!("  {} Telegram credentials configured", pass);
+            pass_count += 1;
+        } else if project_root.join(".env.squad").exists() {
+            println!(
+                "  {} Telegram credentials incomplete — fill in .env.squad",
+                warn
+            );
+            warn_count += 1;
+        } else {
+            println!(
+                "  {} .env.squad missing — create it with TELE_TOKEN and TELE_CHAT_ID",
+                warn
+            );
+            warn_count += 1;
+        }
+
+        // Check .env.squad in .gitignore
+        let gitignore_path = project_root.join(".gitignore");
+        let gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+        if gitignore_content.lines().any(|l| l.trim() == ".env.squad") {
+            println!("  {} .env.squad in .gitignore", pass);
+            pass_count += 1;
+        } else {
+            println!("  {} .env.squad NOT in .gitignore — credentials may be exposed", warn);
+            warn_count += 1;
+            remediation.push("Add `.env.squad` to .gitignore to protect credentials.".into());
+        }
     }
 
     // Summary
@@ -614,16 +738,10 @@ fn check_session_conflicts(config: &config::SquadConfig) -> anyhow::Result<()> {
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    planned.push(config::sanitize_session_name(&format!(
-        "{}-{}",
-        config.project, orch_suffix
-    )));
+    planned.push(config::build_session_name(&config.project, orch_suffix));
     for agent in &config.agents {
         let suffix = agent.name.as_deref().unwrap_or(&agent.role);
-        planned.push(config::sanitize_session_name(&format!(
-            "{}-{}",
-            config.project, suffix
-        )));
+        planned.push(config::build_session_name(&config.project, suffix));
     }
 
     let conflicts: Vec<&String> = planned.iter().filter(|n| live.contains(n)).collect();
@@ -948,6 +1066,275 @@ fn get_launch_command(agent: &config::AgentConfig) -> String {
     }
 }
 
+// ── Telegram notification hooks ──────────────────────────────────────────────
+
+/// The embedded notify-telegram.sh script, compiled into the binary.
+const NOTIFY_TELEGRAM_SH: &str = include_str!("../hooks/notify-telegram.sh");
+
+/// Install Telegram notification hooks for all providers.
+/// Writes the notify script, generates .squad/telegram.env, and appends hooks.
+fn install_telegram_hooks(
+    telegram: &config::TelegramConfig,
+    project_root: &std::path::Path,
+    providers: &[String],
+) -> anyhow::Result<()> {
+    // 1. Write notify-telegram.sh to .squad/hooks/
+    let hooks_dir = project_root.join(".squad").join("hooks");
+    std::fs::create_dir_all(&hooks_dir)?;
+    let script_path = hooks_dir.join("notify-telegram.sh");
+    std::fs::write(&script_path, NOTIFY_TELEGRAM_SH)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    // 2. Generate .squad/telegram.env (non-sensitive config from squad.yml)
+    let env_content = format!(
+        "# Auto-generated by squad-station init — source of truth: squad.yml\nTELE_NOTIFY_AGENTS={}\n",
+        telegram.notify_agents.to_env_value()
+    );
+    std::fs::write(project_root.join(".squad").join("telegram.env"), env_content)?;
+
+    // 3. Append telegram hook entries to each provider's settings
+    let project_root_str = project_root.to_string_lossy();
+    let script_abs = format!("{project_root_str}/.squad/hooks/notify-telegram.sh");
+
+    for provider in providers {
+        let (settings_file, completion_event) = match provider.as_str() {
+            "claude-code" => (".claude/settings.json", "Stop"),
+            "codex" => (".codex/hooks.json", "Stop"),
+            "gemini-cli" => (".gemini/settings.json", "AfterAgent"),
+            _ => continue,
+        };
+
+        let settings_path = project_root.join(settings_file);
+        if !settings_path.exists() {
+            continue; // base hooks not installed yet — skip
+        }
+
+        let content = std::fs::read_to_string(&settings_path)?;
+        let mut settings: serde_json::Value = serde_json::from_str(&content)?;
+
+        // Build the hook command with SQUAD_PROJECT_ROOT env var
+        let hook_cmd = if provider == "gemini-cli" {
+            format!(
+                r#"SQUAD_PROJECT_ROOT="{project_root_str}" "{script_abs}" >/dev/null 2>&1; printf '{{}}'"#
+            )
+        } else {
+            format!(
+                r#"SQUAD_PROJECT_ROOT="{project_root_str}" "{script_abs}" 2>/dev/null; true"#
+            )
+        };
+
+        // Events to hook with telegram notification
+        let events = if provider == "gemini-cli" {
+            vec![completion_event, "Notification"]
+        } else {
+            vec![completion_event, "Notification", "PostToolUse"]
+        };
+
+        for event in &events {
+            append_telegram_hook_entry(&mut settings, event, &hook_cmd, provider == "gemini-cli")?;
+        }
+
+        std::fs::write(&settings_path, serde_json::to_string_pretty(&settings)?)?;
+    }
+
+    Ok(())
+}
+
+/// Append a telegram hook entry to a specific event in the settings JSON.
+/// Skips if a telegram hook is already present (idempotent).
+fn append_telegram_hook_entry(
+    settings: &mut serde_json::Value,
+    event: &str,
+    command: &str,
+    is_gemini: bool,
+) -> anyhow::Result<()> {
+    let hooks_obj = settings
+        .as_object_mut()
+        .and_then(|o| o.get_mut("hooks"))
+        .and_then(|h| h.as_object_mut());
+
+    let hooks_obj = match hooks_obj {
+        Some(h) => h,
+        None => return Ok(()), // no hooks object — skip
+    };
+
+    let existing = hooks_obj
+        .get(event)
+        .and_then(|e| e.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    // Check if telegram hook already present
+    let already_present = existing.iter().any(|entry| {
+        let hooks = entry.get("hooks").and_then(|h| h.as_array());
+        hooks
+            .map(|hooks| {
+                hooks.iter().any(|h| {
+                    h.get("command")
+                        .and_then(|c| c.as_str())
+                        .map(|cmd| cmd.contains("notify-telegram.sh"))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+    });
+
+    if already_present {
+        return Ok(());
+    }
+
+    let new_entry = if is_gemini {
+        serde_json::json!({
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": command,
+                "name": "squad-telegram",
+                "description": "Send Telegram notification",
+                "timeout": 30000
+            }]
+        })
+    } else {
+        serde_json::json!({
+            "matcher": "",
+            "hooks": [{"type": "command", "command": command}]
+        })
+    };
+
+    let mut merged = existing;
+    merged.push(new_entry);
+    hooks_obj.insert(event.to_string(), serde_json::Value::Array(merged));
+
+    Ok(())
+}
+
+/// Write .env.squad template if it doesn't exist. Called when telegram is enabled.
+fn ensure_env_squad(project_root: &std::path::Path) -> anyhow::Result<()> {
+    let env_path = project_root.join(".env.squad");
+    if !env_path.exists() {
+        std::fs::write(
+            &env_path,
+            "# Squad Station — Telegram credentials (do not commit to git)\n\
+             TELE_TOKEN=\n\
+             TELE_CHAT_ID=\n\
+             TELE_TOPIC_ID=\n\
+             # TELE_TOPIC_ID is optional — leave empty to skip.\n\
+             # When set, messages target that topic/thread in a Telegram group.\n",
+        )?;
+    }
+    Ok(())
+}
+
+/// Write .env.squad with actual credentials (from interactive prompt).
+fn write_env_squad(
+    project_root: &std::path::Path,
+    token: &str,
+    chat_id: &str,
+    topic_id: &str,
+) -> anyhow::Result<()> {
+    let topic_line = if topic_id.is_empty() {
+        "TELE_TOPIC_ID=".to_string()
+    } else {
+        format!("TELE_TOPIC_ID={}", topic_id)
+    };
+    std::fs::write(
+        project_root.join(".env.squad"),
+        format!(
+            "# Squad Station — Telegram credentials (do not commit to git)\n\
+             TELE_TOKEN={}\n\
+             TELE_CHAT_ID={}\n\
+             {}\n\
+             # TELE_TOPIC_ID is optional — leave empty to skip.\n\
+             # When set, messages target that topic/thread in a Telegram group.\n",
+            token, chat_id, topic_line
+        ),
+    )?;
+    Ok(())
+}
+
+/// Add .env.squad to .gitignore if not already present.
+fn ensure_gitignore_env_squad(project_root: &std::path::Path) -> anyhow::Result<()> {
+    let gitignore_path = project_root.join(".gitignore");
+    let content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+    if !content.lines().any(|line| line.trim() == ".env.squad") {
+        let mut new_content = content;
+        if !new_content.is_empty() && !new_content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        new_content.push_str(".env.squad\n");
+        std::fs::write(&gitignore_path, new_content)?;
+    }
+    Ok(())
+}
+
+/// Check if .env.squad exists and has non-empty TELE_TOKEN and TELE_CHAT_ID.
+fn env_squad_has_credentials(project_root: &std::path::Path) -> bool {
+    let env_path = project_root.join(".env.squad");
+    match std::fs::read_to_string(&env_path) {
+        Ok(content) => {
+            let has_token = content
+                .lines()
+                .any(|l| l.starts_with("TELE_TOKEN=") && l.len() > "TELE_TOKEN=".len());
+            let has_chat_id = content
+                .lines()
+                .any(|l| l.starts_with("TELE_CHAT_ID=") && l.len() > "TELE_CHAT_ID=".len());
+            has_token && has_chat_id
+        }
+        Err(_) => false,
+    }
+}
+
+/// Prompt user for Telegram Bot Token, Chat ID, and Topic ID.
+/// Writes .env.squad with the collected values.
+/// Returns true if credentials were provided, false if skipped.
+fn prompt_telegram_credentials(project_root: &std::path::Path) -> anyhow::Result<bool> {
+    print!("  Bot Token: ");
+    std::io::stdout().flush().ok();
+    let mut token = String::new();
+    std::io::stdin().read_line(&mut token).ok();
+    let token = token.trim().to_string();
+
+    print!("  Chat ID: ");
+    std::io::stdout().flush().ok();
+    let mut chat_id = String::new();
+    std::io::stdin().read_line(&mut chat_id).ok();
+    let chat_id = chat_id.trim().to_string();
+
+    print!("  Topic ID (Enter to skip): ");
+    std::io::stdout().flush().ok();
+    let mut topic_id = String::new();
+    std::io::stdin().read_line(&mut topic_id).ok();
+    let topic_id = topic_id.trim().to_string();
+
+    if !token.is_empty() && !chat_id.is_empty() {
+        write_env_squad(project_root, &token, &chat_id, &topic_id)?;
+        Ok(true)
+    } else {
+        println!("  Telegram: skipped (token and chat_id required)");
+        Ok(false)
+    }
+}
+
+/// Append `telegram:` section to squad.yml (string append to preserve formatting).
+fn append_telegram_to_squad_yml(config_path: &std::path::Path) -> anyhow::Result<()> {
+    let content = std::fs::read_to_string(config_path)?;
+    // Check if telegram section already exists
+    if content.contains("\ntelegram:") || content.starts_with("telegram:") {
+        return Ok(());
+    }
+    let mut new_content = content;
+    if !new_content.ends_with('\n') {
+        new_content.push('\n');
+    }
+    new_content.push_str("\ntelegram:\n  enabled: true\n  notify_agents: all\n");
+    std::fs::write(config_path, new_content)?;
+    Ok(())
+}
+
 // ── Public shims for update.rs ───────────────────────────────────────────────
 
 pub fn get_launch_command_pub(agent: &config::AgentConfig) -> String {
@@ -963,6 +1350,14 @@ pub fn install_session_start_hook_pub(
     project_root: &std::path::Path,
 ) -> anyhow::Result<bool> {
     install_session_start_hook(provider, project_root)
+}
+
+pub fn install_telegram_hooks_pub(
+    telegram: &config::TelegramConfig,
+    project_root: &std::path::Path,
+    providers: &[String],
+) -> anyhow::Result<()> {
+    install_telegram_hooks(telegram, project_root, providers)
 }
 
 #[cfg(test)]
@@ -1613,6 +2008,249 @@ mod tests {
         assert_eq!(
             get_launch_command(&agent),
             "claude --dangerously-skip-permissions --model sonnet"
+        );
+    }
+
+    // ── Telegram hook tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_install_telegram_creates_script_and_env() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        // Create pre-existing claude settings (base hooks must exist first)
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+
+        // Script created
+        let script = project_root.join(".squad/hooks/notify-telegram.sh");
+        assert!(script.exists(), "notify-telegram.sh must be created");
+
+        // telegram.env created
+        let env = project_root.join(".squad/telegram.env");
+        assert!(env.exists(), "telegram.env must be created");
+        let content = std::fs::read_to_string(&env).unwrap();
+        assert!(content.contains("TELE_NOTIFY_AGENTS=all"));
+    }
+
+    #[test]
+    fn test_install_telegram_appends_to_existing_hooks() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        // Create pre-existing claude settings with signal hook
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Stop should now have 2 entries: original signal + telegram
+        let stop = settings["hooks"]["Stop"].as_array().unwrap();
+        assert_eq!(stop.len(), 2, "Stop must have signal + telegram entries");
+
+        // First entry is the original signal hook
+        let first_cmd = stop[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(first_cmd.contains("squad-station signal"));
+
+        // Second entry is the telegram hook
+        let second_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
+        assert!(second_cmd.contains("notify-telegram.sh"));
+    }
+
+    #[test]
+    fn test_install_telegram_idempotent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+
+        // Install twice
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let stop = settings["hooks"]["Stop"].as_array().unwrap();
+        assert_eq!(
+            stop.len(),
+            2,
+            "Stop must still have exactly 2 entries after double install"
+        );
+    }
+
+    #[test]
+    fn test_install_telegram_agent_filter_in_env() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::List(vec![
+                "orchestrator".to_string(),
+                "implement".to_string(),
+            ]),
+        };
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+
+        let content =
+            std::fs::read_to_string(project_root.join(".squad/telegram.env")).unwrap();
+        assert!(content.contains("TELE_NOTIFY_AGENTS=orchestrator,implement"));
+    }
+
+    #[test]
+    fn test_ensure_gitignore_adds_env_squad() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        // Create a .gitignore without .env.squad
+        std::fs::write(project_root.join(".gitignore"), "target/\n").unwrap();
+
+        ensure_gitignore_env_squad(project_root).unwrap();
+
+        let content = std::fs::read_to_string(project_root.join(".gitignore")).unwrap();
+        assert!(content.contains(".env.squad"));
+    }
+
+    #[test]
+    fn test_ensure_gitignore_idempotent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        std::fs::write(project_root.join(".gitignore"), "target/\n.env.squad\n").unwrap();
+
+        ensure_gitignore_env_squad(project_root).unwrap();
+
+        let content = std::fs::read_to_string(project_root.join(".gitignore")).unwrap();
+        assert_eq!(
+            content.matches(".env.squad").count(),
+            1,
+            "must not duplicate .env.squad"
+        );
+    }
+
+    #[test]
+    fn test_write_env_squad_with_topic_id() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_env_squad(tmp.path(), "tok123", "chat456", "topic789").unwrap();
+        let content = std::fs::read_to_string(tmp.path().join(".env.squad")).unwrap();
+        assert!(content.contains("TELE_TOKEN=tok123"));
+        assert!(content.contains("TELE_CHAT_ID=chat456"));
+        assert!(content.contains("TELE_TOPIC_ID=topic789"));
+    }
+
+    #[test]
+    fn test_write_env_squad_without_topic_id() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_env_squad(tmp.path(), "tok123", "chat456", "").unwrap();
+        let content = std::fs::read_to_string(tmp.path().join(".env.squad")).unwrap();
+        assert!(content.contains("TELE_TOKEN=tok123"));
+        assert!(content.contains("TELE_CHAT_ID=chat456"));
+        assert!(content.contains("TELE_TOPIC_ID=\n") || content.contains("TELE_TOPIC_ID=\r\n"));
+    }
+
+    #[test]
+    fn test_append_telegram_to_squad_yml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let yml = tmp.path().join("squad.yml");
+        std::fs::write(&yml, "project: test\norchestrator:\n  provider: claude-code\nagents: []\n").unwrap();
+
+        append_telegram_to_squad_yml(&yml).unwrap();
+
+        let content = std::fs::read_to_string(&yml).unwrap();
+        assert!(content.contains("telegram:"));
+        assert!(content.contains("enabled: true"));
+        assert!(content.contains("notify_agents: all"));
+    }
+
+    #[test]
+    fn test_append_telegram_to_squad_yml_idempotent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let yml = tmp.path().join("squad.yml");
+        std::fs::write(&yml, "project: test\ntelegram:\n  enabled: true\n  notify_agents: all\n").unwrap();
+
+        append_telegram_to_squad_yml(&yml).unwrap();
+
+        let content = std::fs::read_to_string(&yml).unwrap();
+        assert_eq!(
+            content.matches("telegram:").count(),
+            1,
+            "must not duplicate telegram section"
+        );
+    }
+
+    #[test]
+    fn test_install_telegram_gemini_hook_format() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        let gemini_dir = project_root.join(".gemini");
+        std::fs::create_dir_all(&gemini_dir).unwrap();
+        std::fs::write(
+            gemini_dir.join("settings.json"),
+            r#"{"hooks":{"AfterAgent":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+        install_telegram_hooks(&tg, project_root, &["gemini-cli".to_string()]).unwrap();
+
+        let content = std::fs::read_to_string(gemini_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let after = settings["hooks"]["AfterAgent"].as_array().unwrap();
+        assert_eq!(after.len(), 2);
+
+        // Gemini hook must end with printf '{}' for JSON stdout requirement
+        let tg_cmd = after[1]["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            tg_cmd.contains("printf '{}'"),
+            "Gemini telegram hook must include printf for JSON stdout: {}",
+            tg_cmd
+        );
+        assert!(
+            after[1]["hooks"][0]["name"].as_str().unwrap() == "squad-telegram",
+            "Gemini hook must have name field"
         );
     }
 }

@@ -13,6 +13,11 @@ sdd:
   # - name: openspec
   #   playbook: ".squad/sdd/openspec-playbook.md"
 
+# Telegram notifications (credentials go in .env.squad, auto-created by init)
+# telegram:
+#   enabled: true
+#   notify_agents: all          # "all" or list: [orchestrator, implement]
+
 orchestrator:
   provider: gemini-cli
   role: orchestrator

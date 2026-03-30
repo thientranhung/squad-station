@@ -32,3 +32,4 @@ bin/squad-station
 !.squad/rules/
 !.squad/sdd/
 !.squad/examples/
+!.squad/hooks/

@@ -242,6 +242,25 @@ function scaffoldProject(force) {
     });
   }
 
+  // Copy hooks/ (notification scripts)
+  var hooksSrc = path.join(srcSquad, 'hooks');
+  if (fs.existsSync(hooksSrc)) {
+    var hooksDest = path.join(destSquad, 'hooks');
+    fs.mkdirSync(hooksDest, { recursive: true });
+
+    var hooksFiles = fs.readdirSync(hooksSrc).filter(function(f) { return f.endsWith('.sh'); });
+    hooksFiles.forEach(function(file) {
+      var dest = path.join(hooksDest, file);
+      if (fs.existsSync(dest) && !force) {
+        console.log('  \x1b[33m–\x1b[0m .squad/hooks/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
+      } else {
+        fs.copyFileSync(path.join(hooksSrc, file), dest);
+        fs.chmodSync(dest, 0o755);
+        console.log('  \x1b[32m✓\x1b[0m .squad/hooks/' + file);
+      }
+    });
+  }
+
   // Copy examples/
   var exSrc = path.join(srcSquad, 'examples');
   var exDest = path.join(destSquad, 'examples');

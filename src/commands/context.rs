@@ -371,7 +371,7 @@ async fn run_inject(
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    let orch_name = config::sanitize_session_name(&format!("{}-{}", config.project, orch_role));
+    let orch_name = config::build_session_name(&config.project, orch_role);
     if session_name != orch_name {
         return Ok(()); // Not the orchestrator — silent exit (workers get no injection)
     }

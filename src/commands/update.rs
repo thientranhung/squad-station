@@ -129,10 +129,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         .map(|a| {
             let role_suffix = a.name.as_deref().unwrap_or(&a.role);
             YmlAgent {
-                session_name: config::sanitize_session_name(&format!(
-                    "{}-{}",
-                    config.project, role_suffix
-                )),
+                session_name: config::build_session_name(&config.project, role_suffix),
                 provider: a.provider.clone(),
                 role: a.role.clone(),
             }
@@ -240,7 +237,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         if let Some(agent_cfg) = config.agents.iter().find(|a| {
             let role_suffix = a.name.as_deref().unwrap_or(&a.role);
             let sname =
-                config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+                config::build_session_name(&config.project, role_suffix);
             sname == change.session_name
         }) {
             let cmd = get_launch_command_pub(agent_cfg);
@@ -267,7 +264,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         if let Some(agent_cfg) = config.agents.iter().find(|a| {
             let role_suffix = a.name.as_deref().unwrap_or(&a.role);
             let sname =
-                config::sanitize_session_name(&format!("{}-{}", config.project, role_suffix));
+                config::build_session_name(&config.project, role_suffix);
             sname == yml_agent.session_name
         }) {
             db::agents::insert_agent(
@@ -318,7 +315,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
 /// - `force = true`: kill and recreate unconditionally — use after agent changes
 ///   so new/removed agents are reflected in monitor panes.
 fn ensure_monitor(config: &config::SquadConfig, force: bool) -> Result<()> {
-    let monitor_name = config::sanitize_session_name(&format!("{}-monitor", config.project));
+    let monitor_name = config::build_session_name(&config.project, "monitor");
 
     if tmux::session_exists(&monitor_name) {
         if !force {
@@ -335,16 +332,10 @@ fn ensure_monitor(config: &config::SquadConfig, force: bool) -> Result<()> {
         .name
         .as_deref()
         .unwrap_or("orchestrator");
-    sessions.push(config::sanitize_session_name(&format!(
-        "{}-{}",
-        config.project, orch_suffix
-    )));
+    sessions.push(config::build_session_name(&config.project, orch_suffix));
     for agent in &config.agents {
         let role_suffix = agent.name.as_deref().unwrap_or(&agent.role);
-        sessions.push(config::sanitize_session_name(&format!(
-            "{}-{}",
-            config.project, role_suffix
-        )));
+        sessions.push(config::build_session_name(&config.project, role_suffix));
     }
 
     if sessions.is_empty() {
@@ -631,6 +622,7 @@ mod tests {
         let config = config::SquadConfig {
             project: "test-proj".to_string(),
             sdd: None,
+            telegram: None,
             orchestrator: config::AgentConfig {
                 name: None,
                 provider: "claude-code".to_string(),
