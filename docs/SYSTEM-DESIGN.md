@@ -70,6 +70,20 @@ agents:
     role: worker
     model: gpt-5.4
     description: "Fast coder. Writes code, fixes bugs."
+
+telegram:
+  enabled: true
+  notify_agents:            # optional filter — omit to notify all agents
+    - implement
+    - brainstorm
+```
+
+Telegram credentials are stored in `.env.squad` at the project root (never committed):
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF
+TELEGRAM_CHAT_ID=-1001234567890
+TELEGRAM_TOPIC_ID=42            # optional — for forum/topic threads
 ```
 
 **Rules:**
@@ -80,6 +94,7 @@ agents:
 - Agent tmux session name = `<project>-<name>` (e.g., `my-app-implement`)
 - Orchestrator tmux session name = `<project>-orchestrator`
 - Session names are sanitized: `.`, `:`, `"` → `-`
+- `build_session_name` prevents duplication when agent name already includes the project prefix (e.g. `my-app-implement` stays as-is, not `my-app-my-app-implement`)
 - `#[serde(deny_unknown_fields)]` — unknown fields in agent config are rejected
 
 **Provider validation:**
@@ -117,12 +132,17 @@ squad-station init
 6. Launch AI tool in each session:
    - claude-code → claude --dangerously-skip-permissions --model <model>
    - gemini-cli  → gemini --model <model>
-7. Generate orchestrator context file → .squad/orchestrator/<PROVIDER_FILE>
-8. Create monitor session (<project>-monitor):
+7. Telegram interactive prompt:
+   - Ask: "Enable Telegram notifications? (y/n)"
+   - If yes: prompt for bot token, chat ID, optional topic ID
+   - Write credentials to .env.squad (gitignored)
+   - Add telegram config block to squad.yml
+8. Generate orchestrator context file → .squad/orchestrator/<PROVIDER_FILE>
+9. Create monitor session (<project>-monitor):
    - Tiled panes, one per agent (orchestrator + workers)
    - Each pane is an interactive nested tmux attach
    - Attach via: tmux attach -t <project>-monitor
-9. Print "Get Started" message with provider-specific CLI invocation
+10. Print "Get Started" message with provider-specific CLI invocation
 ```
 
 ### 3.1 Orchestrator Context — Provider-Specific Slash Command
@@ -171,7 +191,7 @@ The `context` command generates a slash command file that the Orchestrator loads
 
 ### 3.2 Context Auto-Inject (SessionStart Hook)
 
-During `squad-station init`, the user is asked whether to enable auto-injection.
+During `squad-station init`, the user is asked: "Remember orchestrator role across /clear and restarts?"
 When enabled, a `SessionStart` hook is installed that runs `squad-station context --inject`
 on every session start, resume, or compact/clear.
 
@@ -388,7 +408,7 @@ Flags:
 Hooks are mechanisms that automatically notify Squad Station when an agent finishes a work session.
 The agent **does not know** Squad Station exists. Hooks are an external layer.
 
-Hook logic is embedded in `signal.rs` — there is no separate `hooks/` directory.
+Hook logic is embedded in `signal.rs`. Telegram notification is handled by `src/hooks/notify-telegram.sh`, which is copied to `.squad/hooks/` during init.
 
 ### 5.2 Signal Guard Chain
 
@@ -426,9 +446,12 @@ to `/dev/null` since internal logging captures all diagnostics.
 | Event | Matcher | Command | Purpose |
 |-------|---------|---------|---------|
 | `Stop` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
+| `Stop` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram notification on task completion |
 | `Notification` | `permission_prompt` | `squad-station notify ...` | Permission dialog blocking agent |
+| `Notification` | `permission_prompt` | `.squad/hooks/notify-telegram.sh` | Telegram alert for permission prompt |
 | `Notification` | `elicitation_dialog` | `squad-station notify ...` | MCP server input form blocking agent |
 | `PostToolUse` | `AskUserQuestion` | `squad-station notify ...` | Agent asking clarifying question |
+| `PostToolUse` | `AskUserQuestion` | `.squad/hooks/notify-telegram.sh` | Telegram alert for clarifying question |
 | `SessionStart` | `*` | `squad-station context --inject` | Auto-inject orchestrator context (opt-in) |
 
 ```json
@@ -460,7 +483,9 @@ same settings file receive no injection.
 | Event | Matcher | Command | Purpose |
 |-------|---------|---------|---------|
 | `AfterAgent` | `*` | `squad-station signal ...` | Agent finished turn → signal completion |
+| `AfterAgent` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram notification on task completion |
 | `Notification` | `*` | `squad-station notify ...` | Any notification (permissions, alerts) |
+| `Notification` | `*` | `.squad/hooks/notify-telegram.sh` | Telegram alert for notifications |
 | `SessionStart` | `*` | `squad-station context --inject` | Auto-inject orchestrator context (opt-in) |
 
 ```json
@@ -574,11 +599,15 @@ Codebase at: /absolute/path/to/project
 ```
 my-app/
 ├── squad.yml                    ← user config (only file user writes)
+├── .env.squad                   ← Telegram credentials (gitignored, never committed)
 ├── CLAUDE.md                    ← project instructions (user's own, NOT generated)
 ├── .squad/
 │   ├── station.db               ← SQLite WAL message hub
 │   ├── station.db-wal           ← WAL file
-│   └── station.db-shm           ← shared memory
+│   ├── station.db-shm           ← shared memory
+│   ├── hooks/
+│   │   └── notify-telegram.sh   ← Telegram notification hook script
+│   └── telegram.env             ← resolved Telegram env (sourced by hook)
 ├── .claude/
 │   ├── settings.json            ← hooks (auto-installed by init)
 │   └── commands/
@@ -688,6 +717,7 @@ src/
 | v0.5.5 | Context auto-inject (SessionStart hook), /clear management, simplified CLI (close removed, clean = kill + delete) |
 | v0.6.8 | Lean SDD Playbooks: trimmed 84%, added OpenSpec playbook |
 | v0.6.9 | Watchdog simplified: removed idle nudge, stuck-agent detection only (tiered: log 10m, heal 30m, alert 60m) |
+| v0.8.0 | Telegram notifications (interactive setup during init, agent filter via `notify_agents`, `topic_id` for forum threads), session name dedup (`build_session_name` prevents prefix duplication), UX improvements (clearer prompts, "Get Started" section) |
 
 ---
 
