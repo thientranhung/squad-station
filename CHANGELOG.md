@@ -2,6 +2,23 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.3 — Remove bootstrap injection & fix Telegram spam (2026-03-31)
+
+Fixes two issues disrupting user workflows: the bootstrap block that was auto-injecting into CLAUDE.md on every `squad-station init`, and Telegram notification hooks firing on every tool call instead of only on task completion.
+
+### Fixed
+
+- **Removed bootstrap block injection** — `squad-station init` no longer writes a `<!-- squad-station:bootstrap-start -->` block into the user's CLAUDE.md / GEMINI.md / AGENTS.md. The orchestrator context is available via the slash command file, making the bootstrap redundant.
+- **Telegram notifications restricted to Stop event only** — `notify-telegram.sh` was registered on Stop, Notification, and PostToolUse events (Claude/Codex) and AfterAgent + Notification (Gemini), causing massive Telegram spam on every tool call. Now only fires on the completion event (Stop or AfterAgent).
+
+### Removed
+
+- `inject_bootstrap_block()`, `build_bootstrap_block()`, `provider_doc_paths()` from context.rs
+- `remove_bootstrap_block()` from uninstall.rs (cleanup no longer needed)
+- 9 bootstrap-related unit tests
+
+---
+
 ## v0.8.2 — Fix install to always update reference templates (2026-03-30)
 
 Fixes a UX bug where `npx squad-station@latest install` skipped example configs, SDD playbooks, and rules when they already existed, requiring `--force`. These are package-provided reference templates that should always be refreshed on install.
