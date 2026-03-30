@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.1 — Post-release fixes: version sync, code style, example configs (2026-03-30)
+
+Fixes version mismatches introduced in v0.8.0, adds Telegram notification templates to all example configs, and cleans up code style (fmt + clippy).
+
+### Fixed
+
+- **Version sync** — `run.js` and root `package.json` now correctly report v0.8.1 (were stuck on v0.7.23 in v0.8.0)
+- **Code style** — Applied `cargo fmt` formatting and fixed clippy `unnecessary_map_or` warning
+
+### Added
+
+- **Telegram config in examples** — All example `squad.yml` files now include the `telegram:` section template
+- **Release checklist hardened** — Strengthened version-sync verification steps in the release skill
+
+---
+
 ## v0.7.23 — Stronger anti-polling instruction in orchestrator context (2026-03-29)
 
 Reinforced the "no polling" message in `squad-orchestrator.md` so the orchestrator stops using `tmux capture-pane` loops to check agent progress.
