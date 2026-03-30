@@ -96,7 +96,7 @@ impl SquadConfig {
 
     /// Returns true if Telegram notifications are enabled in the config.
     pub fn is_telegram_enabled(&self) -> bool {
-        self.telegram.as_ref().map_or(false, |t| t.enabled)
+        self.telegram.as_ref().is_some_and(|t| t.enabled)
     }
 }
 
