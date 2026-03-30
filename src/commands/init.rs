@@ -1106,12 +1106,9 @@ fn install_telegram_hooks(
             format!(r#"SQUAD_PROJECT_ROOT="{project_root_str}" "{script_abs}" 2>/dev/null; true"#)
         };
 
-        // Events to hook with telegram notification
-        let events = if provider == "gemini-cli" {
-            vec![completion_event, "Notification"]
-        } else {
-            vec![completion_event, "Notification", "PostToolUse"]
-        };
+        // Telegram notifications fire only on task completion (Stop / AfterAgent).
+        // Other events (Notification, PostToolUse) would cause massive spam.
+        let events = vec![completion_event];
 
         for event in &events {
             append_telegram_hook_entry(&mut settings, event, &hook_cmd, provider == "gemini-cli")?;
