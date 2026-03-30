@@ -6,9 +6,6 @@ use crate::config;
 
 use super::clean;
 
-const BOOTSTRAP_MARKER_START: &str = "<!-- squad-station:bootstrap-start -->";
-const BOOTSTRAP_MARKER_END: &str = "<!-- squad-station:bootstrap-end -->";
-
 /// Remove all hook entries whose command contains "squad-station" from a JSON settings file.
 /// Cleans up Stop, Notification, PostToolUse, AfterAgent, SessionStart events.
 /// Removes the event key entirely if no entries remain after filtering.
@@ -83,48 +80,6 @@ fn remove_squad_hooks(settings_file: &str) -> Result<bool> {
     Ok(changed)
 }
 
-/// Remove the squad-station bootstrap block from a doc file (CLAUDE.md, AGENTS.md, GEMINI.md).
-fn remove_bootstrap_block(doc_file: &str) -> Result<bool> {
-    let path = Path::new(doc_file);
-    if !path.exists() {
-        return Ok(false);
-    }
-
-    let content = std::fs::read_to_string(path)?;
-    if !content.contains(BOOTSTRAP_MARKER_START) {
-        return Ok(false);
-    }
-
-    // Remove the block between markers (inclusive)
-    let mut result = String::new();
-    let mut inside = false;
-    for line in content.lines() {
-        if line.trim() == BOOTSTRAP_MARKER_START {
-            inside = true;
-            continue;
-        }
-        if line.trim() == BOOTSTRAP_MARKER_END {
-            inside = false;
-            continue;
-        }
-        if !inside {
-            result.push_str(line);
-            result.push('\n');
-        }
-    }
-
-    // Trim trailing blank lines left by removal
-    let trimmed = result.trim_end().to_string();
-    let final_content = if trimmed.is_empty() {
-        String::new()
-    } else {
-        format!("{}\n", trimmed)
-    };
-
-    std::fs::write(path, final_content)?;
-    Ok(true)
-}
-
 /// Return the provider-specific paths for hooks file, doc file, and orchestrator playbook.
 fn provider_paths(provider: &str) -> (&'static str, &'static str, &'static str) {
     match provider {
@@ -151,7 +106,7 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
     let db_path = config::resolve_db_path(&config)?;
     let squad_dir = db_path.parent().unwrap_or(Path::new(".squad"));
 
-    let (hooks_file, doc_file, orchestrator_md) = provider_paths(&config.orchestrator.provider);
+    let (hooks_file, _doc_file, orchestrator_md) = provider_paths(&config.orchestrator.provider);
 
     // Also check orchestrator provider for agent providers (agents may differ)
     let agent_hooks_files: Vec<&str> = config
@@ -172,7 +127,6 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
                 println!("  • Remove squad-station hooks from {}", f);
             }
         }
-        println!("  • Remove bootstrap block from {}", doc_file);
         println!("  • Delete {}", orchestrator_md);
         println!("  • Delete .squad/ directory");
         println!("  • squad.yml is preserved");
@@ -225,14 +179,7 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
         }
     }
 
-    // 5. Remove bootstrap block from doc file
-    match remove_bootstrap_block(doc_file) {
-        Ok(true) => println!("  [CLEANED] bootstrap block from {}", doc_file),
-        Ok(false) => println!("  [SKIP]    {} — no bootstrap block found", doc_file),
-        Err(e) => eprintln!("  [WARN]    failed to clean {}: {}", doc_file, e),
-    }
-
-    // 6. Delete squad-orchestrator.md
+    // 5. Delete squad-orchestrator.md
     let orch_path = Path::new(orchestrator_md);
     if orch_path.exists() {
         std::fs::remove_file(orch_path)?;
@@ -241,7 +188,7 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
         println!("  [SKIP]    {} — not found", orchestrator_md);
     }
 
-    // 7. Delete .squad/ directory entirely
+    // 6. Delete .squad/ directory entirely
     if squad_dir.exists() {
         std::fs::remove_dir_all(squad_dir)?;
         println!("  [DELETED] {}/", squad_dir.display());
@@ -249,7 +196,7 @@ pub async fn run(config_path: PathBuf, yes: bool) -> Result<()> {
         println!("  [SKIP]    .squad/ — not found");
     }
 
-    // 8. Note about .env.squad (credentials file at project root, not inside .squad/)
+    // 7. Note about .env.squad (credentials file at project root, not inside .squad/)
     let project_root = squad_dir.parent().unwrap_or(Path::new("."));
     if project_root.join(".env.squad").exists() {
         println!("  [SKIP]    .env.squad preserved (contains credentials)");
@@ -342,39 +289,6 @@ mod tests {
     #[test]
     fn test_remove_squad_hooks_skips_missing_file() {
         let result = remove_squad_hooks("/nonexistent/path/settings.json").unwrap();
-        assert!(!result);
-    }
-
-    #[test]
-    fn test_remove_bootstrap_block_removes_block() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("CLAUDE.md");
-        let content = "# My Project\n\nSome content.\n\n<!-- squad-station:bootstrap-start -->\n## Squad Station — Orchestrator Bootstrap\nsome bootstrap stuff\n<!-- squad-station:bootstrap-end -->\n\nMore content.\n";
-        fs::write(&path, content).unwrap();
-
-        let result = remove_bootstrap_block(path.to_str().unwrap()).unwrap();
-        assert!(result);
-
-        let updated = fs::read_to_string(&path).unwrap();
-        assert!(!updated.contains("squad-station:bootstrap-start"));
-        assert!(!updated.contains("Bootstrap"));
-        assert!(updated.contains("# My Project"));
-        assert!(updated.contains("More content."));
-    }
-
-    #[test]
-    fn test_remove_bootstrap_block_skips_missing_file() {
-        let result = remove_bootstrap_block("/nonexistent/CLAUDE.md").unwrap();
-        assert!(!result);
-    }
-
-    #[test]
-    fn test_remove_bootstrap_block_skips_if_no_marker() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("CLAUDE.md");
-        fs::write(&path, "# My Project\n\nNo squad stuff here.\n").unwrap();
-
-        let result = remove_bootstrap_block(path.to_str().unwrap()).unwrap();
         assert!(!result);
     }
 
