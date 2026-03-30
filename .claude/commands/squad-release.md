@@ -6,19 +6,20 @@ Execute the full release process for squad-station version $ARGUMENTS. Follow ev
 
 ## 1. PRE-FLIGHT CHECKS
 
-- [ ] Verify you are on the `develop` branch (`git branch --show-current`)
+- [ ] Verify you are on the `master` branch (`git branch --show-current`) — **ABORT if not on master. Release bump MUST only happen on master.**
 - [ ] Verify working tree is clean (`git status` — no uncommitted changes)
 - [ ] Run `cargo test` — **abort the entire release if any test fails**
 
 ## 2. VERSION SYNC
 
-All 3 locations **MUST** show the same version `$ARGUMENTS`:
+All 4 locations **MUST** show the same version `$ARGUMENTS`:
 
 - [ ] `Cargo.toml` → `version = "$ARGUMENTS"`
 - [ ] `npm-package/package.json` → `"version": "$ARGUMENTS"`
-- [ ] `npm-package/bin/run.js` → `VERSION` variable inside `installBinary()` must be `$ARGUMENTS`
+- [ ] `npm-package/bin/run.js` → `var VERSION = '$ARGUMENTS'` inside `installBinary()` (line ~46)
+- [ ] `package.json` (root) → `"version": "$ARGUMENTS"`
 
-Update any that don't match. Triple-check all 3 before proceeding.
+Update any that don't match. **Triple-check all 4 before proceeding.** This is the #1 source of release bugs — run.js downloads the binary from GitHub by this version tag, so a mismatch means users get the wrong binary.
 
 ## 3. CHANGELOG
 
@@ -45,7 +46,7 @@ Update any that don't match. Triple-check all 3 before proceeding.
 
 ## 5. GIT
 
-- [ ] `git add` all changed files (Cargo.toml, Cargo.lock, package.json, bin/run.js, CHANGELOG.md)
+- [ ] `git add` all changed files (Cargo.toml, Cargo.lock, package.json, npm-package/package.json, npm-package/bin/run.js, CHANGELOG.md)
 - [ ] `git commit -m "release: v$ARGUMENTS — <summary>"`
 - [ ] `git checkout master && git merge develop`
 - [ ] `git tag v$ARGUMENTS`
@@ -73,7 +74,7 @@ Update any that don't match. Triple-check all 3 before proceeding.
 
 ## ⚠️ IMPORTANT — Lessons from past releases
 
-1. **Version sync is critical.** All 3 locations (Cargo.toml, package.json, bin/run.js) MUST match. The v0.6.2 release had a version mismatch that required a follow-up v0.6.3.
+1. **Version sync is critical.** All 4 locations (Cargo.toml, package.json, npm-package/package.json, npm-package/bin/run.js) MUST match. The v0.6.2 release had a mismatch requiring v0.6.3, and v0.8.0 shipped with run.js still pointing at v0.7.23.
 2. **bin/run.js MUST be executable.** Always `chmod +x` before committing. The v0.6.3 release was specifically to fix this.
 3. **Never use `generate_release_notes: true`** in GitHub Actions — we maintain CHANGELOG.md manually.
 4. **npm publish requires user interaction** (OTP) — never attempt it automatically.
