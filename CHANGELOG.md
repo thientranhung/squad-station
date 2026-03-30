@@ -2,6 +2,20 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.2 — Fix install to always update reference templates (2026-03-30)
+
+Fixes a UX bug where `npx squad-station@latest install` skipped example configs, SDD playbooks, and rules when they already existed, requiring `--force`. These are package-provided reference templates that should always be refreshed on install.
+
+### Fixed
+
+- **examples/ always overwritten** — Example config templates are now refreshed on every install without `--force`
+- **sdd/ always overwritten** — Playbook documentation is now refreshed on every install (also fixed in `bin/run.js` which still had the old skip logic)
+- **rules/ always overwritten** — Git workflow rules are now refreshed on every install
+- **hooks/ preserved** — Hook scripts still require `--force` to overwrite, since users may customize them
+- **Removed dead code** — Cleaned up unused `--force` flag parsing in `bin/run.js`
+
+---
+
 ## v0.8.1 — Post-release fixes: version sync, code style, example configs (2026-03-30)
 
 Fixes version mismatches introduced in v0.8.0, adds Telegram notification templates to all example configs, and cleans up code style (fmt + clippy).
