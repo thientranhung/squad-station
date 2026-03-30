@@ -34,8 +34,8 @@ pub struct SddConfig {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum NotifyAgents {
-    All(String),         // "all"
-    List(Vec<String>),   // ["orchestrator", "implement"]
+    All(String),       // "all"
+    List(Vec<String>), // ["orchestrator", "implement"]
 }
 
 impl NotifyAgents {
@@ -433,10 +433,7 @@ agents:
 
     #[test]
     fn build_session_name_sanitizes() {
-        assert_eq!(
-            build_session_name("my.app", "worker"),
-            "my-app-worker"
-        );
+        assert_eq!(build_session_name("my.app", "worker"), "my-app-worker");
     }
 
     #[test]

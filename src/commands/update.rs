@@ -236,8 +236,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
         // Find matching agent config to get launch command
         if let Some(agent_cfg) = config.agents.iter().find(|a| {
             let role_suffix = a.name.as_deref().unwrap_or(&a.role);
-            let sname =
-                config::build_session_name(&config.project, role_suffix);
+            let sname = config::build_session_name(&config.project, role_suffix);
             sname == change.session_name
         }) {
             let cmd = get_launch_command_pub(agent_cfg);
@@ -263,8 +262,7 @@ pub async fn run(config_path: PathBuf) -> Result<()> {
     for yml_agent in &plan.new_agents {
         if let Some(agent_cfg) = config.agents.iter().find(|a| {
             let role_suffix = a.name.as_deref().unwrap_or(&a.role);
-            let sname =
-                config::build_session_name(&config.project, role_suffix);
+            let sname = config::build_session_name(&config.project, role_suffix);
             sname == yml_agent.session_name
         }) {
             db::agents::insert_agent(

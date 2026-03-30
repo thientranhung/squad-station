@@ -250,7 +250,6 @@ pub fn list_live_session_names() -> Vec<String> {
         .collect()
 }
 
-
 /// Kill a tmux window by name (idempotent — ignores errors if window does not exist).
 pub fn kill_window(window_name: &str) -> Result<()> {
     let _ = Command::new("tmux")

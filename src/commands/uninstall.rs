@@ -50,7 +50,9 @@ fn remove_squad_hooks(settings_file: &str) -> Result<bool> {
                         Some(hooks) => !hooks.iter().any(|h| {
                             h.get("command")
                                 .and_then(|c| c.as_str())
-                                .map(|cmd| cmd.contains("squad-station") || cmd.contains(".squad/hooks/"))
+                                .map(|cmd| {
+                                    cmd.contains("squad-station") || cmd.contains(".squad/hooks/")
+                                })
                                 .unwrap_or(false)
                         }),
                     }
