@@ -224,7 +224,7 @@ function scaffoldProject(force) {
     console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
   });
 
-  // Copy rules/ (git workflow rules)
+  // Copy rules/ (git workflow rules) — always overwrite with latest
   var rulesSrc = path.join(srcSquad, 'rules');
   if (fs.existsSync(rulesSrc)) {
     var rulesDest = path.join(destSquad, 'rules');
@@ -233,12 +233,8 @@ function scaffoldProject(force) {
     var rulesFiles = fs.readdirSync(rulesSrc).filter(function(f) { return f.endsWith('.md'); });
     rulesFiles.forEach(function(file) {
       var dest = path.join(rulesDest, file);
-      if (fs.existsSync(dest) && !force) {
-        console.log('  \x1b[33m–\x1b[0m .squad/rules/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
-      } else {
-        fs.copyFileSync(path.join(rulesSrc, file), dest);
-        console.log('  \x1b[32m✓\x1b[0m .squad/rules/' + file);
-      }
+      fs.copyFileSync(path.join(rulesSrc, file), dest);
+      console.log('  \x1b[32m✓\x1b[0m .squad/rules/' + file);
     });
   }
 
@@ -261,7 +257,7 @@ function scaffoldProject(force) {
     });
   }
 
-  // Copy examples/
+  // Copy examples/ — always overwrite with latest reference templates
   var exSrc = path.join(srcSquad, 'examples');
   var exDest = path.join(destSquad, 'examples');
   fs.mkdirSync(exDest, { recursive: true });
@@ -269,12 +265,8 @@ function scaffoldProject(force) {
   var exFiles = fs.readdirSync(exSrc).filter(function(f) { return f.endsWith('.yml'); });
   exFiles.forEach(function(file) {
     var dest = path.join(exDest, file);
-    if (fs.existsSync(dest) && !force) {
-      console.log('  \x1b[33m–\x1b[0m .squad/examples/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
-    } else {
-      fs.copyFileSync(path.join(exSrc, file), dest);
-      console.log('  \x1b[32m✓\x1b[0m .squad/examples/' + file);
-    }
+    fs.copyFileSync(path.join(exSrc, file), dest);
+    console.log('  \x1b[32m✓\x1b[0m .squad/examples/' + file);
   });
 }
 

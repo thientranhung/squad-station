@@ -20,9 +20,6 @@ if (subcommand === 'install') {
 // 2. Copy .squad/ project files to CWD
 
 function install() {
-  const args = process.argv.slice(3);
-  const force = args.includes('--force') || args.includes('-f');
-
   console.log('\n\x1b[32m══════════════════════════════════\x1b[0m');
   console.log('  \x1b[1mSquad Station Install\x1b[0m');
   console.log('\x1b[32m══════════════════════════════════\x1b[0m\n');
@@ -31,7 +28,7 @@ function install() {
   installBinary();
 
   // Step 2: Scaffold project files
-  scaffoldProject(force);
+  scaffoldProject();
 
   // Done
   console.log('\n\x1b[1mNext steps:\x1b[0m');
@@ -110,7 +107,7 @@ function installBinary() {
   }
 }
 
-function scaffoldProject(force) {
+function scaffoldProject() {
   // Source: bundled .squad/ directory inside npm package
   const pkgRoot = path.join(__dirname, '..');
   const srcSquad = path.join(pkgRoot, '.squad');
@@ -118,7 +115,7 @@ function scaffoldProject(force) {
 
   console.log('');
 
-  // Copy sdd/ playbooks
+  // Copy sdd/ playbooks — always overwrite with latest
   var sddSrc = path.join(srcSquad, 'sdd');
   var sddDest = path.join(destSquad, 'sdd');
   fs.mkdirSync(sddDest, { recursive: true });
@@ -126,15 +123,11 @@ function scaffoldProject(force) {
   var sddFiles = fs.readdirSync(sddSrc).filter(function(f) { return f.endsWith('.md'); });
   sddFiles.forEach(function(file) {
     var dest = path.join(sddDest, file);
-    if (fs.existsSync(dest) && !force) {
-      console.log('  \x1b[33m–\x1b[0m .squad/sdd/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
-    } else {
-      fs.copyFileSync(path.join(sddSrc, file), dest);
-      console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
-    }
+    fs.copyFileSync(path.join(sddSrc, file), dest);
+    console.log('  \x1b[32m✓\x1b[0m .squad/sdd/' + file);
   });
 
-  // Copy examples/
+  // Copy examples/ — always overwrite with latest reference templates
   var exSrc = path.join(srcSquad, 'examples');
   var exDest = path.join(destSquad, 'examples');
   fs.mkdirSync(exDest, { recursive: true });
@@ -142,12 +135,8 @@ function scaffoldProject(force) {
   var exFiles = fs.readdirSync(exSrc).filter(function(f) { return f.endsWith('.yml'); });
   exFiles.forEach(function(file) {
     var dest = path.join(exDest, file);
-    if (fs.existsSync(dest) && !force) {
-      console.log('  \x1b[33m–\x1b[0m .squad/examples/' + file + ' \x1b[2m(exists, use --force to overwrite)\x1b[0m');
-    } else {
-      fs.copyFileSync(path.join(exSrc, file), dest);
-      console.log('  \x1b[32m✓\x1b[0m .squad/examples/' + file);
-    }
+    fs.copyFileSync(path.join(exSrc, file), dest);
+    console.log('  \x1b[32m✓\x1b[0m .squad/examples/' + file);
   });
 }
 
