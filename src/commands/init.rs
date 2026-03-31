@@ -1056,6 +1056,12 @@ fn install_telegram_hooks(
     project_root: &std::path::Path,
     providers: &[String],
 ) -> anyhow::Result<()> {
+    // Canonicalize project_root to an absolute path so that hook commands
+    // work correctly even when the hook runner's cwd differs from the
+    // project root (e.g. Claude Code worktrees).
+    let project_root = std::fs::canonicalize(project_root)
+        .unwrap_or_else(|_| project_root.to_path_buf());
+
     // 1. Write notify-telegram.sh to .squad/hooks/
     let hooks_dir = project_root.join(".squad").join("hooks");
     std::fs::create_dir_all(&hooks_dir)?;
@@ -2234,6 +2240,64 @@ mod tests {
         assert!(
             after[1]["hooks"][0]["name"].as_str().unwrap() == "squad-telegram",
             "Gemini hook must have name field"
+        );
+    }
+
+    /// Regression test: hook commands must use absolute paths even when
+    /// `install_telegram_hooks` is called with a relative project_root like ".".
+    /// Without canonicalization the generated command would contain
+    /// `SQUAD_PROJECT_ROOT="."` which breaks when the hook runner's cwd
+    /// differs from the project root (e.g. Claude Code worktrees).
+    #[test]
+    fn test_install_telegram_hook_uses_absolute_path_even_for_relative_root() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Canonicalize to resolve platform symlinks (e.g. /var → /private/var on macOS)
+        let abs_root = std::fs::canonicalize(tmp.path()).unwrap();
+
+        // Create pre-existing claude settings
+        let claude_dir = abs_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+
+        // Change cwd to the temp dir and call with relative path "."
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&abs_root).unwrap();
+        let result = install_telegram_hooks(&tg, std::path::Path::new("."), &["claude-code".to_string()]);
+        std::env::set_current_dir(&original_dir).unwrap();
+        result.unwrap();
+
+        // Read the generated settings and verify the hook command uses absolute paths
+        let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let stop = settings["hooks"]["Stop"].as_array().unwrap();
+        let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
+
+        // Must NOT contain relative markers
+        assert!(
+            !tg_cmd.contains("SQUAD_PROJECT_ROOT=\".\""),
+            "hook command must not use relative path '.': {tg_cmd}"
+        );
+        assert!(
+            !tg_cmd.contains("\"./.squad"),
+            "script path must not start with './.squad': {tg_cmd}"
+        );
+
+        // Must contain absolute path (starts with /)
+        assert!(
+            tg_cmd.contains(&format!("SQUAD_PROJECT_ROOT=\"{}\"", abs_root.display())),
+            "hook command must use absolute project root: {tg_cmd}"
+        );
+        assert!(
+            tg_cmd.contains(&format!("\"{}/.squad/hooks/notify-telegram.sh\"", abs_root.display())),
+            "script path must be absolute: {tg_cmd}"
         );
     }
 }
