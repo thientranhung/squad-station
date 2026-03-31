@@ -2,6 +2,20 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.4 — Fix Telegram hook silent failure in worktrees (2026-03-31)
+
+Fixes silent Telegram notification failure when Claude Code runs hooks from a git worktree. The generated hook command used a relative path (`"."`) for `SQUAD_PROJECT_ROOT`, which resolves to the wrong directory when the hook runner's cwd differs from the project root.
+
+### Fixed
+
+- **Telegram hook uses absolute paths** — `install_telegram_hooks()` now canonicalizes `project_root` so the generated `SQUAD_PROJECT_ROOT` and script path in `settings.json` are always absolute, regardless of how the caller provides the path.
+
+### Added
+
+- Regression test verifying hook commands contain absolute paths even when called with relative `"."` root.
+
+---
+
 ## v0.8.3 — Remove bootstrap injection & fix Telegram spam (2026-03-31)
 
 Fixes two issues disrupting user workflows: the bootstrap block that was auto-injecting into CLAUDE.md on every `squad-station init`, and Telegram notification hooks firing on every tool call instead of only on task completion.
