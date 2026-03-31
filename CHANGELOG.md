@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.5 — Fix signal delivery & DB resolution in git worktrees (2026-03-31)
+
+Fixes the root cause of broken signal delivery when agents run inside a git worktree. `find_project_root()` now detects worktrees and resolves to the main working tree, ensuring all commands share the same database regardless of which cwd they run from.
+
+### Fixed
+
+- **Worktree-aware project root resolution** — `find_project_root()` uses `git rev-parse --git-dir` vs `--git-common-dir` to detect worktrees and prefer the main repo's `squad.yml` and `.squad/station.db`. Previously, running from a worktree would create/use a separate database, causing signals to hit the wrong DB and agents to appear unregistered.
+- **`load_config()` always uses `find_project_root()`** for the default `squad.yml` path, ensuring worktree detection applies even when a `squad.yml` exists in the worktree's cwd.
+
+### Added
+
+- `resolve_main_worktree_root()` helper that detects git worktrees via `--git-common-dir`
+- Unit tests for worktree resolution behavior
+
+---
+
 ## v0.8.4 — Fix Telegram hook silent failure in worktrees (2026-03-31)
 
 Fixes silent Telegram notification failure when Claude Code runs hooks from a git worktree. The generated hook command used a relative path (`"."`) for `SQUAD_PROJECT_ROOT`, which resolves to the wrong directory when the hook runner's cwd differs from the project root.
