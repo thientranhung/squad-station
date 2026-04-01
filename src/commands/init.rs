@@ -835,38 +835,27 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     Ok(true)
 }
 
-/// Install Codex hooks: Stop (signal) + PostToolUse (notify for Bash tool)
+/// Install Codex hooks: Stop (signal) for task completion
 ///
 /// Codex hooks are very similar to Claude Code:
 /// - Uses Stop event for completion signals (same as Claude Code)
 /// - Stdout is not required to be JSON (exit 0 with no output = success)
 /// - Hooks configured in `.codex/hooks.json` (not settings.json)
-/// - Matcher patterns use regex (e.g. "Bash", "startup|resume")
+/// - No PostToolUse hook: Codex runs in --yolo mode (full auto-approve) so it never
+///   stops to ask for input. The only available matcher is "Bash" which fires on every
+///   tool call, causing duplicate [SQUAD INPUT NEEDED] signals to the orchestrator.
 fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
 
     // Codex: stdout is not required to be JSON. exit 0 = success. Same as Claude Code.
     let signal_cmd = format!(r#"squad-station signal "{}" 2>/dev/null"#, resolve);
-    let notify_cmd = format!(
-        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
-        resolve
-    );
 
     // Stop hook — agent finished turn → signal completion
     settings["hooks"]["Stop"] = serde_json::json!([{
         "matcher": "",
         "hooks": [{"type": "command", "command": signal_cmd}]
     }]);
-
-    // PostToolUse hook — notify orchestrator when Bash tool runs
-    // (Codex currently only supports Bash tool for PreToolUse/PostToolUse)
-    settings["hooks"]["PostToolUse"] = serde_json::json!([
-        {
-            "matcher": "Bash",
-            "hooks": [{"type": "command", "command": notify_cmd}]
-        }
-    ]);
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
 
@@ -1633,7 +1622,7 @@ mod tests {
     }
 
     #[test]
-    fn test_install_codex_hooks_includes_stop_and_post_tool_use() {
+    fn test_install_codex_hooks_includes_stop_only() {
         let tmp = tempfile::TempDir::new().unwrap();
         let hooks_file = tmp.path().join(".codex").join("hooks.json");
         let hooks_str = hooks_file.to_str().unwrap();
@@ -1646,10 +1635,13 @@ mod tests {
         // Verify Stop hook exists
         assert!(settings["hooks"]["Stop"].is_array(), "Stop hook must exist");
 
-        // Verify PostToolUse hook exists with Bash matcher
-        let ptu = &settings["hooks"]["PostToolUse"];
-        assert!(ptu.is_array(), "PostToolUse hook must exist");
-        assert_eq!(ptu[0]["matcher"].as_str().unwrap(), "Bash");
+        // PostToolUse must NOT be installed — Codex runs in --yolo mode (full auto-approve)
+        // and the only available matcher is "Bash" which fires on every tool call, causing
+        // duplicate [SQUAD INPUT NEEDED] signals to the orchestrator
+        assert!(
+            settings["hooks"]["PostToolUse"].is_null(),
+            "PostToolUse must not be installed for Codex (--yolo mode, no input needed)"
+        );
 
         // Base hooks must NOT include SessionStart (opt-in via install_session_start_hook)
         assert!(

@@ -2,6 +2,20 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.6 — Remove Codex PostToolUse hook (2026-04-01)
+
+Removes the PostToolUse hook from Codex provider hook installation. Codex agents run in `--yolo` mode (full auto-approve) and never stop to ask for user input. The `Bash` matcher — the only one available for Codex PostToolUse — fired on every tool call, sending duplicate `[SQUAD INPUT NEEDED]` signals that confused the orchestrator.
+
+### Fixed
+
+- **Removed PostToolUse hook for Codex provider** — `install_codex_hooks()` no longer installs a PostToolUse hook with the `Bash` matcher. This was a design mismatch: the hook was modeled after Claude Code's `AskUserQuestion` pattern, but Codex has no equivalent — `Bash` is its primary tool and fires constantly, not just when input is needed.
+
+### Changed
+
+- Updated `test_install_codex_hooks_includes_stop_only` test to verify PostToolUse is **not** installed for Codex
+
+---
+
 ## v0.8.5 — Fix signal delivery & DB resolution in git worktrees (2026-03-31)
 
 Fixes the root cause of broken signal delivery when agents run inside a git worktree. `find_project_root()` now detects worktrees and resolves to the main working tree, ensuring all commands share the same database regardless of which cwd they run from.

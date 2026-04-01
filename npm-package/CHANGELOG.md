@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.6 — Remove Codex PostToolUse hook (2026-04-01)
+
+Removes the PostToolUse hook from Codex provider hook installation. Codex agents run in `--yolo` mode (full auto-approve) and never stop to ask for user input. The `Bash` matcher fired on every tool call, sending duplicate `[SQUAD INPUT NEEDED]` signals that confused the orchestrator.
+
+### Fixed
+
+- **Removed PostToolUse hook for Codex provider** — `install_codex_hooks()` no longer installs a PostToolUse hook with the `Bash` matcher.
+
+---
+
 ## v0.7.2 — npm Installer Hardening (2026-03-24)
 
 Fixes npm installer issues that prevented clean upgrades and macOS Gatekeeper blocks on downloaded binaries.
