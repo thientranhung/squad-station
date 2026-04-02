@@ -857,6 +857,15 @@ fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
         "hooks": [{"type": "command", "command": signal_cmd}]
     }]);
 
+    // Remove stale hooks from pre-v0.8.6 installs. Codex runs in --yolo mode
+    // (full auto-approve), so PostToolUse/Notification hooks are incorrect:
+    // PostToolUse with "Bash" matcher fires on every tool call, flooding the
+    // orchestrator with duplicate [SQUAD INPUT NEEDED] signals.
+    if let Some(hooks_obj) = settings["hooks"].as_object_mut() {
+        hooks_obj.remove("PostToolUse");
+        hooks_obj.remove("Notification");
+    }
+
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
 
     // Codex requires [features] codex_hooks = true in config.toml to activate hooks.
@@ -1314,6 +1323,18 @@ pub fn get_launch_command_pub(agent: &config::AgentConfig) -> String {
 
 pub fn auto_install_hooks_pub(provider: &str) -> anyhow::Result<bool> {
     auto_install_hooks(provider)
+}
+
+pub fn install_claude_hooks_pub(settings_file: &str) -> anyhow::Result<bool> {
+    install_claude_hooks(settings_file)
+}
+
+pub fn install_codex_hooks_pub(settings_file: &str) -> anyhow::Result<bool> {
+    install_codex_hooks(settings_file)
+}
+
+pub fn install_gemini_hooks_pub(settings_file: &str) -> anyhow::Result<bool> {
+    install_gemini_hooks(settings_file)
 }
 
 pub fn install_session_start_hook_pub(
