@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.7 — Guard Telegram hook for agent-only sessions (2026-04-02)
+
+Prevents spurious Telegram notifications when the hook fires outside tmux agent sessions (e.g., from the orchestrator or a non-agent terminal).
+
+### Fixed
+
+- **Telegram hook now exits early for non-agent sessions** — When `TELE_NOTIFY_AGENTS` is set to a specific agent list (not `all`), sessions without a tmux session name (i.e., not running inside an agent pane) now exit immediately instead of falling through to the notification logic.
+
+---
+
 ## v0.8.6 — Remove Codex PostToolUse hook (2026-04-01)
 
 Removes the PostToolUse hook from Codex provider hook installation. Codex agents run in `--yolo` mode (full auto-approve) and never stop to ask for user input. The `Bash` matcher — the only one available for Codex PostToolUse — fired on every tool call, sending duplicate `[SQUAD INPUT NEEDED]` signals that confused the orchestrator.
