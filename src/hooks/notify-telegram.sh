@@ -45,7 +45,11 @@ agent_name=$(tmux display-message -p '#S' 2>/dev/null || echo "")
 
 # ── Agent filter ─────────────────────────────────────────────────────
 TELE_NOTIFY_AGENTS="${TELE_NOTIFY_AGENTS:-all}"
-if [[ "$TELE_NOTIFY_AGENTS" != "all" && -n "$agent_name" ]]; then
+if [[ "$TELE_NOTIFY_AGENTS" != "all" ]]; then
+  # Not in a tmux session → not an agent → skip
+  if [[ -z "$agent_name" ]]; then
+    exit 0
+  fi
   # Check if agent is in the comma-separated list
   match=false
   IFS=',' read -ra AGENTS <<< "$TELE_NOTIFY_AGENTS"
