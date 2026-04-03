@@ -134,10 +134,6 @@ fn test_sigpipe_binary_starts() {
     );
     assert!(stdout.contains("list"), "help must list 'list' subcommand");
     assert!(stdout.contains("peek"), "help must list 'peek' subcommand");
-    assert!(
-        stdout.contains("register"),
-        "help must list 'register' subcommand"
-    );
 }
 
 // ============================================================

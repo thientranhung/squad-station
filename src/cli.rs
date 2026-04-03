@@ -66,17 +66,6 @@ pub enum Commands {
         /// Agent name
         agent: String,
     },
-    /// Register an agent at runtime
-    Register {
-        /// Agent name
-        name: String,
-        /// Agent role
-        #[arg(long, default_value = "worker")]
-        role: String,
-        /// Agent tool label (e.g. claude-code, gemini)
-        #[arg(long, default_value = "unknown")]
-        tool: String, // CONF-04: renamed from provider
-    },
     /// List agents with reconciled status
     Agents,
     /// Generate orchestrator context file
@@ -87,19 +76,6 @@ pub enum Commands {
     },
     /// Show project and agent status summary
     Status,
-    /// Launch interactive TUI dashboard
-    Ui,
-    /// Open tmux tiled view of all live agent sessions
-    View,
-    /// Kill all sessions and delete database, then relaunch
-    Reset {
-        /// Path to squad config file
-        #[arg(default_value = "squad.yml")]
-        config: PathBuf,
-        /// Skip relaunching sessions after reset
-        #[arg(long)]
-        no_relaunch: bool,
-    },
     /// Detect and fix stuck agents (busy in DB but idle in tmux)
     Reconcile {
         /// Show what would be fixed without changing the database

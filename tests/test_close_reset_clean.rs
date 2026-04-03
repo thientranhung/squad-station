@@ -291,13 +291,3 @@ fn clean_handles_missing_log_dir_gracefully() {
     // This mirrors the code: if log_dir.exists() { remove_dir_all } else { false }
 }
 
-// ============================================================
-// reset::run — error handling
-// ============================================================
-
-#[tokio::test]
-async fn reset_run_errors_on_missing_config() {
-    use squad_station::commands::reset;
-    let result = reset::run(PathBuf::from("nonexistent-squad.yml"), true, false).await;
-    assert!(result.is_err(), "run must error when config file not found");
-}

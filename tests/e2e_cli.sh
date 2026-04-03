@@ -132,7 +132,7 @@ section "1. BINARY & HELP"
 
 # T1.1: --help shows all subcommands
 OUTPUT=$($BIN --help 2>&1)
-EXPECTED_CMDS="init send signal list peek register agents context status ui view"
+EXPECTED_CMDS="init send signal list peek agents context status"
 ALL_FOUND=true
 for cmd in $EXPECTED_CMDS; do
   if ! echo "$OUTPUT" | grep -q "$cmd"; then
@@ -141,7 +141,7 @@ for cmd in $EXPECTED_CMDS; do
   fi
 done
 if $ALL_FOUND; then
-  pass "T1.1 --help lists all 11 subcommands"
+  pass "T1.1 --help lists all 8 subcommands"
 else
   fail "T1.1 --help lists all subcommands" "missing command in output"
 fi
@@ -192,35 +192,6 @@ if $BIN init nonexistent.yml 2>&1; then
   fail "T2.3 init with missing file errors" "got exit 0"
 else
   pass "T2.3 init with missing file errors"
-fi
-
-# --- 3. Register --------------------------------------------------------------
-
-section "3. REGISTER"
-
-# T3.1: Register new agent (v1.1: --tool replaces --command/--provider)
-OUTPUT=$($BIN register e2e-agent3 --tool claude-code 2>&1)
-if echo "$OUTPUT" | grep -q "Registered agent 'e2e-agent3'"; then
-  pass "T3.1 register new agent"
-else
-  fail "T3.1 register new agent" "output: $OUTPUT"
-fi
-
-# T3.2: Register idempotent — same agent again
-OUTPUT=$($BIN register e2e-agent3 --tool claude-code 2>&1)
-EXIT_CODE=$?
-if [[ $EXIT_CODE -eq 0 ]]; then
-  pass "T3.2 register idempotent (duplicate exits 0)"
-else
-  fail "T3.2 register idempotent" "exit code: $EXIT_CODE"
-fi
-
-# T3.3: Register --json output
-OUTPUT=$($BIN register e2e-agent4 --tool claude-code --json 2>&1)
-if echo "$OUTPUT" | grep -q '"registered":true'; then
-  pass "T3.3 register --json output"
-else
-  fail "T3.3 register --json" "output: $OUTPUT"
 fi
 
 # --- 4. Send ------------------------------------------------------------------
@@ -340,8 +311,8 @@ else
   fail "T6.2 peek --json" "output: $OUTPUT"
 fi
 
-# T6.3: Peek agent with no pending tasks (register-only agent)
-OUTPUT=$($BIN peek e2e-agent3 2>&1)
+# T6.3: Peek agent with no pending tasks
+OUTPUT=$($BIN peek "$AGENT2" 2>&1)
 EXIT_CODE=$?
 if [[ $EXIT_CODE -eq 0 ]] && echo "$OUTPUT" | grep -qi "no pending"; then
   pass "T6.3 peek no pending tasks exits 0"
@@ -487,54 +458,6 @@ if echo "$OUTPUT" | grep -q "project\|agents\|error"; then
   pass "T10.3 status --json (or graceful error)"
 else
   fail "T10.3 status --json" "output: $OUTPUT"
-fi
-
-# --- 11. View -----------------------------------------------------------------
-
-section "11. VIEW"
-
-# T11.1: View creates tmux pane layout
-OUTPUT=$($BIN view 2>&1)
-EXIT_CODE=$?
-if [[ $EXIT_CODE -eq 0 ]] && echo "$OUTPUT" | grep -qi "Created squad-view\|panes"; then
-  pass "T11.1 view creates tmux pane layout"
-else
-  fail "T11.1 view" "exit=$EXIT_CODE output: $OUTPUT"
-fi
-
-# T11.2: View idempotent (re-run)
-OUTPUT=$($BIN view 2>&1)
-EXIT_CODE=$?
-if [[ $EXIT_CODE -eq 0 ]]; then
-  pass "T11.2 view idempotent (re-run exits 0)"
-else
-  fail "T11.2 view idempotent" "exit=$EXIT_CODE"
-fi
-
-# --- 12. UI -------------------------------------------------------------------
-
-section "12. UI (TUI)"
-
-# T12.1: UI requires TTY — errors gracefully without one
-# The TUI enters an event loop that may hang without a real TTY,
-# so we run it with a 2-second timeout using background process + kill.
-$BIN ui </dev/null >/dev/null 2>&1 &
-UI_PID=$!
-sleep 2
-if kill -0 "$UI_PID" 2>/dev/null; then
-  # Still running after 2s — it didn't exit on its own (expected: TUI hangs without TTY)
-  kill "$UI_PID" 2>/dev/null || true
-  wait "$UI_PID" 2>/dev/null || true
-  skip "T12.1 ui TTY check" "TUI did not exit on non-TTY (hangs, killed after 2s)"
-else
-  # Exited on its own — check exit code
-  wait "$UI_PID" 2>/dev/null
-  EXIT_CODE=$?
-  if [[ $EXIT_CODE -ne 0 ]]; then
-    pass "T12.1 ui rejects non-TTY environment (exits non-zero)"
-  else
-    skip "T12.1 ui TTY check" "exited 0 without TTY"
-  fi
 fi
 
 # --- 13. Hook Scripts ---------------------------------------------------------
