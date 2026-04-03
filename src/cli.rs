@@ -140,6 +140,21 @@ pub enum Commands {
         #[arg(long, short = 'y')]
         yes: bool,
     },
+    /// Send a Telegram notification (replaces notify-telegram.sh hook script)
+    NotifyTelegram {
+        /// Hook event name (Stop, SessionStart, SessionEnd, Notification, etc.)
+        #[arg(long, default_value = "Stop")]
+        event: String,
+        /// Raw message body (extracted from hook JSON or provided directly)
+        #[arg(long, default_value = "")]
+        message: String,
+        /// Project name override (auto-detected from cwd if omitted)
+        #[arg(long)]
+        project: Option<String>,
+        /// Path to transcript file (for Stop events, extracts last assistant message)
+        #[arg(long)]
+        transcript: Option<String>,
+    },
     /// Run health check to diagnose squad operational issues
     Doctor,
     /// Kill all squad tmux sessions and delete the database
