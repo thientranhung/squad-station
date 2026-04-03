@@ -613,11 +613,11 @@ fn test_session_start_hook_unknown_provider_returns_false() {
 }
 
 // ============================================================
-// Telegram hooks — install_telegram_hooks_pub
+// Telegram hooks — install_telegram_hooks_pub (Rust subcommand)
 // ============================================================
 
 #[test]
-fn test_telegram_hooks_claude_code_creates_script_and_env() {
+fn test_telegram_hooks_claude_code_uses_rust_command() {
     let tmp = tempfile::TempDir::new().unwrap();
     let project_root = tmp.path();
 
@@ -634,12 +634,23 @@ fn test_telegram_hooks_claude_code_creates_script_and_env() {
     };
     install_telegram_hooks_pub(&tg, project_root, &["claude-code".to_string()]).unwrap();
 
-    assert!(project_root.join(".squad/hooks/notify-telegram.sh").exists());
-    assert!(project_root.join(".squad/telegram.env").exists());
+    // No shell script or telegram.env — pure Rust subcommand
+    assert!(!project_root.join(".squad/hooks/notify-telegram.sh").exists());
+    assert!(!project_root.join(".squad/telegram.env").exists());
 
-    let env_content =
-        std::fs::read_to_string(project_root.join(".squad/telegram.env")).unwrap();
-    assert!(env_content.contains("TELE_NOTIFY_AGENTS=all"));
+    let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+    let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let stop = settings["hooks"]["Stop"].as_array().unwrap();
+    assert_eq!(stop.len(), 2);
+    let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
+    assert!(
+        tg_cmd.contains("squad-station notify-telegram"),
+        "Hook must call Rust subcommand: {tg_cmd}"
+    );
+    assert!(
+        tg_cmd.contains("--event Stop"),
+        "Hook must pass event: {tg_cmd}"
+    );
 }
 
 #[test]
@@ -668,37 +679,8 @@ fn test_telegram_hooks_appends_to_stop_event() {
 
     let second_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
     assert!(
-        second_cmd.contains("notify-telegram.sh"),
+        second_cmd.contains("squad-station notify-telegram"),
         "Second Stop entry must be telegram: {second_cmd}"
-    );
-}
-
-#[test]
-fn test_telegram_hooks_agent_filter_in_env() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let project_root = tmp.path();
-
-    let claude_dir = project_root.join(".claude");
-    std::fs::create_dir_all(&claude_dir).unwrap();
-    std::fs::write(
-        claude_dir.join("settings.json"),
-        r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
-    ).unwrap();
-
-    let tg = config::TelegramConfig {
-        enabled: true,
-        notify_agents: config::NotifyAgents::List(vec![
-            "orchestrator".to_string(),
-            "implement".to_string(),
-        ]),
-    };
-    install_telegram_hooks_pub(&tg, project_root, &["claude-code".to_string()]).unwrap();
-
-    let content =
-        std::fs::read_to_string(project_root.join(".squad/telegram.env")).unwrap();
-    assert!(
-        content.contains("TELE_NOTIFY_AGENTS=orchestrator,implement"),
-        "telegram.env must contain agent filter list: {content}"
     );
 }
 
@@ -727,6 +709,14 @@ fn test_telegram_hooks_gemini_format() {
     assert_eq!(after.len(), 2);
 
     let tg_cmd = after[1]["hooks"][0]["command"].as_str().unwrap();
+    assert!(
+        tg_cmd.contains("squad-station notify-telegram"),
+        "Gemini telegram hook must use Rust subcommand: {tg_cmd}"
+    );
+    assert!(
+        tg_cmd.contains("--event AfterAgent"),
+        "Gemini hook must pass AfterAgent event: {tg_cmd}"
+    );
     assert!(
         tg_cmd.contains("printf '{}'"),
         "Gemini telegram hook must include printf: {tg_cmd}"
@@ -798,83 +788,77 @@ fn test_telegram_hooks_absolute_path_even_for_relative_root() {
     let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
 
     assert!(
-        !tg_cmd.contains("SQUAD_PROJECT_ROOT=\".\""),
+        !tg_cmd.contains("cd \".\""),
         "hook must not use relative path '.': {tg_cmd}"
     );
     assert!(
-        tg_cmd.contains(&format!("SQUAD_PROJECT_ROOT=\"{}\"", abs_root.display())),
-        "hook must use absolute project root: {tg_cmd}"
+        tg_cmd.contains(&format!("cd \"{}\"", abs_root.display())),
+        "hook must cd to absolute project root: {tg_cmd}"
     );
 }
 
 // ============================================================
-// Notify-telegram.sh script content verification (include_str!)
+// Rust notify_telegram command — unit tests via public helpers
 // ============================================================
 
+use squad_station::commands::notify_telegram::{
+    agent_matches_filter_pub, format_message_pub, load_env_file_pub,
+};
+
 #[test]
-fn test_notify_telegram_script_has_credential_guard() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
-    assert!(
-        script.contains(r#"if [[ -z "$TELE_TOKEN" || -z "$TELE_CHAT_ID" ]]"#),
-        "Script must guard against missing credentials"
-    );
+fn test_notify_telegram_load_env_file() {
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+        tmp.path(),
+        "# comment\nTELE_TOKEN=abc\nTELE_CHAT_ID=-100\n",
+    )
+    .unwrap();
+    let vars = load_env_file_pub(tmp.path());
+    assert_eq!(vars.len(), 2);
+    assert_eq!(vars[0].0, "TELE_TOKEN");
+    assert_eq!(vars[0].1, "abc");
 }
 
 #[test]
-fn test_notify_telegram_script_has_project_root_guard() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
-    assert!(
-        script.contains(r#"if [[ -z "$PROJECT_ROOT" ]]"#),
-        "Script must guard against empty PROJECT_ROOT"
-    );
+fn test_notify_telegram_agent_filter_all() {
+    let filter = config::NotifyAgents::All("all".to_string());
+    assert!(agent_matches_filter_pub("any-agent", &filter));
 }
 
 #[test]
-fn test_notify_telegram_script_handles_all_hook_events() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
+fn test_notify_telegram_agent_filter_list() {
+    let filter = config::NotifyAgents::List(vec!["orchestrator".into(), "implement".into()]);
+    assert!(agent_matches_filter_pub("implement", &filter));
+    assert!(agent_matches_filter_pub("myproject-orchestrator", &filter));
+    assert!(!agent_matches_filter_pub("brainstorm", &filter));
+}
+
+#[test]
+fn test_notify_telegram_format_message_stop() {
+    let msg = format_message_pub("Stop", "", "myproject", &None);
+    assert!(msg.contains("[myproject]"));
+    assert!(msg.contains("Response finished"));
+}
+
+#[test]
+fn test_notify_telegram_format_message_session_start() {
+    let msg = format_message_pub("SessionStart", "", "proj", &None);
+    assert!(msg.contains("Session started"));
+}
+
+#[test]
+fn test_notify_telegram_format_message_truncation() {
+    let long = "x".repeat(5000);
+    let msg = format_message_pub("Notification", &long, "proj", &None);
+    assert!(msg.contains("(truncated)"));
+}
+
+#[test]
+fn test_notify_telegram_format_handles_all_events() {
     for event in &["SessionStart", "SessionEnd", "Stop", "Notification"] {
-        assert!(script.contains(event), "Script must handle {event} hook event");
+        let msg = format_message_pub(event, "test", "proj", &None);
+        assert!(msg.contains("[proj]"), "Message for {event} must contain project name");
     }
-}
-
-/// Regression test for v0.8.7 bug: notify-telegram.sh was sending Telegram
-/// notifications for non-agent sessions because the guard check for empty
-/// agent_name was missing when TELE_NOTIFY_AGENTS != "all".
-#[test]
-fn test_notify_telegram_script_agent_filter_skips_non_tmux() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
-
-    assert!(
-        script.contains(r#"if [[ -z "$agent_name" ]]"#),
-        "Script must skip non-tmux sessions when agent filter is active"
-    );
-
-    // The skip must be inside the agent filter block (not at top level)
-    let filter_block_start = script.find(r#"if [[ "$TELE_NOTIFY_AGENTS" != "all" ]]"#);
-    let agent_guard = script.find(r#"if [[ -z "$agent_name" ]]"#);
-    assert!(
-        filter_block_start.is_some() && agent_guard.is_some(),
-        "Both filter block and agent guard must exist"
-    );
-    assert!(
-        agent_guard.unwrap() > filter_block_start.unwrap(),
-        "Agent guard must be inside the TELE_NOTIFY_AGENTS filter block"
-    );
-}
-
-#[test]
-fn test_notify_telegram_script_truncates_long_messages() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
-    assert!(script.contains("4096"), "Script must enforce Telegram 4096 char limit");
-}
-
-#[test]
-fn test_notify_telegram_script_uses_tmux_display_message() {
-    let script = include_str!("../src/hooks/notify-telegram.sh");
-    assert!(
-        script.contains("tmux display-message -p '#S'"),
-        "Script must detect agent name via tmux display-message"
-    );
 }
 
 // ============================================================
