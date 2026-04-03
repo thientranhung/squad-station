@@ -7,7 +7,6 @@
 /// Bug context:
 /// - v0.8.6: Codex PostToolUse hook was still generated (not caught at integration level)
 /// - v0.8.7: notify-telegram.sh sent notifications for non-agent sessions
-
 use squad_station::commands::init::{
     install_claude_hooks_pub, install_codex_hooks_pub, install_gemini_hooks_pub,
     install_session_start_hook_pub, install_telegram_hooks_pub,
@@ -295,8 +294,7 @@ fn test_hooks_codex_idempotent() {
         "Stop must have exactly 1 entry after double install"
     );
 
-    let toml_content =
-        std::fs::read_to_string(tmp.path().join(".codex/config.toml")).unwrap();
+    let toml_content = std::fs::read_to_string(tmp.path().join(".codex/config.toml")).unwrap();
     assert_eq!(
         toml_content.matches("codex_hooks").count(),
         1,
@@ -499,18 +497,9 @@ fn test_hooks_gemini_no_env_var_session_name() {
 fn test_hooks_mixed_providers_isolation() {
     let tmp = tempfile::TempDir::new().unwrap();
 
-    install_gemini_hooks_pub(
-        tmp.path().join(".gemini/settings.json").to_str().unwrap(),
-    )
-    .unwrap();
-    install_claude_hooks_pub(
-        tmp.path().join(".claude/settings.json").to_str().unwrap(),
-    )
-    .unwrap();
-    install_codex_hooks_pub(
-        tmp.path().join(".codex/hooks.json").to_str().unwrap(),
-    )
-    .unwrap();
+    install_gemini_hooks_pub(tmp.path().join(".gemini/settings.json").to_str().unwrap()).unwrap();
+    install_claude_hooks_pub(tmp.path().join(".claude/settings.json").to_str().unwrap()).unwrap();
+    install_codex_hooks_pub(tmp.path().join(".codex/hooks.json").to_str().unwrap()).unwrap();
 
     // All three provider hook files must exist
     assert!(tmp.path().join(".gemini/settings.json").exists());
@@ -559,11 +548,7 @@ fn test_session_start_hook_codex_installs_correctly() {
     let tmp = tempfile::TempDir::new().unwrap();
     let codex_dir = tmp.path().join(".codex");
     std::fs::create_dir_all(&codex_dir).unwrap();
-    std::fs::write(
-        codex_dir.join("hooks.json"),
-        r#"{"hooks":{"Stop":[]}}"#,
-    )
-    .unwrap();
+    std::fs::write(codex_dir.join("hooks.json"), r#"{"hooks":{"Stop":[]}}"#).unwrap();
 
     assert!(install_session_start_hook_pub("codex", tmp.path()).unwrap());
 
@@ -635,7 +620,9 @@ fn test_telegram_hooks_claude_code_uses_rust_command() {
     install_telegram_hooks_pub(&tg, project_root, &["claude-code".to_string()]).unwrap();
 
     // No shell script or telegram.env — pure Rust subcommand
-    assert!(!project_root.join(".squad/hooks/notify-telegram.sh").exists());
+    assert!(!project_root
+        .join(".squad/hooks/notify-telegram.sh")
+        .exists());
     assert!(!project_root.join(".squad/telegram.env").exists());
 
     let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
@@ -808,11 +795,7 @@ use squad_station::commands::notify_telegram::{
 #[test]
 fn test_notify_telegram_load_env_file() {
     let tmp = tempfile::NamedTempFile::new().unwrap();
-    std::fs::write(
-        tmp.path(),
-        "# comment\nTELE_TOKEN=abc\nTELE_CHAT_ID=-100\n",
-    )
-    .unwrap();
+    std::fs::write(tmp.path(), "# comment\nTELE_TOKEN=abc\nTELE_CHAT_ID=-100\n").unwrap();
     let vars = load_env_file_pub(tmp.path());
     assert_eq!(vars.len(), 2);
     assert_eq!(vars[0].0, "TELE_TOKEN");
@@ -857,7 +840,10 @@ fn test_notify_telegram_format_message_truncation() {
 fn test_notify_telegram_format_handles_all_events() {
     for event in &["SessionStart", "SessionEnd", "Stop", "Notification"] {
         let msg = format_message_pub(event, "test", "proj", &None);
-        assert!(msg.contains("[proj]"), "Message for {event} must contain project name");
+        assert!(
+            msg.contains("[proj]"),
+            "Message for {event} must contain project name"
+        );
     }
 }
 

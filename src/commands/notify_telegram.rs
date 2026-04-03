@@ -280,8 +280,7 @@ mod tests {
 
     #[test]
     fn test_agent_matches_filter_list_exact() {
-        let filter =
-            config::NotifyAgents::List(vec!["orchestrator".into(), "implement".into()]);
+        let filter = config::NotifyAgents::List(vec!["orchestrator".into(), "implement".into()]);
         assert!(agent_matches_filter("implement", &filter));
         assert!(!agent_matches_filter("brainstorm", &filter));
     }
