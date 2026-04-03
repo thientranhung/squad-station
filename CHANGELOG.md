@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.9 — Remove unused CLI subcommands (2026-04-03)
+
+Remove dead code and unused dependencies to slim down the binary and simplify the CLI surface.
+
+### Removed
+
+- **CLI subcommands:** `ui` (TUI dashboard), `view` (tmux tiled view), `register` (runtime agent registration), `reset` (overlapped with `clean`)
+- **Dependencies:** `ratatui` and `crossterm` crates no longer needed
+
+---
+
 ## v0.8.8 — Native Telegram notifications & hook cleanup (2026-04-03)
 
 Replaces the shell-based notify-telegram.sh with a native Rust notify-telegram subcommand for faster, more reliable Telegram notifications. Also fixes init to clean up stale Codex hooks from previous installations.
