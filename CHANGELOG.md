@@ -2,6 +2,20 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.8 — Native Telegram notifications & hook cleanup (2026-04-03)
+
+Replaces the shell-based notify-telegram.sh with a native Rust notify-telegram subcommand for faster, more reliable Telegram notifications. Also fixes init to clean up stale Codex hooks from previous installations.
+
+### Added
+
+- **Native `notify-telegram` Rust subcommand** — Replaces the external `notify-telegram.sh` shell script with a built-in subcommand, eliminating the shell dependency and improving reliability and performance.
+
+### Fixed
+
+- **Stale Codex hook cleanup on re-init** — `squad-station init` now removes leftover PostToolUse and Notification hooks from previous Codex installations, preventing duplicate or broken hook entries.
+
+---
+
 ## v0.8.7 — Guard Telegram hook for agent-only sessions (2026-04-02)
 
 Prevents spurious Telegram notifications when the hook fires outside tmux agent sessions (e.g., from the orchestrator or a non-agent terminal).
