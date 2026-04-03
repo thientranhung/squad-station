@@ -7,6 +7,7 @@ pub mod helpers;
 pub mod init;
 pub mod list;
 pub mod notify;
+pub mod notify_telegram;
 pub mod peek;
 pub mod reconcile;
 pub mod register;
