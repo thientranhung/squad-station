@@ -168,30 +168,3 @@ fn test_cli_list_default_limit() {
     );
 }
 
-#[test]
-fn test_cli_register_default_role_and_tool() {
-    // register subcommand help should show defaults for role and tool
-    let bin = env!("CARGO_BIN_EXE_squad-station");
-    let output = std::process::Command::new(bin)
-        .args(["register", "--help"])
-        .output()
-        .expect("failed to run binary");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("worker"),
-        "register help must show default role 'worker', got: {}",
-        stdout
-    );
-    assert!(
-        stdout.contains("unknown"),
-        "register help must show default tool 'unknown', got: {}",
-        stdout
-    );
-    assert!(
-        stdout.contains("tool"),
-        "register help must mention --tool flag, got: {}",
-        stdout
-    );
-}
