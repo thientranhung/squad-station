@@ -117,17 +117,27 @@ fn test_agents_command_shows_status_with_duration() {
     let db_file = tmp.path().join("station.db");
     write_squad_yml(tmp.path(), &db_file);
 
-    // Register a worker agent via the register subcommand (uses SQUAD_STATION_DB for DB path)
+    // Register a worker agent via init (which reads squad.yml and registers agents)
+    // Override squad.yml to include worker-a
+    let yaml = r#"project: test-squad
+orchestrator:
+  name: test-orch
+  provider: claude-code
+  role: orchestrator
+agents:
+  - name: worker-a
+    provider: claude
+    role: worker
+"#;
+    std::fs::write(tmp.path().join("squad.yml"), yaml).expect("failed to write squad.yml");
     let reg = cmd_with_db(&db_file)
-        .args([
-            "register", "worker-a", "--role", "worker", "--tool", "claude",
-        ])
+        .args(["init", "squad.yml"])
         .current_dir(tmp.path())
         .output()
-        .expect("failed to run register");
+        .expect("failed to run init");
     assert!(
         reg.status.success(),
-        "register should succeed, got: {:?}\nstderr: {}",
+        "init should succeed, got: {:?}\nstderr: {}",
         reg.status,
         String::from_utf8_lossy(&reg.stderr)
     );
