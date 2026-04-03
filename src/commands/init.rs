@@ -1072,7 +1072,12 @@ fn install_telegram_hooks(
 
         // Telegram notifications fire only on task completion (Stop / AfterAgent).
         // Other events (Notification, PostToolUse) would cause massive spam.
-        append_telegram_hook_entry(&mut settings, completion_event, &hook_cmd, provider == "gemini-cli")?;
+        append_telegram_hook_entry(
+            &mut settings,
+            completion_event,
+            &hook_cmd,
+            provider == "gemini-cli",
+        )?;
 
         std::fs::write(&settings_path, serde_json::to_string_pretty(&settings)?)?;
     }
@@ -1113,8 +1118,7 @@ fn append_telegram_hook_entry(
                     h.get("command")
                         .and_then(|c| c.as_str())
                         .map(|cmd| {
-                            cmd.contains("notify-telegram.sh")
-                                || cmd.contains("notify-telegram")
+                            cmd.contains("notify-telegram.sh") || cmd.contains("notify-telegram")
                         })
                         .unwrap_or(false)
                 })
@@ -1987,7 +1991,9 @@ mod tests {
         install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
 
         // No shell script or telegram.env should be created (pure Rust command)
-        assert!(!project_root.join(".squad/hooks/notify-telegram.sh").exists());
+        assert!(!project_root
+            .join(".squad/hooks/notify-telegram.sh")
+            .exists());
         assert!(!project_root.join(".squad/telegram.env").exists());
 
         // Hook command should reference `squad-station notify-telegram`
@@ -2097,7 +2103,9 @@ mod tests {
 
         // No telegram.env or shell script should exist
         assert!(!project_root.join(".squad/telegram.env").exists());
-        assert!(!project_root.join(".squad/hooks/notify-telegram.sh").exists());
+        assert!(!project_root
+            .join(".squad/hooks/notify-telegram.sh")
+            .exists());
     }
 
     #[test]
