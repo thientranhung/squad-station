@@ -2,6 +2,27 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.10 — Codebase cleanup & notify-telegram resilience (2026-04-04)
+
+Harden notify-telegram hook to never fail the provider, and clean up codebase duplication ahead of public release.
+
+### Fixed
+
+- **notify-telegram always exits 0** — Silently ignores `send_telegram` errors so provider hooks never fail due to Telegram API issues
+
+### Changed
+
+- **Extract shared `log_to_squad()` helper** — Replaces 3 duplicate logging functions (`log_signal`, `log_notify`, `log_watch`) with a single shared implementation in `helpers.rs`
+- **Remove duplicate `pad_colored()`** — `list.rs` now delegates to `helpers::pad_colored()` instead of maintaining its own copy
+- **Fix `init.rs` function ordering** — Move 3 functions from after `#[cfg(test)]` module to before it
+
+### Added
+
+- **notify-telegram integration tests** — 8 tests covering exit-code-zero contract for all error paths
+- **hook-notify-agent scripts** — Shell scripts for manual Telegram notification testing
+
+---
+
 ## v0.8.9 — Remove unused CLI subcommands (2026-04-03)
 
 Remove dead code and unused dependencies to slim down the binary and simplify the CLI surface.
