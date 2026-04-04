@@ -52,11 +52,9 @@ async fn run(cli: cli::Cli) -> Result<()> {
         Update { config } => commands::update::run(config).await,
         Uninstall { config, yes } => commands::uninstall::run(config, yes).await,
         NotifyTelegram {
-            event,
-            message,
             project,
-            transcript,
-        } => commands::notify_telegram::run(event, message, project, transcript).await,
+            project_root,
+        } => commands::notify_telegram::run(project, project_root).await,
         Doctor => commands::doctor::run().await,
         Clean { config, yes, all } => commands::clean::run(config, yes, all, cli.json).await,
     }

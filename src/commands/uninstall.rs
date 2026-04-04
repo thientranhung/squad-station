@@ -324,7 +324,7 @@ mod tests {
             "hooks": {
                 "Stop": [
                     {"matcher": "", "hooks": [{"type": "command", "command": "squad-station signal \"x\" 2>/dev/null"}]},
-                    {"matcher": "", "hooks": [{"type": "command", "command": "cd \"/tmp\" && squad-station notify-telegram --event Stop 2>/dev/null; true"}]}
+                    {"matcher": "", "hooks": [{"type": "command", "command": "squad-station notify-telegram --project-root \"/tmp\" 2>/dev/null; true"}]}
                 ],
                 "OtherHook": [{"matcher": "", "hooks": [{"type": "command", "command": "my-other-tool"}]}]
             }
