@@ -1,29 +1,15 @@
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
-use crate::{config, db, tmux};
+use crate::{commands::helpers, config, db, tmux};
 
-/// Best-effort log for notify diagnostics. Mirrors signal.rs log_signal().
-/// Uses CWD-relative `.squad/log/signal.log` — same file as signal for unified diagnostics.
 fn log_notify(level: &str, agent: &str, msg: &str) {
-    let log_dir = std::path::Path::new(".squad").join("log");
-    let _ = std::fs::create_dir_all(&log_dir);
-    let log_file = log_dir.join("signal.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_file)
-    {
-        use std::io::Write;
-        let _ = writeln!(
-            f,
-            "{} {:<5} agent={} notify: {}",
-            chrono::Utc::now().to_rfc3339(),
-            level,
-            agent,
-            msg
-        );
-    }
+    helpers::log_to_squad(
+        std::path::Path::new(".squad"),
+        "signal.log",
+        &format!("{:<5} agent={} notify: {}", level, agent, msg),
+        false,
+    );
 }
 
 pub async fn run(body: String, agent: Option<String>, json: bool) -> anyhow::Result<()> {

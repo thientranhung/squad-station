@@ -1315,6 +1315,60 @@ pub fn install_telegram_hooks_pub(
     install_telegram_hooks(telegram, project_root, providers)
 }
 
+/// Returns the provider-specific rules directory path for a given provider.
+/// claude-code → .claude/rules/, gemini-cli → .gemini/rules/, others → None.
+fn rules_dir_for_provider(provider: &str) -> Option<&'static str> {
+    match provider {
+        "claude-code" => Some(".claude/rules"),
+        "codex" => Some(".codex/rules"),
+        "gemini-cli" => Some(".gemini/rules"),
+        _ => None,
+    }
+}
+
+/// Install SDD git workflow rule file into all provider-specific rules directories.
+/// Looks for `.squad/rules/git-workflow-<sdd_name>.md` relative to project_root.
+/// Returns a list of destination paths where the rule was installed.
+fn install_sdd_rules(
+    sdd_name: &str,
+    project_root: &std::path::Path,
+    providers: &[String],
+) -> anyhow::Result<Vec<String>> {
+    let rule_filename = format!("git-workflow-{}.md", sdd_name);
+    let source = project_root
+        .join(".squad")
+        .join("rules")
+        .join(&rule_filename);
+
+    if !source.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut installed = vec![];
+    for provider in providers {
+        if let Some(rules_dir) = rules_dir_for_provider(provider) {
+            let dest_dir = project_root.join(rules_dir);
+            std::fs::create_dir_all(&dest_dir)?;
+            let dest = dest_dir.join(&rule_filename);
+            std::fs::copy(&source, &dest)?;
+            installed.push(format!("{}/{}", rules_dir, rule_filename));
+        }
+    }
+
+    Ok(installed)
+}
+
+fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
+    println!(
+        "\nHook setup instructions for {} (event: {}):\n\n  \
+        Create the file with the following content, or add to your existing hooks:\n\n  \
+        {{\n    \"hooks\": {{\n      \"{}\": [\n        \
+        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>/dev/null\" }} ] }}\n      \
+        ]\n    }}\n  }}",
+        settings_path, event, event, matcher
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2283,58 +2337,4 @@ mod tests {
             "hook command must cd to absolute project root: {tg_cmd}"
         );
     }
-}
-
-/// Returns the provider-specific rules directory path for a given provider.
-/// claude-code → .claude/rules/, gemini-cli → .gemini/rules/, others → None.
-fn rules_dir_for_provider(provider: &str) -> Option<&'static str> {
-    match provider {
-        "claude-code" => Some(".claude/rules"),
-        "codex" => Some(".codex/rules"),
-        "gemini-cli" => Some(".gemini/rules"),
-        _ => None,
-    }
-}
-
-/// Install SDD git workflow rule file into all provider-specific rules directories.
-/// Looks for `.squad/rules/git-workflow-<sdd_name>.md` relative to project_root.
-/// Returns a list of destination paths where the rule was installed.
-fn install_sdd_rules(
-    sdd_name: &str,
-    project_root: &std::path::Path,
-    providers: &[String],
-) -> anyhow::Result<Vec<String>> {
-    let rule_filename = format!("git-workflow-{}.md", sdd_name);
-    let source = project_root
-        .join(".squad")
-        .join("rules")
-        .join(&rule_filename);
-
-    if !source.exists() {
-        return Ok(vec![]);
-    }
-
-    let mut installed = vec![];
-    for provider in providers {
-        if let Some(rules_dir) = rules_dir_for_provider(provider) {
-            let dest_dir = project_root.join(rules_dir);
-            std::fs::create_dir_all(&dest_dir)?;
-            let dest = dest_dir.join(&rule_filename);
-            std::fs::copy(&source, &dest)?;
-            installed.push(format!("{}/{}", rules_dir, rule_filename));
-        }
-    }
-
-    Ok(installed)
-}
-
-fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
-    println!(
-        "\nHook setup instructions for {} (event: {}):\n\n  \
-        Create the file with the following content, or add to your existing hooks:\n\n  \
-        {{\n    \"hooks\": {{\n      \"{}\": [\n        \
-        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>/dev/null\" }} ] }}\n      \
-        ]\n    }}\n  }}",
-        settings_path, event, event, matcher
-    );
 }

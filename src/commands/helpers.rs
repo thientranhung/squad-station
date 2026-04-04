@@ -58,6 +58,41 @@ pub fn colorize_agent_status(status: &str) -> String {
     }
 }
 
+/// Best-effort structured log to `.squad/log/<filename>`.
+/// Silently ignores failures — must never cause calling command to fail.
+/// Includes optional log rotation: truncates to last 500 lines when file exceeds 1 MB.
+pub fn log_to_squad(squad_dir: &std::path::Path, filename: &str, line: &str, rotate: bool) {
+    let log_dir = squad_dir.join("log");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_file = log_dir.join(filename);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file)
+    {
+        use std::io::Write;
+        let _ = writeln!(f, "{} {}", chrono::Utc::now().to_rfc3339(), line);
+    }
+    if rotate {
+        if let Ok(meta) = std::fs::metadata(&log_file) {
+            if meta.len() > 1_048_576 {
+                rotate_log(&log_file);
+            }
+        }
+    }
+}
+
+/// Truncate log file to last 500 lines.
+pub(crate) fn rotate_log(path: &std::path::Path) {
+    if let Ok(content) = std::fs::read_to_string(path) {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() > 500 {
+            let tail = &lines[lines.len() - 500..];
+            let _ = std::fs::write(path, tail.join("\n") + "\n");
+        }
+    }
+}
+
 /// Build a padded cell where visible width is based on `raw` length but output uses `colored`.
 pub fn pad_colored(raw: &str, colored: &str, width: usize) -> String {
     let raw_len = raw.len();
@@ -157,23 +192,16 @@ pub fn ensure_watchdog(project_root: &std::path::Path) {
 
         if let Ok(child) = spawn_watchdog_daemon(project_root, 30, 5) {
             let _ = std::fs::write(&pid_file, child.id().to_string());
-            // Best-effort log to watch.log
-            let log_dir = squad_dir.join("log");
-            let log_file = log_dir.join("watch.log");
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log_file)
-            {
-                use std::io::Write;
-                let _ = writeln!(
-                    f,
-                    "{} {:<9} watchdog respawned pid={} by=ensure_watchdog",
-                    chrono::Utc::now().to_rfc3339(),
+            log_to_squad(
+                &squad_dir,
+                "watch.log",
+                &format!(
+                    "{:<9} watchdog respawned pid={} by=ensure_watchdog",
                     "INFO",
                     child.id()
-                );
-            }
+                ),
+                false,
+            );
         }
     }
 }

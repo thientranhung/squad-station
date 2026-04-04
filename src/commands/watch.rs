@@ -156,23 +156,12 @@ async fn tick(db_path: &std::path::Path, _squad_dir: &std::path::Path) -> Result
 }
 
 fn log_watch(squad_dir: &std::path::Path, level: &str, msg: &str) {
-    let log_dir = squad_dir.join("log");
-    let _ = std::fs::create_dir_all(&log_dir);
-    let log_file = log_dir.join("watch.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_file)
-    {
-        use std::io::Write;
-        let _ = writeln!(
-            f,
-            "{} {:<9} {}",
-            chrono::Utc::now().to_rfc3339(),
-            level,
-            msg
-        );
-    }
+    helpers::log_to_squad(
+        squad_dir,
+        "watch.log",
+        &format!("{:<9} {}", level, msg),
+        false,
+    );
 }
 
 #[cfg(test)]
