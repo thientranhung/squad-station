@@ -772,17 +772,46 @@ fn agent_name_subshell() -> &'static str {
     r#"$(tmux display-message -p '#S' 2>/dev/null)"#
 }
 
+/// Resolve the absolute path to the `squad-station` binary for use in hook commands.
+///
+/// Hook runners (Claude Code, Gemini CLI, Codex) may override PATH in their settings,
+/// excluding `~/.cargo/bin`. Using the bare command name `squad-station` then fails with
+/// exit code 127 ("command not found"), which surfaces as a silent non-zero exit because
+/// stderr is redirected to /dev/null. Using the absolute path avoids this entirely.
+///
+/// Resolution order:
+/// 1. `std::env::current_exe()` — only if the executable is actually `squad-station`
+///    (avoids embedding test-runner paths like `deps/squad_station-abc123`)
+/// 2. Fallback: bare `squad-station` (for tests or if current_exe() fails)
+fn resolve_binary_path() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| {
+            let name = p.file_name()?.to_string_lossy().to_string();
+            // Only use the resolved path if it's the actual squad-station binary,
+            // not a test runner or other executable.
+            if name == "squad-station" {
+                std::fs::canonicalize(&p).ok().or(Some(p))
+            } else {
+                None
+            }
+        })
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "squad-station".to_string())
+}
+
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
+    let bin = resolve_binary_path();
 
     // Claude Code: stdout is ignored, stderr goes to /dev/null. Always exit 0.
     // signal.rs handles its own logging internally via log_signal() — no shell redirect needed.
     // Previous approach used `2>>.squad/log/signal.log` which broke when CWD != project root.
-    let signal_cmd = format!(r#"squad-station signal "{}" 2>/dev/null"#, resolve);
+    let signal_cmd = format!(r#"{bin} signal "{}" 2>/dev/null"#, resolve);
     let notify_cmd = format!(
-        r#"squad-station notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
+        r#"{bin} notify --body 'Agent needs input' --agent "{}" 2>/dev/null"#,
         resolve
     );
 
@@ -832,9 +861,10 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
 fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
+    let bin = resolve_binary_path();
 
     // Codex: stdout is not required to be JSON. exit 0 = success. Same as Claude Code.
-    let signal_cmd = format!(r#"squad-station signal "{}" 2>/dev/null"#, resolve);
+    let signal_cmd = format!(r#"{bin} signal "{}" 2>/dev/null"#, resolve);
 
     // Stop hook — agent finished turn → signal completion
     settings["hooks"]["Stop"] = serde_json::json!([{
@@ -900,16 +930,17 @@ fn ensure_codex_feature_flag(hooks_file: &str) -> anyhow::Result<()> {
 fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
     let resolve = agent_name_subshell();
+    let bin = resolve_binary_path();
 
     // Gemini CLI: ALL signal output redirected to /dev/null. stdout MUST be valid JSON.
     // signal.rs handles its own logging internally — shell redirect only suppresses output.
     // Previous approach used `>>.squad/log/signal.log` which broke when CWD != project root.
     let signal_cmd = format!(
-        r#"squad-station signal "{}" >/dev/null 2>&1; printf '{{}}'"#,
+        r#"{bin} signal "{}" >/dev/null 2>&1; printf '{{}}'"#,
         resolve
     );
     let notify_cmd = format!(
-        r#"squad-station notify --body 'Agent needs input' --agent "{}" >/dev/null 2>&1; printf '{{}}'"#,
+        r#"{bin} notify --body 'Agent needs input' --agent "{}" >/dev/null 2>&1; printf '{{}}'"#,
         resolve
     );
 
@@ -955,7 +986,8 @@ fn install_session_start_hook(
     let settings_path = project_root.join(rel_path);
     let settings_str = settings_path.to_string_lossy();
     let mut settings = read_or_create_settings(&settings_str)?;
-    let inject_cmd = "squad-station context --inject";
+    let bin = resolve_binary_path();
+    let inject_cmd = format!("{bin} context --inject");
 
     settings["hooks"]["SessionStart"] = serde_json::json!([{
         "matcher": "",
@@ -1062,8 +1094,9 @@ fn install_telegram_hooks(
         // Build the hook command using the Rust subcommand.
         // Use --project-root so squad-station can find squad.yml and .env.squad
         // regardless of the hook runner's cwd.
+        let bin = resolve_binary_path();
         let base = format!(
-            r#"squad-station notify-telegram --project-root "{project_root_str}""#
+            r#"{bin} notify-telegram --project-root "{project_root_str}""#
         );
         let hook_cmd = if provider == "gemini-cli" {
             format!(r#"{base} >/dev/null 2>&1; printf '{{}}'"#)
@@ -1377,13 +1410,14 @@ fn install_sdd_rules(
 }
 
 fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
+    let bin = resolve_binary_path();
     println!(
         "\nHook setup instructions for {} (event: {}):\n\n  \
         Create the file with the following content, or add to your existing hooks:\n\n  \
         {{\n    \"hooks\": {{\n      \"{}\": [\n        \
-        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"squad-station signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>/dev/null\" }} ] }}\n      \
+        {{ \"matcher\": \"{}\", \"hooks\": [ {{ \"type\": \"command\", \"command\": \"{} signal \\\"$(tmux display-message -p '#S' 2>/dev/null)\\\" 2>/dev/null\" }} ] }}\n      \
         ]\n    }}\n  }}",
-        settings_path, event, event, matcher
+        settings_path, event, event, matcher, bin
     );
 }
 
