@@ -635,8 +635,8 @@ fn test_telegram_hooks_claude_code_uses_rust_command() {
         "Hook must call Rust subcommand: {tg_cmd}"
     );
     assert!(
-        tg_cmd.contains("--event Stop"),
-        "Hook must pass event: {tg_cmd}"
+        !tg_cmd.contains("--event"),
+        "Hook must not pass --event: {tg_cmd}"
     );
 }
 
@@ -701,8 +701,8 @@ fn test_telegram_hooks_gemini_format() {
         "Gemini telegram hook must use Rust subcommand: {tg_cmd}"
     );
     assert!(
-        tg_cmd.contains("--event AfterAgent"),
-        "Gemini hook must pass AfterAgent event: {tg_cmd}"
+        !tg_cmd.contains("--event"),
+        "Gemini hook must not pass --event: {tg_cmd}"
     );
     assert!(
         tg_cmd.contains("printf '{}'"),
@@ -775,12 +775,16 @@ fn test_telegram_hooks_absolute_path_even_for_relative_root() {
     let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
 
     assert!(
-        !tg_cmd.contains("cd \".\""),
+        !tg_cmd.contains("--project-root \".\""),
         "hook must not use relative path '.': {tg_cmd}"
     );
     assert!(
-        tg_cmd.contains(&format!("cd \"{}\"", abs_root.display())),
-        "hook must cd to absolute project root: {tg_cmd}"
+        tg_cmd.contains(&format!("--project-root \"{}\"", abs_root.display())),
+        "hook must use absolute --project-root: {tg_cmd}"
+    );
+    assert!(
+        !tg_cmd.contains("cd "),
+        "hook must not use cd: {tg_cmd}"
     );
 }
 
@@ -817,34 +821,33 @@ fn test_notify_telegram_agent_filter_list() {
 }
 
 #[test]
-fn test_notify_telegram_format_message_stop() {
-    let msg = format_message_pub("Stop", "", "myproject", &None);
+fn test_notify_telegram_format_message_with_agent() {
+    let msg = format_message_pub("myproject", Some("myproject-orchestrator"), None);
     assert!(msg.contains("[myproject]"));
-    assert!(msg.contains("Response finished"));
+    assert!(msg.contains("myproject-orchestrator"));
+    assert!(msg.contains("finished"));
 }
 
 #[test]
-fn test_notify_telegram_format_message_session_start() {
-    let msg = format_message_pub("SessionStart", "", "proj", &None);
-    assert!(msg.contains("Session started"));
+fn test_notify_telegram_format_message_without_agent() {
+    let msg = format_message_pub("proj", None, None);
+    assert!(msg.contains("[proj]"));
+    assert!(msg.contains("Agent finished"));
+}
+
+#[test]
+fn test_notify_telegram_format_message_with_transcript() {
+    let msg = format_message_pub("proj", Some("worker"), Some("cargo test\nall passed"));
+    assert!(msg.contains("[proj]"));
+    assert!(msg.contains("<pre>"));
+    assert!(msg.contains("cargo test"));
 }
 
 #[test]
 fn test_notify_telegram_format_message_truncation() {
     let long = "x".repeat(5000);
-    let msg = format_message_pub("Notification", &long, "proj", &None);
+    let msg = format_message_pub(&long, None, None);
     assert!(msg.contains("(truncated)"));
-}
-
-#[test]
-fn test_notify_telegram_format_handles_all_events() {
-    for event in &["SessionStart", "SessionEnd", "Stop", "Notification"] {
-        let msg = format_message_pub(event, "test", "proj", &None);
-        assert!(
-            msg.contains("[proj]"),
-            "Message for {event} must contain project name"
-        );
-    }
 }
 
 // ============================================================

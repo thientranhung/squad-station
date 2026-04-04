@@ -1060,9 +1060,10 @@ fn install_telegram_hooks(
         let mut settings: serde_json::Value = serde_json::from_str(&content)?;
 
         // Build the hook command using the Rust subcommand.
-        // cd to project root so squad-station can find squad.yml and .env.squad.
+        // Use --project-root so squad-station can find squad.yml and .env.squad
+        // regardless of the hook runner's cwd.
         let base = format!(
-            r#"cd "{project_root_str}" && squad-station notify-telegram --event {completion_event}"#
+            r#"squad-station notify-telegram --project-root "{project_root_str}""#
         );
         let hook_cmd = if provider == "gemini-cli" {
             format!(r#"{base} >/dev/null 2>&1; printf '{{}}'"#)
@@ -1110,7 +1111,7 @@ fn append_telegram_hook_entry(
         .unwrap_or_default();
 
     // Check if telegram hook already present (detect both old .sh and new Rust command)
-    let already_present = existing.iter().any(|entry| {
+    let is_telegram_entry = |entry: &serde_json::Value| -> bool {
         let hooks = entry.get("hooks").and_then(|h| h.as_array());
         hooks
             .map(|hooks| {
@@ -1124,11 +1125,7 @@ fn append_telegram_hook_entry(
                 })
             })
             .unwrap_or(false)
-    });
-
-    if already_present {
-        return Ok(());
-    }
+    };
 
     let new_entry = if is_gemini {
         serde_json::json!({
@@ -1148,9 +1145,30 @@ fn append_telegram_hook_entry(
         })
     };
 
-    let mut merged = existing;
-    merged.push(new_entry);
-    hooks_obj.insert(event.to_string(), serde_json::Value::Array(merged));
+    // Check if an existing telegram hook matches the new command exactly
+    let existing_idx = existing.iter().position(|e| is_telegram_entry(e));
+    if let Some(idx) = existing_idx {
+        // Check if the command is already identical — skip if so (true idempotent)
+        let existing_cmd = existing[idx]
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .and_then(|hooks| hooks.first())
+            .and_then(|h| h.get("command"))
+            .and_then(|c| c.as_str())
+            .unwrap_or("");
+        if existing_cmd == command {
+            return Ok(());
+        }
+        // Replace outdated telegram hook entry in-place
+        let mut merged = existing;
+        merged[idx] = new_entry;
+        hooks_obj.insert(event.to_string(), serde_json::Value::Array(merged));
+    } else {
+        // No existing telegram hook — append
+        let mut merged = existing;
+        merged.push(new_entry);
+        hooks_obj.insert(event.to_string(), serde_json::Value::Array(merged));
+    }
 
     Ok(())
 }
@@ -2061,8 +2079,8 @@ mod tests {
             "Hook must call Rust subcommand: {tg_cmd}"
         );
         assert!(
-            tg_cmd.contains("--event Stop"),
-            "Hook must pass event: {tg_cmd}"
+            !tg_cmd.contains("--event"),
+            "Hook must not pass --event: {tg_cmd}"
         );
     }
 
@@ -2130,6 +2148,45 @@ mod tests {
             stop.len(),
             2,
             "Stop must still have exactly 2 entries after double install"
+        );
+    }
+
+    #[test]
+    fn test_install_telegram_replaces_outdated_hook() {
+        // Simulate an old-format hook (cd-based) and verify it gets replaced
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project_root = tmp.path();
+
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        // Pre-existing settings with OLD cd-based telegram hook
+        let old_hook = format!(
+            r#"{{"hooks":{{"Stop":[{{"matcher":"","hooks":[{{"type":"command","command":"squad-station signal"}}]}},{{"matcher":"","hooks":[{{"type":"command","command":"cd \"{}\" && squad-station notify-telegram 2>/dev/null; true"}}]}}]}}}}"#,
+            project_root.display()
+        );
+        std::fs::write(claude_dir.join("settings.json"), &old_hook).unwrap();
+
+        let tg = config::TelegramConfig {
+            enabled: true,
+            notify_agents: config::NotifyAgents::All("all".to_string()),
+        };
+        install_telegram_hooks(&tg, project_root, &["claude-code".to_string()]).unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let stop = settings["hooks"]["Stop"].as_array().unwrap();
+
+        // Must still have exactly 2 entries (replaced, not appended)
+        assert_eq!(stop.len(), 2, "must replace, not append: got {} entries", stop.len());
+
+        let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            tg_cmd.contains("--project-root"),
+            "replaced hook must use --project-root: {tg_cmd}"
+        );
+        assert!(
+            !tg_cmd.contains("cd "),
+            "replaced hook must not use cd: {tg_cmd}"
         );
     }
 
@@ -2325,16 +2382,22 @@ mod tests {
         let stop = settings["hooks"]["Stop"].as_array().unwrap();
         let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
 
-        // Must NOT contain relative cd path
+        // Must NOT contain relative project-root path
         assert!(
-            !tg_cmd.contains("cd \".\""),
+            !tg_cmd.contains("--project-root \".\""),
             "hook command must not use relative path '.': {tg_cmd}"
         );
 
-        // Must contain absolute cd path
+        // Must contain absolute --project-root path
         assert!(
-            tg_cmd.contains(&format!("cd \"{}\"", abs_root.display())),
-            "hook command must cd to absolute project root: {tg_cmd}"
+            tg_cmd.contains(&format!("--project-root \"{}\"", abs_root.display())),
+            "hook command must use absolute --project-root: {tg_cmd}"
+        );
+
+        // Must NOT contain cd
+        assert!(
+            !tg_cmd.contains("cd "),
+            "hook command must not use cd: {tg_cmd}"
         );
     }
 }

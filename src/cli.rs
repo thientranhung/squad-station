@@ -118,18 +118,12 @@ pub enum Commands {
     },
     /// Send a Telegram notification (replaces notify-telegram.sh hook script)
     NotifyTelegram {
-        /// Hook event name (Stop, SessionStart, SessionEnd, Notification, etc.)
-        #[arg(long, default_value = "Stop")]
-        event: String,
-        /// Raw message body (extracted from hook JSON or provided directly)
-        #[arg(long, default_value = "")]
-        message: String,
-        /// Project name override (auto-detected from cwd if omitted)
+        /// Project name override (auto-detected from project root directory name if omitted)
         #[arg(long)]
         project: Option<String>,
-        /// Path to transcript file (for Stop events, extracts last assistant message)
+        /// Project root directory (used to locate squad.yml and .env.squad)
         #[arg(long)]
-        transcript: Option<String>,
+        project_root: Option<PathBuf>,
     },
     /// Run health check to diagnose squad operational issues
     Doctor,
