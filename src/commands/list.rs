@@ -1,4 +1,4 @@
-use crate::{config, db};
+use crate::{commands::helpers, config, db};
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
 
@@ -79,7 +79,7 @@ fn print_table_row(msg: &db::messages::Message) {
     let status_raw = &msg.status;
     let status_colored = colorize_status(status_raw);
     // Pad the raw text to STATUS width (10), then replace raw text with colored text
-    let status_cell = pad_colored(status_raw, &status_colored, 10);
+    let status_cell = helpers::pad_colored(status_raw, &status_colored, 10);
 
     println!(
         "{:<8}  {:<15}  {:<15}  {}  {:<8}  {:<42}  {:<10}",
@@ -91,13 +91,6 @@ fn print_table_row(msg: &db::messages::Message) {
         task_display,
         created_display,
     );
-}
-
-/// Build a padded cell where visible width is based on `raw` length but output uses `colored`.
-fn pad_colored(raw: &str, colored: &str, width: usize) -> String {
-    let raw_len = raw.len();
-    let padding = width.saturating_sub(raw_len);
-    format!("{}{}", colored, " ".repeat(padding))
 }
 
 fn colorize_status(status: &str) -> String {
@@ -125,20 +118,20 @@ mod tests {
 
     #[test]
     fn test_pad_colored_adds_spaces() {
-        let result = pad_colored("hi", "hi", 10);
+        let result = helpers::pad_colored("hi", "hi", 10);
         assert_eq!(result, "hi        ");
         assert_eq!(result.len(), 10);
     }
 
     #[test]
     fn test_pad_colored_no_padding_when_exact() {
-        let result = pad_colored("hello", "hello", 5);
+        let result = helpers::pad_colored("hello", "hello", 5);
         assert_eq!(result, "hello");
     }
 
     #[test]
     fn test_pad_colored_no_padding_when_longer() {
-        let result = pad_colored("toolong", "toolong", 3);
+        let result = helpers::pad_colored("toolong", "toolong", 3);
         assert_eq!(result, "toolong");
     }
 
@@ -148,7 +141,7 @@ mod tests {
         // but padding is based on raw string length
         let raw = "ok";
         let colored = "\x1b[32mok\x1b[0m"; // green "ok"
-        let result = pad_colored(raw, colored, 6);
+        let result = helpers::pad_colored(raw, colored, 6);
         // Should have 4 spaces of padding based on raw length (2), not colored length
         assert!(result.starts_with("\x1b[32mok\x1b[0m"));
         assert!(result.ends_with("    "));

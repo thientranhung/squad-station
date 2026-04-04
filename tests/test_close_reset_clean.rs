@@ -290,4 +290,3 @@ fn clean_handles_missing_log_dir_gracefully() {
     assert!(!log_dir.exists());
     // This mirrors the code: if log_dir.exists() { remove_dir_all } else { false }
 }
-

@@ -3,44 +3,13 @@ use std::io::IsTerminal;
 
 use crate::{commands::helpers, config, db, tmux};
 
-/// Append a structured log line to `.squad/log/signal.log`.
-/// Best-effort: silently ignores write failures. Must never cause signal to fail.
 fn log_signal(project_root: &std::path::Path, level: &str, agent: &str, msg: &str) {
-    let log_dir = project_root.join(".squad").join("log");
-    let _ = std::fs::create_dir_all(&log_dir);
-    let log_file = log_dir.join("signal.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_file)
-    {
-        use std::io::Write;
-        let _ = writeln!(
-            f,
-            "{} {:<5} agent={} {}",
-            chrono::Utc::now().to_rfc3339(),
-            level,
-            agent,
-            msg
-        );
-        // Log rotation: truncate to last 500 lines when file exceeds 1MB
-        if let Ok(meta) = std::fs::metadata(&log_file) {
-            if meta.len() > 1_048_576 {
-                rotate_log(&log_file);
-            }
-        }
-    }
-}
-
-/// Truncate log file to last 500 lines.
-fn rotate_log(path: &std::path::Path) {
-    if let Ok(content) = std::fs::read_to_string(path) {
-        let lines: Vec<&str> = content.lines().collect();
-        if lines.len() > 500 {
-            let tail = &lines[lines.len() - 500..];
-            let _ = std::fs::write(path, tail.join("\n") + "\n");
-        }
-    }
+    helpers::log_to_squad(
+        &project_root.join(".squad"),
+        "signal.log",
+        &format!("{:<5} agent={} {}", level, agent, msg),
+        true,
+    );
 }
 
 pub async fn run(agent: Option<String>, json: bool) -> anyhow::Result<()> {
@@ -330,7 +299,7 @@ mod tests {
         }
         std::fs::write(&log_file, &content).unwrap();
 
-        rotate_log(&log_file);
+        helpers::rotate_log(&log_file);
 
         let result = std::fs::read_to_string(&log_file).unwrap();
         let lines: Vec<&str> = result.lines().collect();

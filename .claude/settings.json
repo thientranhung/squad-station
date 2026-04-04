@@ -1,1 +1,46 @@
-{}
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "squad-station signal \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null"
+          }
+        ]
+      },
+      {
+        "matcher": "elicitation_dialog",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "squad-station notify --body 'Agent needs input' --agent \"$(tmux display-message -p '#S' 2>/dev/null)\" 2>/dev/null"
+          }
+        ]
+      }
+    ]
+  }
+}
