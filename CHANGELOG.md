@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.11 — Security fix: remove leaked token (2026-04-04)
+
+Remove accidentally committed Telegram Bot Token and prevent future secret leaks.
+
+### Fixed
+
+- **Remove leaked Telegram Bot Token** — Deleted `scripts/hook-notify-agent/` directory which contained a `.env` file with a Telegram Bot Token (GitHub secret scanning alert)
+- **Add `.env` to `.gitignore`** — Prevents future accidental commits of environment files containing secrets
+
+---
+
 ## v0.8.10 — Codebase cleanup & notify-telegram resilience (2026-04-04)
 
 Harden notify-telegram hook to never fail the provider, and clean up codebase duplication ahead of public release.
