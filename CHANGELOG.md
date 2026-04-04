@@ -2,6 +2,35 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.13 — Fix npm binary version sync (2026-04-04)
+
+Fix `run.js` VERSION still pointing to `0.8.11`, causing `npx squad-station` to download the wrong binary.
+
+### Fixed
+
+- **Sync `run.js` VERSION to `0.8.13`** — Ensures `npx squad-station install` downloads the correct release binary
+
+---
+
+## v0.8.12 — Detailed Telegram notifications with transcript (2026-04-04)
+
+Rich Telegram notifications that read Claude Code hook input and JSONL transcripts for detailed task completion messages.
+
+### Added
+
+- **Read Claude Code hook JSON from stdin** — `read_hook_input()` parses hook event data with TTY guard and 2s timeout to prevent stdin blocking
+- **Read JSONL transcript files** — `read_last_assistant_message()` extracts the last assistant message from Claude Code transcript files
+- **Fallback notification chain** — transcript JSONL → message/last_message → generic notification
+- **HTML escaping** — `escape_html()` sanitizes notification content for Telegram HTML parse mode
+- **Hooks auto-reinstall** — `update` command re-installs telegram hooks to pick up new format
+
+### Changed
+
+- **Replace `--event` flag with `--project-root`** — Simplifies CLI interface; event detection is now automatic from stdin
+- **Idempotent hook replacement** — Existing telegram hooks are updated in-place instead of duplicated
+
+---
+
 ## v0.8.11 — Security fix: remove leaked token (2026-04-04)
 
 Remove accidentally committed Telegram Bot Token and prevent future secret leaks.
