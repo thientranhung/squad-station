@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.14 — Fix hook PATH resolution (2026-04-04)
+
+Fix hook commands failing when `squad-station` binary is not on PATH in the hook execution environment.
+
+### Fixed
+
+- **Use absolute binary path in hook commands** — Hook install now resolves the full path to `squad-station` (e.g. `/Users/you/.cargo/bin/squad-station`) instead of relying on PATH, preventing "command not found" errors in provider hook environments
+
+---
+
 ## v0.8.13 — Fix npm binary version sync (2026-04-04)
 
 Fix `run.js` VERSION still pointing to `0.8.11`, causing `npx squad-station` to download the wrong binary.
