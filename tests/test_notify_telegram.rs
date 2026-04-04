@@ -6,7 +6,7 @@ mod helpers;
 // These run the ACTUAL binary in an isolated temp directory and
 // assert the process exits 0 under every error condition.
 // This mirrors the real Claude Code hook invocation:
-//   cd <project> && squad-station notify-telegram --event Stop 2>/dev/null; true
+//   squad-station notify-telegram --project-root "/path/to/project" 2>/dev/null; true
 // ============================================================
 
 fn bin() -> String {
@@ -108,6 +108,19 @@ telegram:
             .output()
             .expect("failed to execute binary")
     }
+
+    /// Run notify-telegram with --project-root (from a different cwd), return Output.
+    fn run_with_project_root(&self, args: &[&str]) -> std::process::Output {
+        let different_cwd = tempfile::tempdir().expect("create alternate cwd");
+        std::process::Command::new(bin())
+            .arg("notify-telegram")
+            .arg("--project-root")
+            .arg(self.dir.path())
+            .args(args)
+            .current_dir(different_cwd.path())
+            .output()
+            .expect("failed to execute binary")
+    }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -116,8 +129,7 @@ telegram:
 #[test]
 fn notify_telegram_exits_0_when_no_squad_yml() {
     let ctx = HookTestDir::new();
-    // No squad.yml, no .env.squad — bare temp directory
-    let out = ctx.run(&["--event", "Stop"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when squad.yml is missing, got: {:?}\nstderr: {}",
@@ -132,7 +144,7 @@ fn notify_telegram_exits_0_when_no_squad_yml() {
 #[test]
 fn notify_telegram_exits_0_when_no_telegram_config() {
     let ctx = HookTestDir::new().with_squad_yml_no_telegram();
-    let out = ctx.run(&["--event", "Stop"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when telegram config is absent, got: {:?}\nstderr: {}",
@@ -149,7 +161,7 @@ fn notify_telegram_exits_0_when_telegram_disabled() {
     let ctx = HookTestDir::new()
         .with_squad_yml_telegram_disabled()
         .with_env_squad_fake_creds();
-    let out = ctx.run(&["--event", "Stop"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when telegram is disabled, got: {:?}\nstderr: {}",
@@ -164,8 +176,7 @@ fn notify_telegram_exits_0_when_telegram_disabled() {
 #[test]
 fn notify_telegram_exits_0_when_env_file_missing() {
     let ctx = HookTestDir::new().with_squad_yml_telegram_enabled();
-    // No .env.squad file — credentials will be empty strings
-    let out = ctx.run(&["--event", "Stop"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when .env.squad is missing, got: {:?}\nstderr: {}",
@@ -182,7 +193,7 @@ fn notify_telegram_exits_0_when_credentials_empty() {
     let ctx = HookTestDir::new()
         .with_squad_yml_telegram_enabled()
         .with_env_squad_empty_creds();
-    let out = ctx.run(&["--event", "Stop"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when credentials are empty, got: {:?}\nstderr: {}",
@@ -201,40 +212,13 @@ fn notify_telegram_exits_0_when_api_returns_error() {
     let ctx = HookTestDir::new()
         .with_squad_yml_telegram_enabled()
         .with_env_squad_fake_creds();
-    let out = ctx.run(&["--event", "Stop", "--message", "test message"]);
+    let out = ctx.run(&[]);
     assert!(
         out.status.success(),
         "must exit 0 when Telegram API returns error, got: {:?}\nstderr: {}",
         out.status.code(),
         String::from_utf8_lossy(&out.stderr)
     );
-}
-
-// ────────────────────────────────────────────────────────────
-// Test: all event types exit 0 with fake creds
-// ────────────────────────────────────────────────────────────
-#[test]
-fn notify_telegram_exits_0_for_all_event_types() {
-    let ctx = HookTestDir::new()
-        .with_squad_yml_telegram_enabled()
-        .with_env_squad_fake_creds();
-
-    for event in &[
-        "Stop",
-        "SessionStart",
-        "SessionEnd",
-        "Notification",
-        "CustomEvent",
-    ] {
-        let out = ctx.run(&["--event", event, "--message", "test"]);
-        assert!(
-            out.status.success(),
-            "must exit 0 for event '{}', got: {:?}\nstderr: {}",
-            event,
-            out.status.code(),
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -247,6 +231,44 @@ fn notify_telegram_exits_0_with_default_args() {
     assert!(
         out.status.success(),
         "must exit 0 with default args, got: {:?}\nstderr: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+// ────────────────────────────────────────────────────────────
+// Test: --project-root locates squad.yml from a different cwd → exit 0
+// ────────────────────────────────────────────────────────────
+#[test]
+fn notify_telegram_exits_0_with_project_root_flag() {
+    let ctx = HookTestDir::new()
+        .with_squad_yml_telegram_enabled()
+        .with_env_squad_fake_creds();
+    let out = ctx.run_with_project_root(&[]);
+    assert!(
+        out.status.success(),
+        "must exit 0 with --project-root from different cwd, got: {:?}\nstderr: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // Verify it actually found squad.yml (not the "cannot load" error)
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("cannot load squad.yml"),
+        "--project-root must locate squad.yml, stderr: {stderr}"
+    );
+}
+
+// ────────────────────────────────────────────────────────────
+// Test: --project-root with no squad.yml → exit 0 (graceful)
+// ────────────────────────────────────────────────────────────
+#[test]
+fn notify_telegram_exits_0_with_project_root_no_config() {
+    let ctx = HookTestDir::new(); // no squad.yml
+    let out = ctx.run_with_project_root(&[]);
+    assert!(
+        out.status.success(),
+        "must exit 0 with --project-root but no config, got: {:?}\nstderr: {}",
         out.status.code(),
         String::from_utf8_lossy(&out.stderr)
     );

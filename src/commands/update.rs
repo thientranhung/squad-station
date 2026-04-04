@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 
 use crate::{config, db, tmux};
 
-use super::init::{auto_install_hooks_pub, get_launch_command_pub, install_session_start_hook_pub};
+use super::init::{
+    auto_install_hooks_pub, get_launch_command_pub, install_session_start_hook_pub,
+    install_telegram_hooks_pub,
+};
 
 // ── Data Structures ──────────────────────────────────────────────────────────
 
@@ -363,9 +366,17 @@ pub fn run_housekeeping(config: &config::SquadConfig, project_root: &Path) -> Re
     }
 
     // Re-install hooks for every provider (idempotent)
+    let provider_strings: Vec<String> = providers.iter().map(|s| s.to_string()).collect();
     for provider in &providers {
         let _ = auto_install_hooks_pub(provider);
         let _ = install_session_start_hook_pub(provider, project_root);
+    }
+
+    // Re-apply telegram hooks (idempotent — updates format if changed)
+    if let Some(tg) = &config.telegram {
+        if tg.enabled {
+            let _ = install_telegram_hooks_pub(tg, project_root, &provider_strings);
+        }
     }
 
     // Return empty — housekeeping NEVER kills sessions.
@@ -638,6 +649,49 @@ mod tests {
             killed.is_empty(),
             "REGRESSION: run_housekeeping killed sessions {:?} — it must never kill any sessions",
             killed
+        );
+    }
+
+    #[test]
+    fn test_housekeeping_installs_telegram_hooks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project_root = tmp.path();
+
+        // Create claude settings with just signal hook (no telegram yet)
+        let claude_dir = project_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal"}]}]}}"#,
+        ).unwrap();
+
+        let config = config::SquadConfig {
+            project: "test-proj".to_string(),
+            sdd: None,
+            telegram: Some(config::TelegramConfig {
+                enabled: true,
+                notify_agents: config::NotifyAgents::All("all".to_string()),
+            }),
+            orchestrator: config::AgentConfig {
+                name: None,
+                provider: "claude-code".to_string(),
+                role: "orchestrator".to_string(),
+                model: None,
+                description: None,
+            },
+            agents: vec![],
+        };
+
+        run_housekeeping(&config, project_root).unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let stop = settings["hooks"]["Stop"].as_array().unwrap();
+        assert_eq!(stop.len(), 2, "housekeeping must add telegram hook");
+        let tg_cmd = stop[1]["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            tg_cmd.contains("notify-telegram") && tg_cmd.contains("--project-root"),
+            "telegram hook must use --project-root format: {tg_cmd}"
         );
     }
 }
