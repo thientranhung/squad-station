@@ -215,7 +215,8 @@ pub async fn run(
 
     // 5. Format and send
     let text = format_message(&event, &message, &project_name, &transcript);
-    send_telegram(token, chat_id, topic_id, &text).await?;
+    // Silently ignore send errors — hooks must always exit 0
+    let _ = send_telegram(token, chat_id, topic_id, &text).await;
 
     Ok(())
 }

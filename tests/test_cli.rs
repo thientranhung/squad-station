@@ -167,4 +167,3 @@ fn test_cli_list_default_limit() {
         stdout
     );
 }
-
