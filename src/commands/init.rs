@@ -800,6 +800,97 @@ fn resolve_binary_path() -> String {
         .unwrap_or_else(|| "squad-station".to_string())
 }
 
+/// Upsert a squad-station hook entry into a specific event array.
+///
+/// Finds an existing entry by checking if any hook command contains `identifier`,
+/// then either updates it in-place or appends. All other entries are preserved.
+fn upsert_hook_entry(
+    settings: &mut serde_json::Value,
+    event: &str,
+    identifier: &str,
+    new_entry: serde_json::Value,
+) {
+    // Ensure hooks object exists
+    if settings.get("hooks").is_none() || !settings["hooks"].is_object() {
+        settings["hooks"] = serde_json::json!({});
+    }
+
+    let existing = settings["hooks"]
+        .get(event)
+        .and_then(|e| e.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let is_match = |entry: &serde_json::Value| -> bool {
+        entry
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .map(|hooks| {
+                hooks.iter().any(|h| {
+                    h.get("command")
+                        .and_then(|c| c.as_str())
+                        .map(|cmd| cmd.contains(identifier))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+    };
+
+    let mut merged = existing;
+    if let Some(idx) = merged.iter().position(|e| is_match(e)) {
+        merged[idx] = new_entry;
+    } else {
+        merged.push(new_entry);
+    }
+
+    settings["hooks"][event] = serde_json::Value::Array(merged);
+}
+
+/// Replace all squad-station entries matching `identifier` with `new_entries`.
+///
+/// Removes all existing entries whose hook command contains `identifier`,
+/// then appends `new_entries`. Non-matching entries are preserved in order.
+/// Use this when an event has multiple squad entries (e.g. Notification has
+/// permission_prompt + elicitation_dialog, both containing "squad-station notify").
+fn replace_hook_entries(
+    settings: &mut serde_json::Value,
+    event: &str,
+    identifier: &str,
+    new_entries: Vec<serde_json::Value>,
+) {
+    if settings.get("hooks").is_none() || !settings["hooks"].is_object() {
+        settings["hooks"] = serde_json::json!({});
+    }
+
+    let existing = settings["hooks"]
+        .get(event)
+        .and_then(|e| e.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let is_squad = |entry: &serde_json::Value| -> bool {
+        entry
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .map(|hooks| {
+                hooks.iter().any(|h| {
+                    h.get("command")
+                        .and_then(|c| c.as_str())
+                        .map(|cmd| cmd.contains(identifier))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+    };
+
+    // Keep non-squad entries, then append new squad entries
+    let mut merged: Vec<serde_json::Value> =
+        existing.into_iter().filter(|e| !is_squad(e)).collect();
+    merged.extend(new_entries);
+
+    settings["hooks"][event] = serde_json::Value::Array(merged);
+}
+
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
@@ -816,34 +907,32 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     );
 
     // Stop hook — agent finished task → signal completion
-    settings["hooks"]["Stop"] = serde_json::json!([{
+    upsert_hook_entry(&mut settings, "Stop", "squad-station signal", serde_json::json!({
         "matcher": "",
         "hooks": [{"type": "command", "command": signal_cmd}]
-    }]);
+    }));
 
     // Notification hook — agent needs permission approval → notify orchestrator
     // Only permission_prompt triggers notify. idle_prompt must NOT trigger notify
     // because idle = agent finished and is waiting for next task, which causes a
     // notification loop: idle → notify orchestrator → orchestrator sends task → idle → notify...
-    settings["hooks"]["Notification"] = serde_json::json!([
-        {
+    replace_hook_entries(&mut settings, "Notification", "squad-station notify", vec![
+        serde_json::json!({
             "matcher": "permission_prompt",
             "hooks": [{"type": "command", "command": notify_cmd}]
-        },
-        {
+        }),
+        serde_json::json!({
             "matcher": "elicitation_dialog",
             "hooks": [{"type": "command", "command": notify_cmd}]
-        }
+        }),
     ]);
 
     // PostToolUse hook — agent is asking the user a question → notify orchestrator.
     // Orchestrator reads the actual question via capture-pane.
-    settings["hooks"]["PostToolUse"] = serde_json::json!([
-        {
-            "matcher": "AskUserQuestion",
-            "hooks": [{"type": "command", "command": notify_cmd}]
-        }
-    ]);
+    upsert_hook_entry(&mut settings, "PostToolUse", "squad-station notify --body", serde_json::json!({
+        "matcher": "AskUserQuestion",
+        "hooks": [{"type": "command", "command": notify_cmd}]
+    }));
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
     Ok(true)
@@ -867,18 +956,26 @@ fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let signal_cmd = format!(r#"{bin} signal "{}" 2>/dev/null"#, resolve);
 
     // Stop hook — agent finished turn → signal completion
-    settings["hooks"]["Stop"] = serde_json::json!([{
+    upsert_hook_entry(&mut settings, "Stop", "squad-station signal", serde_json::json!({
         "matcher": "",
         "hooks": [{"type": "command", "command": signal_cmd}]
-    }]);
+    }));
 
-    // Remove stale hooks from pre-v0.8.6 installs. Codex runs in --yolo mode
+    // Remove stale squad-station hooks from pre-v0.8.6 installs. Codex runs in --yolo mode
     // (full auto-approve), so PostToolUse/Notification hooks are incorrect:
     // PostToolUse with "Bash" matcher fires on every tool call, flooding the
     // orchestrator with duplicate [SQUAD INPUT NEEDED] signals.
+    // Only remove squad-station entries — preserve user/third-party entries.
+    replace_hook_entries(&mut settings, "PostToolUse", "squad-station", vec![]);
+    replace_hook_entries(&mut settings, "Notification", "squad-station", vec![]);
+
+    // Clean up empty arrays left by removing all squad entries
     if let Some(hooks_obj) = settings["hooks"].as_object_mut() {
-        hooks_obj.remove("PostToolUse");
-        hooks_obj.remove("Notification");
+        for event in &["PostToolUse", "Notification"] {
+            if hooks_obj.get(*event).and_then(|v| v.as_array()).map(|a| a.is_empty()).unwrap_or(false) {
+                hooks_obj.remove(*event);
+            }
+        }
     }
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
@@ -944,7 +1041,7 @@ fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
         resolve
     );
 
-    settings["hooks"]["AfterAgent"] = serde_json::json!([{
+    upsert_hook_entry(&mut settings, "AfterAgent", "squad-station signal", serde_json::json!({
         "matcher": "",
         "hooks": [{
             "type": "command",
@@ -953,9 +1050,9 @@ fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
             "description": "Signal task completion to squad-station",
             "timeout": 30000
         }]
-    }]);
+    }));
 
-    settings["hooks"]["Notification"] = serde_json::json!([{
+    upsert_hook_entry(&mut settings, "Notification", "squad-station notify", serde_json::json!({
         "matcher": "",
         "hooks": [{
             "type": "command",
@@ -964,7 +1061,7 @@ fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
             "description": "Forward permission prompt to orchestrator",
             "timeout": 30000
         }]
-    }]);
+    }));
 
     std::fs::write(settings_file, serde_json::to_string_pretty(&settings)?)?;
     Ok(true)
@@ -989,10 +1086,10 @@ fn install_session_start_hook(
     let bin = resolve_binary_path();
     let inject_cmd = format!("{bin} context --inject");
 
-    settings["hooks"]["SessionStart"] = serde_json::json!([{
+    upsert_hook_entry(&mut settings, "SessionStart", "squad-station context", serde_json::json!({
         "matcher": "",
         "hooks": [{"type": "command", "command": inject_cmd}]
-    }]);
+    }));
 
     std::fs::write(&settings_path, serde_json::to_string_pretty(&settings)?)?;
     Ok(true)

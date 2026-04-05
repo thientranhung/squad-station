@@ -36,3 +36,4 @@ bin/squad-station
 !.squad/sdd/
 !.squad/examples/
 !.squad/hooks/
+.env.squad

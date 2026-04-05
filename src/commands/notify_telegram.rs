@@ -55,7 +55,8 @@ fn detect_tmux_session() -> Option<String> {
 
 /// Read hook input JSON from stdin (Claude Code passes this to hook scripts).
 /// Returns parsed JSON value, or None if stdin is empty/invalid/TTY.
-/// Uses a background thread with timeout to prevent blocking if the pipe never closes.
+/// Uses a simple blocking read — Claude Code pipes data and closes stdin immediately,
+/// so this behaves like shell `cat` which is proven reliable.
 fn read_hook_input() -> Option<serde_json::Value> {
     use std::io::Read;
 
@@ -64,20 +65,18 @@ fn read_hook_input() -> Option<serde_json::Value> {
         return None;
     }
 
-    // Read stdin on a background thread with a short timeout.
-    // Claude Code pipes hook input JSON immediately, so data is available right away.
-    // If nothing arrives within 100ms, stdin is empty or the pipe won't close.
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut buf = String::new();
-        let _ = std::io::stdin().lock().read_to_string(&mut buf);
-        let _ = tx.send(buf);
-    });
-
-    match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-        Ok(buf) if !buf.trim().is_empty() => serde_json::from_str(&buf).ok(),
-        _ => None,
+    // Blocking read — equivalent to shell `cat`. Claude Code pipes JSON and closes
+    // stdin immediately, so this will read all data and return when EOF is reached.
+    let mut buf = String::new();
+    if std::io::stdin().lock().read_to_string(&mut buf).is_err() {
+        return None;
     }
+
+    if buf.trim().is_empty() {
+        return None;
+    }
+
+    serde_json::from_str(&buf).ok()
 }
 
 /// Extract the last assistant text message from a Claude Code JSONL transcript file.
@@ -93,17 +92,18 @@ fn read_last_assistant_message(transcript_path: &str) -> Option<String> {
     let json: serde_json::Value = serde_json::from_str(last_assistant_line).ok()?;
     // Extract text from .message.content[] where type == "text"
     let contents = json.get("message")?.get("content")?.as_array()?;
-    for item in contents {
-        if item.get("type")?.as_str()? == "text" {
-            if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    return Some(trimmed.to_string());
-                }
-            }
-        }
+    let texts: Vec<&str> = contents
+        .iter()
+        .filter(|item| item.get("type").and_then(|t| t.as_str()) == Some("text"))
+        .filter_map(|item| item.get("text").and_then(|t| t.as_str()))
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if texts.is_empty() {
+        None
+    } else {
+        Some(texts.join("\n"))
     }
-    None
 }
 
 /// Check if the agent (tmux session name) matches the notify_agents filter.
@@ -309,27 +309,47 @@ pub async fn run(
             .unwrap_or_else(|| config.project.clone())
     });
 
-    // 7. Extract transcript message (last assistant response from JSONL)
-    let transcript_message = hook_input.as_ref().and_then(|input| {
-        let path = input.get("transcript_path")?.as_str()?;
-        if path.is_empty() {
-            return None;
-        }
-        eprintln!("squad-station: notify-telegram: reading transcript from {path}");
-        read_last_assistant_message(path)
-    });
-
-    // Fallback: try .message or .last_message from hook input
-    let detail_message = transcript_message.or_else(|| {
-        hook_input.as_ref().and_then(|input| {
+    // 7. Extract detail message — priority chain:
+    //    1. last_assistant_message from stdin JSON (Claude Code Stop hook provides this directly)
+    //    2. Transcript file (JSONL) via transcript_path from stdin JSON
+    //    3. message / last_message from stdin JSON (generic fallback)
+    let detail_message = hook_input
+        .as_ref()
+        .and_then(|input| {
+            // Primary: last_assistant_message (available directly, no file I/O)
             input
-                .get("message")
-                .or_else(|| input.get("last_message"))
+                .get("last_assistant_message")
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty() && *s != "null")
-                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty())
+                .map(|s| {
+                    eprintln!("squad-station: notify-telegram: using last_assistant_message from stdin");
+                    s.to_string()
+                })
         })
-    });
+        .or_else(|| {
+            // Secondary: read transcript file
+            hook_input.as_ref().and_then(|input| {
+                let path = input.get("transcript_path")?.as_str()?;
+                if path.is_empty() {
+                    return None;
+                }
+                eprintln!("squad-station: notify-telegram: reading transcript from {path}");
+                // Small delay to let the provider finish writing the transcript
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                read_last_assistant_message(path)
+            })
+        })
+        .or_else(|| {
+            // Tertiary: generic message fields
+            hook_input.as_ref().and_then(|input| {
+                input
+                    .get("message")
+                    .or_else(|| input.get("last_message"))
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty() && *s != "null")
+                    .map(|s| s.to_string())
+            })
+        });
 
     // 8. Format and send
     let text = format_message(&project_name, agent_name.as_deref(), detail_message.as_deref());
@@ -524,6 +544,16 @@ mod tests {
     }
 
     #[test]
+    fn test_read_last_assistant_message_multiple_text_blocks() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let jsonl = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"First block"},{"type":"tool_use","name":"bash"},{"type":"text","text":"Second block"},{"type":"text","text":"Third block"}]}}
+"#;
+        std::fs::write(tmp.path(), jsonl).unwrap();
+        let result = read_last_assistant_message(tmp.path().to_str().unwrap());
+        assert_eq!(result, Some("First block\nSecond block\nThird block".to_string()));
+    }
+
+    #[test]
     fn test_read_last_assistant_message_no_assistant() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         let jsonl = r#"{"type":"human","message":{"content":[{"type":"text","text":"hello"}]}}
@@ -537,5 +567,65 @@ mod tests {
     fn test_read_last_assistant_message_missing_file() {
         let result = read_last_assistant_message("/nonexistent/transcript.jsonl");
         assert_eq!(result, None);
+    }
+
+    /// Verify that last_assistant_message is extracted from hook input JSON
+    /// (simulates the stdin payload Claude Code sends to Stop hooks).
+    #[test]
+    fn test_last_assistant_message_extraction_from_hook_input() {
+        let hook_input: serde_json::Value = serde_json::from_str(
+            r#"{"session_id":"abc","transcript_path":"/tmp/t.jsonl","cwd":"/project","hook_event_name":"Stop","last_assistant_message":"Pre-flight complete. All 3 agents alive."}"#,
+        ).unwrap();
+
+        // Primary: last_assistant_message should be found
+        let result = hook_input
+            .get("last_assistant_message")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        assert_eq!(
+            result,
+            Some("Pre-flight complete. All 3 agents alive.".to_string())
+        );
+    }
+
+    /// Verify fallback when last_assistant_message is absent from hook input.
+    #[test]
+    fn test_last_assistant_message_fallback_when_absent() {
+        let hook_input: serde_json::Value = serde_json::from_str(
+            r#"{"session_id":"abc","transcript_path":"/tmp/t.jsonl","cwd":"/project","hook_event_name":"Stop"}"#,
+        ).unwrap();
+
+        // last_assistant_message not present — should be None
+        let result = hook_input
+            .get("last_assistant_message")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        assert_eq!(result, None);
+    }
+
+    /// Verify fallback when last_assistant_message is empty string.
+    #[test]
+    fn test_last_assistant_message_fallback_when_empty() {
+        let hook_input: serde_json::Value = serde_json::from_str(
+            r#"{"session_id":"abc","last_assistant_message":"","message":"fallback msg"}"#,
+        ).unwrap();
+
+        // Empty last_assistant_message should be filtered out
+        let primary = hook_input
+            .get("last_assistant_message")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        assert_eq!(primary, None);
+
+        // Fallback to .message
+        let fallback = hook_input
+            .get("message")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        assert_eq!(fallback, Some("fallback msg".to_string()));
     }
 }

@@ -1,58 +1,58 @@
 # Superpowers — Agent Playbook
 
-## How Superpowers Works
+## How It Works
 
-Superpowers is **intent-driven** — skills auto-trigger via the 1% rule. The agent receiving the task decides which skills to invoke. The orchestrator does NOT select skills — it delegates the right TYPE of task to the right agent.
+Superpowers is **intent-driven** — describe what you want and the agent auto-triggers the correct skill. No explicit commands needed.
 
-## Orchestrator Routing
+**Build a feature:**
+1. Describe the feature → agent auto-triggers `brainstorming`
+2. Answer questions (1 at a time, usually MCQ) → agent proposes 2-3 approaches
+3. Approve design sections → agent writes spec to `docs/superpowers/specs/`
+4. Approve spec (user review gate) → agent transitions to `writing-plans`
+5. Agent creates plan with bite-sized tasks → approve plan
+6. Choose execution mode: **SDD** (subagents, recommended) or **Inline** (sequential)
+7. Agent executes: implement → spec review → quality review per task
+8. Choose: Merge / Create PR / Keep branch / Discard
 
-Route tasks by intent, not by skill name. The agent handles skill selection:
+**Fix a bug:** Describe the bug → agent auto-triggers `systematic-debugging` → 4-phase investigation → TDD fix
 
-| Task intent | Route to | Agent will auto-trigger |
+**Brainstorm only:** Say "let's brainstorm about [topic]" → ends with spec, no auto-implementation
+
+## Skills Reference
+
+| Skill | Triggers When | Iron Law |
 |---|---|---|
-| Build new feature / add functionality | **brainstorm agent** | `brainstorming` → `writing-plans` → `SDD` |
-| Fix bug / unexpected behavior | **implement agent** | `systematic-debugging` → `TDD` fix |
-| Code review / quality check | **brainstorm agent** | `requesting-code-review` |
-| Implement from existing spec/plan | **implement agent** | `SDD` or `executing-plans` |
-| Research / analysis / design only | **brainstorm agent** | `brainstorming` (ends at spec, no implementation) |
+| `brainstorming` | Any creative work or new feature | NO code before design approved |
+| `writing-plans` | Spec/requirements exist for multi-step task | Bite-sized tasks (2-5 min each) |
+| `subagent-driven-development` | Plan exists + user chose SDD | Fresh subagent per task + two-stage review |
+| `executing-plans` | Plan exists + user chose inline / no subagent platform | Execute continuously, stop only on blocker |
+| `test-driven-development` | All implementation | NO production code without failing test first |
+| `systematic-debugging` | All technical issues | NO fixes without root cause investigation |
+| `verification-before-completion` | Before claiming done/fixed/passing | NO claims without fresh verification evidence |
+| `using-git-worktrees` | Before starting implementation | Isolated workspace, verify clean baseline |
+| `finishing-a-development-branch` | Implementation done, tests pass | Verify tests → present 4 options → execute |
+| `requesting-code-review` | After each task (SDD) or before merge | Dispatch code-reviewer subagent |
+| `receiving-code-review` | Receiving feedback from reviewer | Fix Critical immediately, Important before continuing |
+| `dispatching-parallel-agents` | Multiple independent domains | Identify → Create → Dispatch → Integrate |
+| `writing-skills` | Creating a new skill | TDD for documentation |
+| `using-superpowers` | Every conversation | 1% rule: if a skill COULD apply → MUST invoke |
 
-### What to send
+## Execution Modes
 
-Send **intent**, not skill commands. The agent's 1% rule handles the rest:
+| Mode | When to Use | Platform |
+|---|---|---|
+| **SDD** (recommended) | Full autonomous with review | Claude Code, Codex (subagent support) |
+| **Inline** | Manual control, step-by-step | Any platform |
+| **Fallback** | Platform lacks subagents | Gemini CLI, OpenCode |
 
-- ✅ `"Add user authentication to the API"` → agent triggers brainstorming → planning → SDD
-- ✅ `"Fix: login returns 500 when password is empty"` → agent triggers systematic-debugging
-- ❌ `"Use brainstorming skill to design auth"` → don't micromanage skill selection
+**SDD per-task flow:** Dispatch implementer → handle status (DONE/BLOCKED/NEEDS_CONTEXT) → spec reviewer → quality reviewer → mark complete
 
-## Workflow Sequences
-
-**Feature (full flow):**
-brainstorming → spec review (max 3 iterations) → user review gate → git worktree → writing-plans → plan review → SDD/inline execution → finishing-a-development-branch
-
-**Bug fix:**
-systematic-debugging (4 phases: root cause → pattern → hypothesis → TDD fix) → verification-before-completion
-
-**Execution modes** (agent asks user to choose):
-- **SDD** (recommended) — fresh subagent per task + two-stage review (spec compliance → code quality)
-- **Inline** — sequential in same session, for platforms without subagent support
-
-## Document Discipline
-
-After task completes, verify:
-- **Feature built** → spec saved to `docs/plans/`, plan saved, code committed per task
-- **Bug fixed** → root cause documented, failing test added BEFORE fix, fix committed
-- **Branch finished** → agent presents 4 options: merge / PR / keep / discard — verify user chose
-
-Superpowers auto-commits per task. But orchestrator must verify:
-- Plan document exists in `docs/plans/` after brainstorming + planning
-- Spec document exists after design approval
-- Branch is not left orphaned after completion
+**Review loop:** Reviewer gets complete document → only flag real implementation problems → max 3 iterations → escalate to human if unresolved
 
 ## Critical Rules
 
-1. **Skills are for the agent, not the orchestrator** — you send intent, agent triggers skills. Don't send skill names as commands.
-2. **Brainstorming is always first** — even "simple" features. The agent enforces this (iron law: NO code before design approved).
-3. **TDD is mandatory** — NO production code without failing test first. The agent enforces this.
-4. **Verify before claiming done** — agent must run command, read output, THEN claim. If agent says "should work" without evidence, send back.
-5. **3 review iterations max** — if still unresolved after 3 rounds, escalate to user (not infinite loop).
-6. **Verify agent completion after SQUAD SIGNAL** — SQUAD SIGNAL means the agent processed your message, not that the workflow is complete. Check if the agent is still in brainstorming questions, review loops, or waiting for approval before marking done.
+1. **Always brainstorm first** — Even for "simple" projects. No code before design is approved.
+2. **No code before tests** — RED (failing test) → GREEN (minimal code) → REFACTOR.
+3. **Verify before claiming** — Run the command, read the output, THEN claim done.
+4. **Spec compliance before quality** — Two-stage review: spec review FIRST, code quality SECOND.
+5. **Escalate when stuck** — After 3 review iterations, ask the human.
