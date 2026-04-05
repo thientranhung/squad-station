@@ -1,24 +1,36 @@
-project: landing-page
+# Squad Station — Claude orchestrator + Claude workers
+# Copy to project root as squad.yml, then run: squad-station init
+
+project: squad-station
 
 sdd:
-  - name: get-shit-done
-    playbook: ".squad/sdd/gsd-playbook.md"
+  # - name: get-shit-done
+  #   playbook: ".squad/sdd/gsd-playbook.md"
+  # - name: bmad-method
+  #   playbook: ".squad/sdd/bmad-playbook.md"
+  - name: superpowers
+    playbook: ".squad/sdd/superpowers-playbook.md"
+
+# Telegram notifications (credentials go in .env.squad, auto-created by init)
+telegram:
+  enabled: true
+  notify_agents: [orchestrator]          # "all" or list: [orchestrator, implement]
 
 orchestrator:
-  provider: gemini-cli
+  provider: claude-code
   role: orchestrator
-  model: gemini-3.1-pro-preview
-  description: Team leader, monitors and coordinates tasks for agents
+  model: opus
+  description: Team leader, project manager, monitors and coordinates tasks for agents
 
 agents:
   - name: implement
     provider: claude-code
     role: worker
     model: sonnet
-    description: Senior coder, coding, fixing bugs, operating according to the project SDD.
+    description: Senior coder, coding, fixing bugs
 
   - name: brainstorm
     provider: claude-code
     role: worker
     model: opus
-    description: Technical Lead, planner, analysis, performs code reviews and technical solutions
+    description: Technical Lead, planner, analysis, code reviews

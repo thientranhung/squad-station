@@ -181,6 +181,111 @@ fn test_hooks_claude_code_idempotent() {
     );
 }
 
+/// Regression test: install_claude_hooks must preserve user-added and third-party
+/// hook entries. Before the merge fix, it overwrote entire event arrays.
+#[test]
+fn test_hooks_claude_code_preserves_custom_entries_in_same_event() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let claude_dir = tmp.path().join(".claude");
+    std::fs::create_dir_all(&claude_dir).unwrap();
+
+    // Pre-populate with squad signal + telegram + user custom logger in Stop
+    let existing = serde_json::json!({
+        "hooks": {
+            "Stop": [
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "squad-station signal old-path 2>/dev/null"}]
+                },
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "squad-station notify-telegram --project-root /foo 2>/dev/null; true"}]
+                },
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "/usr/local/bin/my-custom-logger --event stop"}]
+                }
+            ],
+            "Notification": [
+                {
+                    "matcher": "permission_prompt",
+                    "hooks": [{"type": "command", "command": "squad-station notify --body old 2>/dev/null"}]
+                },
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "/usr/local/bin/my-slack-notifier"}]
+                }
+            ],
+            "PostToolUse": [
+                {
+                    "matcher": "AskUserQuestion",
+                    "hooks": [{"type": "command", "command": "squad-station notify --body old 2>/dev/null"}]
+                },
+                {
+                    "matcher": "Bash",
+                    "hooks": [{"type": "command", "command": "/usr/local/bin/my-audit-log"}]
+                }
+            ]
+        }
+    });
+    std::fs::write(
+        claude_dir.join("settings.json"),
+        serde_json::to_string_pretty(&existing).unwrap(),
+    )
+    .unwrap();
+
+    let settings_file = claude_dir.join("settings.json");
+    install_claude_hooks_pub(settings_file.to_str().unwrap()).unwrap();
+
+    let content = std::fs::read_to_string(&settings_file).unwrap();
+    let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+    // Stop: telegram + custom logger preserved, signal updated
+    let stop = settings["hooks"]["Stop"].as_array().unwrap();
+    let stop_cmds: Vec<&str> = stop
+        .iter()
+        .filter_map(|e| e["hooks"][0]["command"].as_str())
+        .collect();
+    assert!(
+        stop_cmds.iter().any(|c| c.contains("notify-telegram")),
+        "Telegram hook must be preserved in Stop: {stop_cmds:?}"
+    );
+    assert!(
+        stop_cmds.iter().any(|c| c.contains("my-custom-logger")),
+        "Custom logger hook must be preserved in Stop: {stop_cmds:?}"
+    );
+    assert!(
+        stop_cmds.iter().any(|c| c.contains("squad-station signal") && !c.contains("old-path")),
+        "Signal hook must be updated (not old-path) in Stop: {stop_cmds:?}"
+    );
+    assert_eq!(stop.len(), 3, "Stop must have exactly 3 entries: {stop_cmds:?}");
+
+    // Notification: slack notifier preserved, squad entries updated
+    let notif = settings["hooks"]["Notification"].as_array().unwrap();
+    let notif_cmds: Vec<&str> = notif
+        .iter()
+        .filter_map(|e| e["hooks"][0]["command"].as_str())
+        .collect();
+    assert!(
+        notif_cmds.iter().any(|c| c.contains("my-slack-notifier")),
+        "Slack notifier must be preserved in Notification: {notif_cmds:?}"
+    );
+    // 1 user entry + 2 squad entries (permission_prompt + elicitation_dialog)
+    assert_eq!(notif.len(), 3, "Notification must have 3 entries: {notif_cmds:?}");
+
+    // PostToolUse: audit log preserved, squad entry updated
+    let ptu = settings["hooks"]["PostToolUse"].as_array().unwrap();
+    let ptu_cmds: Vec<&str> = ptu
+        .iter()
+        .filter_map(|e| e["hooks"][0]["command"].as_str())
+        .collect();
+    assert!(
+        ptu_cmds.iter().any(|c| c.contains("my-audit-log")),
+        "Audit log hook must be preserved in PostToolUse: {ptu_cmds:?}"
+    );
+    assert_eq!(ptu.len(), 2, "PostToolUse must have 2 entries: {ptu_cmds:?}");
+}
+
 // ============================================================
 // Codex provider — .codex/hooks.json
 // ============================================================
@@ -318,7 +423,7 @@ fn test_hooks_codex_removes_stale_post_tool_use_from_existing_file() {
         "hooks": {
             "Stop": [{
                 "matcher": "",
-                "hooks": [{"type": "command", "command": "old-signal-command"}]
+                "hooks": [{"type": "command", "command": "squad-station signal old-path 2>/dev/null"}]
             }],
             "PostToolUse": [{
                 "matcher": "Bash",
@@ -351,7 +456,7 @@ fn test_hooks_codex_removes_stale_post_tool_use_from_existing_file() {
         "Stop hook must be updated: {stop_cmd}"
     );
     assert!(
-        !stop_cmd.contains("old-signal-command"),
+        !stop_cmd.contains("old-path"),
         "Old Stop command must be replaced: {stop_cmd}"
     );
 
