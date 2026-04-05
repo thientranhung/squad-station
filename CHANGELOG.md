@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.15 — Telegram notification + idempotent hooks (2026-04-05)
+
+Two bug fixes: reliable Telegram notification content and non-destructive hook installation.
+
+### Fixed
+
+- **Telegram notification content** — Use `last_assistant_message` from stdin with blocking read and collect all text blocks, replacing broken thread+timeout approach that was missing agent response content
+- **Idempotent hook installation** — `squad-station init` now merges into existing hook configs instead of overwriting them, preserving user-added entries via new `upsert_hook_entry`/`replace_hook_entries` helpers
+
+---
+
 ## v0.8.14 — Fix hook PATH resolution (2026-04-04)
 
 Fix hook commands failing when `squad-station` binary is not on PATH in the hook execution environment.
