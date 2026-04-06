@@ -4,9 +4,7 @@ use crate::config;
 fn strip_quotes(s: &str) -> &str {
     let s = s.trim();
     if s.len() >= 2 {
-        if (s.starts_with('"') && s.ends_with('"'))
-            || (s.starts_with('\'') && s.ends_with('\''))
-        {
+        if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
             return &s[1..s.len() - 1];
         }
     }
@@ -126,7 +124,11 @@ fn escape_html(s: &str) -> String {
 }
 
 /// Format the notification message with optional transcript context.
-fn format_message(project_name: &str, agent_name: Option<&str>, transcript: Option<&str>) -> String {
+fn format_message(
+    project_name: &str,
+    agent_name: Option<&str>,
+    transcript: Option<&str>,
+) -> String {
     let header = match agent_name {
         Some(name) => format!("<b>[{project_name}]</b> {name} finished \u{1f3c1}"),
         None => format!("<b>[{project_name}]</b> Agent finished \u{1f3c1}"),
@@ -228,7 +230,9 @@ pub async fn run(
             return Ok(());
         }
         None => {
-            eprintln!("squad-station: notify-telegram: no [telegram] section in squad.yml, skipping");
+            eprintln!(
+                "squad-station: notify-telegram: no [telegram] section in squad.yml, skipping"
+            );
             return Ok(());
         }
     };
@@ -264,7 +268,11 @@ pub async fn run(
         eprintln!(
             "squad-station: notify-telegram: missing credentials (TELE_TOKEN={}, TELE_CHAT_ID={})",
             if token.is_empty() { "<empty>" } else { "<set>" },
-            if chat_id.is_empty() { "<empty>" } else { "<set>" },
+            if chat_id.is_empty() {
+                "<empty>"
+            } else {
+                "<set>"
+            },
         );
         return Ok(());
     }
@@ -322,7 +330,9 @@ pub async fn run(
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
                 .map(|s| {
-                    eprintln!("squad-station: notify-telegram: using last_assistant_message from stdin");
+                    eprintln!(
+                        "squad-station: notify-telegram: using last_assistant_message from stdin"
+                    );
                     s.to_string()
                 })
         })
@@ -352,7 +362,11 @@ pub async fn run(
         });
 
     // 8. Format and send
-    let text = format_message(&project_name, agent_name.as_deref(), detail_message.as_deref());
+    let text = format_message(
+        &project_name,
+        agent_name.as_deref(),
+        detail_message.as_deref(),
+    );
     // Silently ignore send errors — hooks must always exit 0
     let _ = send_telegram(token, chat_id, topic_id, &text).await;
 
@@ -369,7 +383,11 @@ pub fn agent_matches_filter_pub(agent_name: &str, notify_agents: &config::Notify
     agent_matches_filter(agent_name, notify_agents)
 }
 
-pub fn format_message_pub(project_name: &str, agent_name: Option<&str>, transcript: Option<&str>) -> String {
+pub fn format_message_pub(
+    project_name: &str,
+    agent_name: Option<&str>,
+    transcript: Option<&str>,
+) -> String {
     format_message(project_name, agent_name, transcript)
 }
 
@@ -550,7 +568,10 @@ mod tests {
 "#;
         std::fs::write(tmp.path(), jsonl).unwrap();
         let result = read_last_assistant_message(tmp.path().to_str().unwrap());
-        assert_eq!(result, Some("First block\nSecond block\nThird block".to_string()));
+        assert_eq!(
+            result,
+            Some("First block\nSecond block\nThird block".to_string())
+        );
     }
 
     #[test]
@@ -610,7 +631,8 @@ mod tests {
     fn test_last_assistant_message_fallback_when_empty() {
         let hook_input: serde_json::Value = serde_json::from_str(
             r#"{"session_id":"abc","last_assistant_message":"","message":"fallback msg"}"#,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Empty last_assistant_message should be filtered out
         let primary = hook_input

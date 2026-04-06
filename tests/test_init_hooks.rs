@@ -255,10 +255,16 @@ fn test_hooks_claude_code_preserves_custom_entries_in_same_event() {
         "Custom logger hook must be preserved in Stop: {stop_cmds:?}"
     );
     assert!(
-        stop_cmds.iter().any(|c| c.contains("squad-station signal") && !c.contains("old-path")),
+        stop_cmds
+            .iter()
+            .any(|c| c.contains("squad-station signal") && !c.contains("old-path")),
         "Signal hook must be updated (not old-path) in Stop: {stop_cmds:?}"
     );
-    assert_eq!(stop.len(), 3, "Stop must have exactly 3 entries: {stop_cmds:?}");
+    assert_eq!(
+        stop.len(),
+        3,
+        "Stop must have exactly 3 entries: {stop_cmds:?}"
+    );
 
     // Notification: slack notifier preserved, squad entries updated
     let notif = settings["hooks"]["Notification"].as_array().unwrap();
@@ -271,7 +277,11 @@ fn test_hooks_claude_code_preserves_custom_entries_in_same_event() {
         "Slack notifier must be preserved in Notification: {notif_cmds:?}"
     );
     // 1 user entry + 2 squad entries (permission_prompt + elicitation_dialog)
-    assert_eq!(notif.len(), 3, "Notification must have 3 entries: {notif_cmds:?}");
+    assert_eq!(
+        notif.len(),
+        3,
+        "Notification must have 3 entries: {notif_cmds:?}"
+    );
 
     // PostToolUse: audit log preserved, squad entry updated
     let ptu = settings["hooks"]["PostToolUse"].as_array().unwrap();
@@ -283,7 +293,11 @@ fn test_hooks_claude_code_preserves_custom_entries_in_same_event() {
         ptu_cmds.iter().any(|c| c.contains("my-audit-log")),
         "Audit log hook must be preserved in PostToolUse: {ptu_cmds:?}"
     );
-    assert_eq!(ptu.len(), 2, "PostToolUse must have 2 entries: {ptu_cmds:?}");
+    assert_eq!(
+        ptu.len(),
+        2,
+        "PostToolUse must have 2 entries: {ptu_cmds:?}"
+    );
 }
 
 // ============================================================
@@ -887,10 +901,7 @@ fn test_telegram_hooks_absolute_path_even_for_relative_root() {
         tg_cmd.contains(&format!("--project-root \"{}\"", abs_root.display())),
         "hook must use absolute --project-root: {tg_cmd}"
     );
-    assert!(
-        !tg_cmd.contains("cd "),
-        "hook must not use cd: {tg_cmd}"
-    );
+    assert!(!tg_cmd.contains("cd "), "hook must not use cd: {tg_cmd}");
 }
 
 // ============================================================
