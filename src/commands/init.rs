@@ -791,7 +791,7 @@ fn resolve_binary_path() -> String {
             // Only use the resolved path if it's the actual squad-station binary,
             // not a test runner or other executable.
             if name == "squad-station" {
-                std::fs::canonicalize(&p).ok().or(Some(p))
+                Some(p)
             } else {
                 None
             }
