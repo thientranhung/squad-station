@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.22 — Fix PATH setup for non-interactive shells (2026-04-07)
+
+Fix PATH auto-setup to use `.zshenv` instead of `.zshrc` so Claude Code agents in tmux sessions can find the `squad-station` binary. Non-interactive shells (used by Claude Code's Bash tool) only source `.zshenv`, not `.zshrc`.
+
+### Fixed
+
+- **PATH setup uses `.zshenv`** — On macOS, install now writes `export PATH` to `~/.zshenv` instead of `~/.zshrc`, ensuring AI agents in tmux sessions can find `squad-station` binary in non-interactive shells
+- **Settings.json uses relative binary name** — Hook commands now use `squad-station` instead of hardcoded absolute path (`/Users/.../squad-station`), making configs portable across machines
+
+---
+
 ## v0.8.21 — Install reliability fixes (2026-04-06)
 
 Improved install reliability: auto-adds PATH to shell profile, ignores npx cache wrappers in duplicate detection, and makes init more resilient.

@@ -45,7 +45,7 @@ function install() {
 
 function installBinary() {
   // Binary version — may differ from npm package version
-  var VERSION = '0.8.21';
+  var VERSION = '0.8.22';
   var REPO = 'thientranhung/squad-station';
 
   var isWindows = process.platform === 'win32';
@@ -201,19 +201,28 @@ function verifyInPath(destPath, installDir) {
     return;
   }
 
-  // macOS/Linux: auto-add to shell profile
+  // macOS/Linux: auto-add to shell env file
+  // IMPORTANT: Use .zshenv (not .zshrc) because Claude Code's Bash tool runs
+  // non-interactive shells that only source .zshenv. Without this, AI agents
+  // inside tmux sessions cannot find squad-station binary.
   var home = process.env.HOME || '';
   var exportLine = 'export PATH="$HOME/.squad/bin:$PATH"';
   var profileCandidates = process.platform === 'darwin'
-    ? ['.zshrc', '.bash_profile', '.bashrc']
-    : ['.bashrc', '.zshrc', '.profile'];
+    ? ['.zshenv', '.zshrc', '.bash_profile', '.bashrc']
+    : ['.bashrc', '.zshenv', '.zshrc', '.profile'];
 
-  // Find the first existing profile, or default to the platform's primary
-  var profileName = profileCandidates[0];
-  for (var i = 0; i < profileCandidates.length; i++) {
-    if (fs.existsSync(path.join(home, profileCandidates[i]))) {
-      profileName = profileCandidates[i];
-      break;
+  // On macOS, always use .zshenv (required for Claude Code compatibility).
+  // On Linux, find first existing profile or default to primary.
+  var profileName;
+  if (process.platform === 'darwin') {
+    profileName = '.zshenv';
+  } else {
+    profileName = profileCandidates[0];
+    for (var i = 0; i < profileCandidates.length; i++) {
+      if (fs.existsSync(path.join(home, profileCandidates[i]))) {
+        profileName = profileCandidates[i];
+        break;
+      }
     }
   }
   var profilePath = path.join(home, profileName);
