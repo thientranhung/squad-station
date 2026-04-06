@@ -11,6 +11,8 @@ const subcommand = process.argv[2];
 
 if (subcommand === 'install') {
   install();
+} else if (subcommand === 'uninstall') {
+  uninstall();
 } else {
   proxyToBinary();
 }
@@ -126,29 +128,34 @@ function findBestInstallDir() {
   var pathSep = isWindows ? ';' : ':';
   var pathDirs = (process.env.PATH || '').split(pathSep).filter(Boolean);
 
-  // Candidate directories in preference order
+  // Primary: ~/.squad/bin — our own directory, does not need to be on PATH
+  var squadBin = path.join(home, '.squad', 'bin');
+  try {
+    fs.mkdirSync(squadBin, { recursive: true });
+    fs.accessSync(squadBin, fs.constants.W_OK);
+    return squadBin;
+  } catch (_) {
+    // Fall through to other candidates
+  }
+
+  // Secondary candidates — must be on PATH and writable
   var candidates = isWindows
     ? [
         path.join(home, '.local', 'bin'),
         path.join(home, 'AppData', 'Local', 'Microsoft', 'WindowsApps'),
       ]
     : [
-        '/usr/local/bin',
         path.join(home, '.local', 'bin'),
-        path.join(home, '.cargo', 'bin'),
-        '/opt/homebrew/bin',
+        '/usr/local/bin',
       ];
 
-  // Pick the first candidate that is already in PATH and is writable
   for (var i = 0; i < candidates.length; i++) {
     var dir = candidates[i];
-    // Check if this directory is in PATH
     var inPath = pathDirs.some(function(p) {
       return path.resolve(p) === path.resolve(dir);
     });
     if (!inPath) continue;
 
-    // Check if writable (create if needed)
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.accessSync(dir, fs.constants.W_OK);
@@ -158,10 +165,9 @@ function findBestInstallDir() {
     }
   }
 
-  // Fallback: ~/.local/bin (may not be in PATH — we'll warn later)
-  var fallback = path.join(home, '.local', 'bin');
-  fs.mkdirSync(fallback, { recursive: true });
-  return fallback;
+  // Fallback: ~/.squad/bin (already created above if writable)
+  fs.mkdirSync(squadBin, { recursive: true });
+  return squadBin;
 }
 
 // Verify the installed binary is callable. If not, print PATH instructions.
@@ -175,33 +181,115 @@ function verifyInPath(destPath, installDir) {
     return;
   }
 
-  // Not in PATH — print platform-specific instructions
+  // Not in PATH — print instructions
   console.log('');
   console.log('  \x1b[33m⚠  squad-station is not in your PATH\x1b[0m');
   console.log('  The binary was installed to: \x1b[36m' + installDir + '\x1b[0m');
   console.log('');
-  console.log('  Add it to your PATH:');
-  console.log('');
 
-  if (process.platform === 'darwin') {
-    console.log('  \x1b[2m# macOS (zsh) — add to ~/.zshrc:\x1b[0m');
-    console.log('  \x1b[36mexport PATH="' + installDir + ':$PATH"\x1b[0m');
+  if (isWindows) {
+    console.log('  Add to your PATH:');
     console.log('');
-    console.log('  Then reload: \x1b[36msource ~/.zshrc\x1b[0m');
-  } else if (isWindows) {
     console.log('  \x1b[2m# Windows (PowerShell) — run as Administrator:\x1b[0m');
     console.log('  \x1b[36m[Environment]::SetEnvironmentVariable("Path",\x1b[0m');
     console.log('  \x1b[36m  [Environment]::GetEnvironmentVariable("Path", "User") + ";' + installDir + '", "User")\x1b[0m');
     console.log('');
     console.log('  Then restart your terminal.');
   } else {
-    // Linux
-    console.log('  \x1b[2m# Linux (bash) — add to ~/.bashrc:\x1b[0m');
-    console.log('  \x1b[36mexport PATH="' + installDir + ':$PATH"\x1b[0m');
-    console.log('');
-    console.log('  Then reload: \x1b[36msource ~/.bashrc\x1b[0m');
+    var shellProfile = process.platform === 'darwin' ? '~/.zshrc' : '~/.bashrc';
+    console.log('  Add to your shell profile: \x1b[36mexport PATH="$HOME/.squad/bin:$PATH"\x1b[0m');
+    console.log('  Then restart your terminal or run: \x1b[36msource ' + shellProfile + '\x1b[0m');
   }
   console.log('');
+}
+
+// ── Uninstall ───────────────────────────────────────────────────────
+// Find and remove all squad-station binaries from known locations.
+
+function uninstall() {
+  var home = process.env.HOME || process.env.USERPROFILE || '';
+  var isWindows = process.platform === 'win32';
+  var binaryName = isWindows ? 'squad-station.exe' : 'squad-station';
+
+  // Search directories: current install locations + legacy locations
+  var searchDirs = isWindows
+    ? [
+        path.join(home, '.squad', 'bin'),
+        path.join(home, '.local', 'bin'),
+        path.join(home, 'AppData', 'Local', 'Microsoft', 'WindowsApps'),
+      ]
+    : [
+        path.join(home, '.squad', 'bin'),
+        path.join(home, '.local', 'bin'),
+        '/usr/local/bin',
+        path.join(home, '.cargo', 'bin'),
+        '/opt/homebrew/bin',
+      ];
+
+  console.log('\n\x1b[32m══════════════════════════════════\x1b[0m');
+  console.log('  \x1b[1mSquad Station Uninstall\x1b[0m');
+  console.log('\x1b[32m══════════════════════════════════\x1b[0m\n');
+
+  // Find all existing binaries
+  var found = [];
+  for (var i = 0; i < searchDirs.length; i++) {
+    var binPath = path.join(searchDirs[i], binaryName);
+    if (fs.existsSync(binPath)) {
+      var version = '(unknown version)';
+      try {
+        var result = spawnSync(binPath, ['--version'], { encoding: 'utf8', timeout: 5000 });
+        if (result.stdout && result.stdout.trim()) {
+          version = result.stdout.trim();
+        }
+      } catch (_) {}
+      found.push({ path: binPath, version: version });
+    }
+  }
+
+  if (found.length === 0) {
+    console.log('  No squad-station binaries found.\n');
+    return;
+  }
+
+  console.log('  Found ' + found.length + ' binary(ies):\n');
+  for (var j = 0; j < found.length; j++) {
+    console.log('    \x1b[36m' + found[j].path + '\x1b[0m  ' + found[j].version);
+  }
+  console.log('');
+
+  // Ask for confirmation (read single line from stdin)
+  process.stdout.write('  Remove these binaries? [y/N] ');
+  var buf = Buffer.alloc(128);
+  var bytesRead = 0;
+  try {
+    bytesRead = fs.readSync(0, buf, 0, buf.length);
+  } catch (_) {
+    console.log('\n  Aborted.\n');
+    return;
+  }
+  var answer = buf.toString('utf8', 0, bytesRead).trim().toLowerCase();
+
+  if (answer !== 'y' && answer !== 'yes') {
+    console.log('  Aborted.\n');
+    return;
+  }
+
+  // Delete each binary
+  var removed = 0;
+  for (var k = 0; k < found.length; k++) {
+    try {
+      fs.unlinkSync(found[k].path);
+      console.log('  \x1b[32m✓\x1b[0m Removed ' + found[k].path);
+      removed++;
+    } catch (e) {
+      console.log('  \x1b[31m✗\x1b[0m Failed to remove ' + found[k].path + ': ' + e.message);
+    }
+  }
+
+  console.log('');
+  if (removed > 0) {
+    console.log('  Uninstalled. You can also remove ~/.squad/bin from your PATH if no longer needed.\n');
+  }
 }
 
 function scaffoldProject(force) {
