@@ -42,6 +42,7 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     .await?;
 
     // 5. Launch orchestrator tmux session
+    let mut failed: Vec<(String, String)> = vec![];
     let orch_launched = if tmux::session_exists(&orch_name) {
         false
     } else {
@@ -53,13 +54,17 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
             .unwrap_or(std::path::Path::new("."));
         let project_root_str = project_root.to_string_lossy().to_string();
         let cmd = get_launch_command(&config.orchestrator);
-        tmux::launch_agent_in_dir(&orch_name, &cmd, &project_root_str)?;
-        true
+        match tmux::launch_agent_in_dir(&orch_name, &cmd, &project_root_str) {
+            Ok(()) => true,
+            Err(e) => {
+                failed.push((orch_name.clone(), format!("{e:#}")));
+                false
+            }
+        }
     };
     let orch_skipped = !orch_launched;
 
     // 6. Register and launch each worker agent — continue on partial failure
-    let mut failed: Vec<(String, String)> = vec![];
     let mut skipped_names: Vec<String> = vec![];
     let mut launched: u32 = if orch_launched { 1 } else { 0 };
     let mut skipped: u32 = if orch_skipped { 1 } else { 0 };
@@ -148,11 +153,8 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
         println!("  Database: {}", db_path_str);
     }
 
-    // 8. Exit code: return Err only if ALL agents failed (including orchestrator)
-    let total = config.agents.len() + 1;
-    if !failed.is_empty() && failed.len() == total {
-        anyhow::bail!("All {} agent(s) failed to launch", total);
-    }
+    // 8. Tmux launch failures are non-fatal — DB, hooks, and config are the important artifacts.
+    //    Print warnings for failed launches but continue to hook setup and instructions.
 
     // 9a. Create .squad/log/ directory for signal and watchdog logs
     {

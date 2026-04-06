@@ -174,7 +174,7 @@ function findBestInstallDir() {
   return squadBin;
 }
 
-// Verify the installed binary is callable. If not, print PATH instructions.
+// Verify the installed binary is callable. If not, auto-add to shell profile.
 function verifyInPath(destPath, installDir) {
   var isWindows = process.platform === 'win32';
   var checkCmd = isWindows ? 'where' : 'which';
@@ -185,25 +185,62 @@ function verifyInPath(destPath, installDir) {
     return;
   }
 
-  // Not in PATH — print instructions
-  console.log('');
-  console.log('  \x1b[33m⚠  squad-station is not in your PATH\x1b[0m');
-  console.log('  The binary was installed to: \x1b[36m' + installDir + '\x1b[0m');
-  console.log('');
-
   if (isWindows) {
-    console.log('  Add to your PATH:');
+    // Windows: print manual instructions (modifying registry is too invasive)
     console.log('');
+    console.log('  \x1b[33m⚠  squad-station is not in your PATH\x1b[0m');
     console.log('  \x1b[2m# Windows (PowerShell) — run as Administrator:\x1b[0m');
     console.log('  \x1b[36m[Environment]::SetEnvironmentVariable("Path",\x1b[0m');
     console.log('  \x1b[36m  [Environment]::GetEnvironmentVariable("Path", "User") + ";' + installDir + '", "User")\x1b[0m');
-    console.log('');
     console.log('  Then restart your terminal.');
-  } else {
-    var shellProfile = process.platform === 'darwin' ? '~/.zshrc' : '~/.bashrc';
-    console.log('  Add to your shell profile: \x1b[36mexport PATH="$HOME/.squad/bin:$PATH"\x1b[0m');
-    console.log('  Then restart your terminal or run: \x1b[36msource ' + shellProfile + '\x1b[0m');
+    console.log('');
+    return;
   }
+
+  // macOS/Linux: auto-add to shell profile
+  var home = process.env.HOME || '';
+  var exportLine = 'export PATH="$HOME/.squad/bin:$PATH"';
+  var profileCandidates = process.platform === 'darwin'
+    ? ['.zshrc', '.bash_profile', '.bashrc']
+    : ['.bashrc', '.zshrc', '.profile'];
+
+  // Find the first existing profile, or default to the platform's primary
+  var profileName = profileCandidates[0];
+  for (var i = 0; i < profileCandidates.length; i++) {
+    if (fs.existsSync(path.join(home, profileCandidates[i]))) {
+      profileName = profileCandidates[i];
+      break;
+    }
+  }
+  var profilePath = path.join(home, profileName);
+
+  // Check if already added (idempotent)
+  var alreadyAdded = false;
+  try {
+    var content = fs.readFileSync(profilePath, 'utf8');
+    if (content.includes('.squad/bin')) {
+      alreadyAdded = true;
+    }
+  } catch (_) {
+    // File doesn't exist yet — we'll create it
+  }
+
+  if (!alreadyAdded) {
+    try {
+      var marker = '\n# Squad Station\n' + exportLine + '\n';
+      fs.appendFileSync(profilePath, marker);
+      console.log('  \x1b[32m✓\x1b[0m Added ~/.squad/bin to PATH in ~/' + profileName);
+    } catch (e) {
+      console.log('  \x1b[33m⚠\x1b[0m Could not update ~/' + profileName + ': ' + e.message);
+      console.log('    Add manually: \x1b[36m' + exportLine + '\x1b[0m');
+      console.log('');
+      return;
+    }
+  }
+
+  // Source the profile so it takes effect in the current npx process isn't needed,
+  // but we need the user's NEXT terminal to work. Print a note.
+  console.log('  \x1b[33m→\x1b[0m Run \x1b[36msource ~/' + profileName + '\x1b[0m or open a new terminal to activate.');
   console.log('');
 }
 
@@ -217,14 +254,21 @@ function checkDuplicateBinary(installedPath) {
     return; // not in PATH at all — verifyInPath already warned
   }
 
-  var resolvedWhich = fs.realpathSync(result.stdout.trim());
+  var whichPath = result.stdout.trim();
+
+  // Ignore npx cache / node_modules wrappers — these are not real installs
+  if (whichPath.includes('.npm/_npx') || whichPath.includes('node_modules/.bin') || whichPath.includes('node_modules\\.bin')) {
+    return;
+  }
+
+  var resolvedWhich = fs.realpathSync(whichPath);
   var resolvedInstalled = fs.realpathSync(installedPath);
 
   if (resolvedWhich !== resolvedInstalled) {
     console.log('');
-    console.log('  \x1b[33m⚠  Another squad-station found at: ' + result.stdout.trim() + '\x1b[0m');
+    console.log('  \x1b[33m⚠  Another squad-station found at: ' + whichPath + '\x1b[0m');
     console.log('     This version will be used instead of the one just installed.');
-    console.log('     Remove it to avoid conflicts: \x1b[36mrm ' + result.stdout.trim() + '\x1b[0m');
+    console.log('     Remove it to avoid conflicts: \x1b[36mrm ' + whichPath + '\x1b[0m');
     console.log('');
   }
 }
