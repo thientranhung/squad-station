@@ -839,7 +839,7 @@ fn upsert_hook_entry(
     };
 
     let mut merged = existing;
-    if let Some(idx) = merged.iter().position(|e| is_match(e)) {
+    if let Some(idx) = merged.iter().position(is_match) {
         merged[idx] = new_entry;
     } else {
         merged.push(new_entry);
@@ -1316,7 +1316,7 @@ fn append_telegram_hook_entry(
     };
 
     // Check if an existing telegram hook matches the new command exactly
-    let existing_idx = existing.iter().position(|e| is_telegram_entry(e));
+    let existing_idx = existing.iter().position(is_telegram_entry);
     if let Some(idx) = existing_idx {
         // Check if the command is already identical — skip if so (true idempotent)
         let existing_cmd = existing[idx]
