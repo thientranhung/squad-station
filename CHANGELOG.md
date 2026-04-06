@@ -2,6 +2,21 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.17 — Install improvements (2026-04-06)
+
+Improved binary installation, added uninstall command, and duplicate binary detection.
+
+### Added
+
+- **Uninstall command** — `npx squad-station uninstall` finds and removes all squad-station binaries across known locations (including legacy paths) with interactive confirmation
+- **Duplicate binary detection** — Health check now warns when multiple squad-station binaries exist at different paths, showing which is active and which to remove
+
+### Changed
+
+- **Install to ~/.squad/bin** — Default binary install directory changed from `/usr/local/bin` to `~/.squad/bin` with PATH setup instructions when not in PATH
+
+---
+
 ## v0.8.16 — Fix binary path resolution (2026-04-06)
 
 Fix hook commands resolving symlinks to dev build path instead of using the installed path.
