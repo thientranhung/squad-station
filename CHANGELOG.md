@@ -2,6 +2,19 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.21 — Install reliability fixes (2026-04-06)
+
+Improved install reliability: auto-adds PATH to shell profile, ignores npx cache wrappers in duplicate detection, and makes init more resilient.
+
+### Fixed
+
+- **Auto PATH setup** — Install now auto-appends `~/.squad/bin` to shell profile (`~/.zshrc`/`~/.bashrc`) instead of just printing instructions
+- **npx cache bypass** — `verifyInPath` and `checkDuplicateBinary` now ignore npx cache / `node_modules/.bin` wrappers when checking PATH
+- **Resilient init** — `squad-station init` handles edge cases more gracefully
+- **Clippy warnings** — Resolved redundant closures and collapsible if warnings
+
+---
+
 ## v0.8.18 — Install duplicate detection (2026-04-06)
 
 Moved duplicate binary detection from `squad-station init` health check to the npm install flow, where it belongs.

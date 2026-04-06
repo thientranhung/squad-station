@@ -45,7 +45,7 @@ function install() {
 
 function installBinary() {
   // Binary version — may differ from npm package version
-  var VERSION = '0.8.20';
+  var VERSION = '0.8.21';
   var REPO = 'thientranhung/squad-station';
 
   var isWindows = process.platform === 'win32';
