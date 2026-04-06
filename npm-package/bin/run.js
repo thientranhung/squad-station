@@ -181,8 +181,12 @@ function verifyInPath(destPath, installDir) {
   var checkResult = spawnSync(checkCmd, ['squad-station'], { encoding: 'utf8' });
 
   if (checkResult.status === 0 && checkResult.stdout && checkResult.stdout.trim()) {
-    // Binary is found in PATH — all good
-    return;
+    var foundPath = checkResult.stdout.trim();
+    // Ignore npx cache / node_modules wrappers — not real user PATH entries
+    if (!foundPath.includes('.npm/_npx') && !foundPath.includes('node_modules/.bin') && !foundPath.includes('node_modules\\.bin')) {
+      // Binary is found in real PATH — all good
+      return;
+    }
   }
 
   if (isWindows) {
