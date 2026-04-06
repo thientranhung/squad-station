@@ -2,6 +2,16 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.16 — Fix binary path resolution (2026-04-06)
+
+Fix hook commands resolving symlinks to dev build path instead of using the installed path.
+
+### Fixed
+
+- **Stop resolving symlinks in `resolve_binary_path()`** — Remove `canonicalize()` so hooks use the installed path (e.g. `~/.cargo/bin/squad-station`) instead of resolving to `target/release/squad-station`
+
+---
+
 ## v0.8.15 — Telegram notification + idempotent hooks (2026-04-05)
 
 Two bug fixes: reliable Telegram notification content and non-destructive hook installation.
