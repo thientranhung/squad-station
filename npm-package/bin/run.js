@@ -75,6 +75,7 @@ function installBinary() {
       var result = spawnSync(destPath, ['--version'], { encoding: 'utf8' });
       if (result.stdout && result.stdout.includes(VERSION)) {
         console.log('  \x1b[32m✓\x1b[0m squad-station v' + VERSION + ' already installed at ' + destPath);
+        checkDuplicateBinary(destPath);
         return;
       }
     } catch (_) {
@@ -118,6 +119,9 @@ function installBinary() {
 
   // Verify the binary is actually callable via PATH
   verifyInPath(destPath, installDir);
+
+  // Check for duplicate binaries at other locations
+  checkDuplicateBinary(destPath);
 }
 
 // Find the best install directory that is already in the user's PATH.
@@ -201,6 +205,28 @@ function verifyInPath(destPath, installDir) {
     console.log('  Then restart your terminal or run: \x1b[36msource ' + shellProfile + '\x1b[0m');
   }
   console.log('');
+}
+
+// Check if another squad-station binary exists at a different path than where we installed.
+function checkDuplicateBinary(installedPath) {
+  var isWindows = process.platform === 'win32';
+  var checkCmd = isWindows ? 'where' : 'which';
+  var result = spawnSync(checkCmd, ['squad-station'], { encoding: 'utf8' });
+
+  if (result.status !== 0 || !result.stdout || !result.stdout.trim()) {
+    return; // not in PATH at all — verifyInPath already warned
+  }
+
+  var resolvedWhich = fs.realpathSync(result.stdout.trim());
+  var resolvedInstalled = fs.realpathSync(installedPath);
+
+  if (resolvedWhich !== resolvedInstalled) {
+    console.log('');
+    console.log('  \x1b[33m⚠  Another squad-station found at: ' + result.stdout.trim() + '\x1b[0m');
+    console.log('     This version will be used instead of the one just installed.');
+    console.log('     Remove it to avoid conflicts: \x1b[36mrm ' + result.stdout.trim() + '\x1b[0m');
+    console.log('');
+  }
 }
 
 // ── Uninstall ───────────────────────────────────────────────────────

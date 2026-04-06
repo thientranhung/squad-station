@@ -439,44 +439,7 @@ pub fn run_health_check(
         remediation.push("Database file was not created. Re-run `squad-station init`.".into());
     }
 
-    // 2. Duplicate binary detection
-    {
-        let current_exe = std::env::current_exe().ok().and_then(|p| std::fs::canonicalize(p).ok());
-        let which_result = std::process::Command::new("which")
-            .arg("squad-station")
-            .output()
-            .ok();
-        let which_path = which_result
-            .as_ref()
-            .filter(|o| o.status.success())
-            .and_then(|o| String::from_utf8(o.stdout.clone()).ok())
-            .map(|s| s.trim().to_string())
-            .and_then(|s| std::fs::canonicalize(&s).ok());
-
-        if let (Some(ref exe), Some(ref which)) = (&current_exe, &which_path) {
-            if exe != which {
-                println!(
-                    "  {} Multiple squad-station binaries detected:",
-                    warn
-                );
-                println!("       Active: {}", which.display());
-                println!("       This binary: {}", exe.display());
-                println!(
-                    "       Remove the stale binary: rm {}",
-                    which.display()
-                );
-                warn_count += 1;
-            } else {
-                println!("  {} Binary path consistent", pass);
-                pass_count += 1;
-            }
-        } else {
-            println!("  {} Binary path consistent", pass);
-            pass_count += 1;
-        }
-    }
-
-    // 3. Log directory
+    // 2. Log directory
     let log_dir = db_path
         .parent()
         .unwrap_or(std::path::Path::new(".squad"))
