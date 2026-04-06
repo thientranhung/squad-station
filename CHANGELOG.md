@@ -2,6 +2,17 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.8.18 — Install duplicate detection (2026-04-06)
+
+Moved duplicate binary detection from `squad-station init` health check to the npm install flow, where it belongs.
+
+### Changed
+
+- **Duplicate detection in install flow** — `npx squad-station install` now warns when `which squad-station` resolves to a different binary than the one just installed, with instructions to remove the conflicting copy
+- **Removed from init health check** — `squad-station init` no longer checks for duplicate binaries (moved to install)
+
+---
+
 ## v0.8.17 — Install improvements (2026-04-06)
 
 Improved binary installation, added uninstall command, and duplicate binary detection.
