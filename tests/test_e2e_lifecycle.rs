@@ -546,22 +546,22 @@ async fn doctor_checks_db_and_logs() {
 
     // DB check must pass
     assert!(
-        stdout.contains("Database exists") || stdout.contains("PASS"),
-        "doctor must report DB exists, got: {}",
+        stdout.contains("Database: healthy"),
+        "doctor must report DB healthy, got: {}",
         stdout
     );
 
-    // Log directory check must pass (we created it in setup)
+    // Config check must pass
     assert!(
-        stdout.contains("Log directory"),
-        "doctor must check log directory, got: {}",
+        stdout.contains("[PASS] Config"),
+        "doctor must report config valid, got: {}",
         stdout
     );
 }
 
-/// Doctor with running watchdog must report watchdog as passing.
+/// Doctor with a running watchdog still reports DB as healthy (watchdog not checked).
 #[tokio::test]
-async fn doctor_detects_running_watchdog() {
+async fn doctor_reports_db_healthy_after_init() {
     let dir = tempfile::TempDir::new().unwrap();
     write_squad_yml(dir.path());
     let squad_dir = setup_squad_dir(dir.path());
@@ -595,9 +595,10 @@ async fn doctor_detects_running_watchdog() {
         .expect("run doctor");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // Doctor no longer checks watchdog; verify it still reports DB healthy
     assert!(
-        stdout.contains("Watchdog daemon running"),
-        "doctor must detect running watchdog, got: {}",
+        stdout.contains("Database: healthy"),
+        "doctor must report DB healthy, got: {}",
         stdout
     );
 
@@ -611,9 +612,9 @@ async fn doctor_detects_running_watchdog() {
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 }
 
-/// Doctor without watchdog must warn (not fail).
+/// Doctor without watchdog still shows result summary (watchdog not checked).
 #[tokio::test]
-async fn doctor_warns_when_watchdog_not_running() {
+async fn doctor_shows_result_summary() {
     let dir = tempfile::TempDir::new().unwrap();
     write_squad_yml(dir.path());
     let squad_dir = setup_squad_dir(dir.path());
@@ -629,9 +630,10 @@ async fn doctor_warns_when_watchdog_not_running() {
         .expect("run doctor");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // Doctor no longer checks watchdog; verify it still runs and shows summary
     assert!(
-        stdout.contains("Watchdog daemon not running"),
-        "doctor must warn about missing watchdog, got: {}",
+        stdout.contains("Result:"),
+        "doctor must show result summary, got: {}",
         stdout
     );
 }

@@ -55,7 +55,7 @@ async fn run(cli: cli::Cli) -> Result<()> {
             project,
             project_root,
         } => commands::notify_telegram::run(project, project_root).await,
-        Doctor => commands::doctor::run().await,
+        Doctor => commands::doctor::run(cli.json).await,
         Clean { config, yes, all } => commands::clean::run(config, yes, all, cli.json).await,
     }
 }
