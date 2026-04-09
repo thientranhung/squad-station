@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 /// Allowed provider values for squad.yml
 const VALID_PROVIDERS: &[&str] = &["claude-code", "codex", "gemini-cli"];
 
+/// Known SDD playbook names for validation
+pub const KNOWN_SDD_PLAYBOOKS: &[&str] = &["bmad", "superpowers", "gsd", "openspec"];
+
 /// Valid model identifiers per provider (provider → allowed model slugs)
 fn valid_models_for(provider: &str) -> Option<&'static [&'static str]> {
     match provider {
@@ -68,6 +71,8 @@ pub struct SquadConfig {
     pub telegram: Option<TelegramConfig>, // optional Telegram notifications
     pub orchestrator: AgentConfig,
     pub agents: Vec<AgentConfig>,
+    #[serde(default, rename = "sdd-playbook")]
+    pub sdd_playbook: Vec<String>, // list of SDD playbook names to validate
 }
 
 impl SquadConfig {
@@ -79,6 +84,22 @@ impl SquadConfig {
         for agent in &self.agents {
             let label = agent.name.as_deref().unwrap_or(&agent.role);
             validate_agent_config(label, agent)?;
+        }
+        // Validate sdd-playbook names and check for duplicates
+        {
+            let mut seen = std::collections::HashSet::new();
+            for name in &self.sdd_playbook {
+                if !KNOWN_SDD_PLAYBOOKS.contains(&name.as_str()) {
+                    bail!(
+                        "Unknown SDD playbook '{}'. Valid playbooks are: {}.",
+                        name,
+                        KNOWN_SDD_PLAYBOOKS.join(", ")
+                    );
+                }
+                if !seen.insert(name.as_str()) {
+                    bail!("Duplicate SDD playbook '{}' in sdd-playbook list.", name);
+                }
+            }
         }
         // Validate telegram.notify_agents if present
         if let Some(tg) = &self.telegram {
@@ -531,6 +552,72 @@ agents:
                 cwd.display()
             );
         }
+    }
+
+    #[test]
+    fn sdd_playbook_defaults_to_empty() {
+        let yaml = r#"
+project: test
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents: []
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        assert!(config.sdd_playbook.is_empty());
+    }
+
+    #[test]
+    fn sdd_playbook_parses_list() {
+        let yaml = r#"
+project: test
+sdd-playbook:
+  - bmad
+  - openspec
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents: []
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        config.validate().unwrap();
+        assert_eq!(config.sdd_playbook, vec!["bmad", "openspec"]);
+    }
+
+    #[test]
+    fn sdd_playbook_rejects_duplicate_name() {
+        let yaml = r#"
+project: test
+sdd-playbook:
+  - bmad
+  - bmad
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents: []
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("Duplicate"));
+        assert!(err.to_string().contains("bmad"));
+    }
+
+    #[test]
+    fn sdd_playbook_rejects_unknown_name() {
+        let yaml = r#"
+project: test
+sdd-playbook:
+  - bmad
+  - unknown-playbook
+orchestrator:
+  provider: claude-code
+  role: orchestrator
+agents: []
+"#;
+        let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("unknown-playbook"));
+        assert!(err.to_string().contains("bmad, superpowers, gsd, openspec"));
     }
 
     /// Verify that `find_project_root` prefers the main repo when in a worktree.

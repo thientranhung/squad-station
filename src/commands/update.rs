@@ -640,6 +640,7 @@ mod tests {
                 description: None,
             },
             agents: vec![],
+            sdd_playbook: vec![],
         };
 
         let killed =
@@ -680,6 +681,7 @@ mod tests {
                 description: None,
             },
             agents: vec![],
+            sdd_playbook: vec![],
         };
 
         run_housekeeping(&config, project_root).unwrap();

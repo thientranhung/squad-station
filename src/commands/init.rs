@@ -1,5 +1,5 @@
 use std::io::{IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
@@ -10,7 +10,13 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 1. Parse squad.yml
     let config = config::load_config(&config_path)?;
 
-    // 2. Pre-flight: detect tmux session name conflicts from other projects.
+    // 2. Validate SDD playbooks before any side effects
+    if !config.sdd_playbook.is_empty() {
+        let project_root = config::find_project_root()?;
+        validate_sdd_playbooks(&config.sdd_playbook, &project_root)?;
+    }
+
+    // 2b. Pre-flight: detect tmux session name conflicts from other projects.
     //    If squad.yml was copied without changing `project:`, the session names
     //    would collide with a running squad in a different directory.
     //    Skipped in JSON mode (programmatic/CI) and when SQUAD_STATION_DB is set (tests).
@@ -687,6 +693,134 @@ pub fn run_health_check(
     println!();
 
     fail_count
+}
+
+/// Validate that all declared SDD playbooks are physically present in the project.
+/// Accumulates ALL failures before returning so the user can fix everything at once.
+pub(crate) fn validate_sdd_playbooks(playbooks: &[String], project_root: &Path) -> anyhow::Result<()> {
+    if playbooks.is_empty() {
+        return Ok(());
+    }
+
+    let mut failures: Vec<(String, String, String)> = vec![]; // (name, reason, fix)
+
+    for name in playbooks {
+        match name.as_str() {
+            "bmad" => {
+                if !project_root.join("bmad").is_dir() {
+                    failures.push((
+                        "bmad".into(),
+                        "directory 'bmad/' not found in project root".into(),
+                        "clone the BMAD playbook into your project root".into(),
+                    ));
+                }
+            }
+            "superpowers" => {
+                match check_superpowers_mcp() {
+                    Ok(true) => {} // present and enabled
+                    Ok(false) => {
+                        failures.push((
+                            "superpowers".into(),
+                            "MCP server 'superpowers@claude-plugins-official' not found or disabled in ~/.claude/settings.json".into(),
+                            "add the superpowers MCP server to ~/.claude/settings.json under mcpServers".into(),
+                        ));
+                    }
+                    Err(reason) => {
+                        failures.push((
+                            "superpowers".into(),
+                            reason,
+                            "fix or re-generate ~/.claude/settings.json".into(),
+                        ));
+                    }
+                }
+            }
+            "gsd" => {
+                if !project_root.join(".claude/commands/gsd").is_dir() {
+                    failures.push((
+                        "gsd".into(),
+                        "directory '.claude/commands/gsd/' not found in project root".into(),
+                        "install the GSD playbook commands into .claude/commands/gsd/".into(),
+                    ));
+                }
+            }
+            "openspec" => {
+                let openspec_dir = project_root.join("openspec");
+                let config_file = openspec_dir.join("config.yaml");
+                if !openspec_dir.is_dir() {
+                    failures.push((
+                        "openspec".into(),
+                        "directory 'openspec/' not found in project root".into(),
+                        "create the openspec/ directory in your project root".into(),
+                    ));
+                } else if !config_file.is_file() {
+                    failures.push((
+                        "openspec".into(),
+                        "file 'openspec/config.yaml' not found".into(),
+                        "ensure openspec/ directory contains config.yaml".into(),
+                    ));
+                }
+            }
+            _ => {} // unknown names already rejected in config.validate()
+        }
+    }
+
+    if failures.is_empty() {
+        return Ok(());
+    }
+
+    let mut msg = "SDD playbook validation failed:\n".to_string();
+    for (name, reason, fix) in &failures {
+        msg.push_str(&format!("\n  \u{2717} {} \u{2014} {}\n", name, reason));
+        msg.push_str(&format!("    Fix: {}\n", fix));
+    }
+    msg.push_str("\nResolve the above issues and re-run 'squad-station init'.");
+
+    anyhow::bail!("{}", msg)
+}
+
+/// Check if the superpowers MCP server is registered and not disabled in ~/.claude/settings.json.
+/// Returns Ok(true) if present+enabled, Ok(false) if absent/disabled, Err(msg) if file is malformed.
+fn check_superpowers_mcp() -> Result<bool, String> {
+    let home = std::env::var("HOME")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| "HOME environment variable not set".to_string())?;
+    check_superpowers_mcp_at(&home.join(".claude").join("settings.json"))
+}
+
+/// Testable inner implementation: checks a specific settings.json path.
+fn check_superpowers_mcp_at(settings_path: &Path) -> Result<bool, String> {
+    let content = match std::fs::read_to_string(settings_path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => {
+            return Err(format!(
+                "cannot read '{}': {}",
+                settings_path.display(),
+                e
+            ))
+        }
+    };
+    let json: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
+        format!(
+            "'{}' is malformed JSON: {}",
+            settings_path.display(),
+            e
+        )
+    })?;
+    let mcp_servers = match json.get("mcpServers") {
+        Some(v) => v,
+        None => return Ok(false),
+    };
+    let server = match mcp_servers.get("superpowers@claude-plugins-official") {
+        Some(v) => v,
+        None => return Ok(false),
+    };
+    // If the entry has a "disabled" field set to true, treat as not present
+    if server.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 /// Check if planned tmux session names already exist as live tmux sessions.
@@ -2518,6 +2652,141 @@ mod tests {
         assert!(
             after[1]["hooks"][0]["name"].as_str().unwrap() == "squad-telegram",
             "Gemini hook must have name field"
+        );
+    }
+
+    // ── validate_sdd_playbooks tests ────────────────────────────────────────
+
+    #[test]
+    fn sdd_playbook_empty_list_skips_validation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(validate_sdd_playbooks(&[], tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn sdd_playbook_bmad_missing_dir_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = validate_sdd_playbooks(&["bmad".into()], tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("bmad"));
+        assert!(err.to_string().contains("bmad/"));
+    }
+
+    #[test]
+    fn sdd_playbook_bmad_present_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("bmad")).unwrap();
+        assert!(validate_sdd_playbooks(&["bmad".into()], tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn sdd_playbook_gsd_missing_dir_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = validate_sdd_playbooks(&["gsd".into()], tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("gsd"));
+        assert!(err.to_string().contains(".claude/commands/gsd"));
+    }
+
+    #[test]
+    fn sdd_playbook_gsd_present_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".claude/commands/gsd")).unwrap();
+        assert!(validate_sdd_playbooks(&["gsd".into()], tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn sdd_playbook_openspec_missing_dir_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = validate_sdd_playbooks(&["openspec".into()], tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("openspec"));
+        assert!(err.to_string().contains("openspec/"));
+    }
+
+    #[test]
+    fn sdd_playbook_openspec_dir_but_no_config_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("openspec")).unwrap();
+        let err = validate_sdd_playbooks(&["openspec".into()], tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("openspec/config.yaml"));
+    }
+
+    #[test]
+    fn sdd_playbook_openspec_complete_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let openspec_dir = tmp.path().join("openspec");
+        std::fs::create_dir(&openspec_dir).unwrap();
+        std::fs::write(openspec_dir.join("config.yaml"), "").unwrap();
+        assert!(validate_sdd_playbooks(&["openspec".into()], tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_file_not_found_returns_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = check_superpowers_mcp_at(&tmp.path().join("nonexistent.json"));
+        assert_eq!(result, Ok(false));
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_malformed_json_returns_err() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(&path, "{ not valid json }").unwrap();
+        let result = check_superpowers_mcp_at(&path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("malformed JSON"));
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_missing_mcp_servers_returns_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(&path, r#"{"hooks":{}}"#).unwrap();
+        assert_eq!(check_superpowers_mcp_at(&path), Ok(false));
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_server_absent_returns_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(&path, r#"{"mcpServers":{"other-server":{}}}"#).unwrap();
+        assert_eq!(check_superpowers_mcp_at(&path), Ok(false));
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_server_disabled_returns_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"superpowers@claude-plugins-official":{"disabled":true}}}"#,
+        )
+        .unwrap();
+        assert_eq!(check_superpowers_mcp_at(&path), Ok(false));
+    }
+
+    #[test]
+    fn check_superpowers_mcp_at_server_present_and_enabled_returns_true() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"superpowers@claude-plugins-official":{"command":"npx","args":[]}}}"#,
+        )
+        .unwrap();
+        assert_eq!(check_superpowers_mcp_at(&path), Ok(true));
+    }
+
+    #[test]
+    fn sdd_playbook_multiple_failures_reported_together() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err =
+            validate_sdd_playbooks(&["bmad".into(), "openspec".into()], tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        // Both failures should appear in the same error message
+        assert!(msg.contains("bmad"), "bmad missing from: {msg}");
+        assert!(msg.contains("openspec"), "openspec missing from: {msg}");
+        assert!(
+            msg.contains("Resolve the above issues"),
+            "footer missing: {msg}"
         );
     }
 
