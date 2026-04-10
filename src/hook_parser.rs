@@ -369,6 +369,18 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(third_party_cmd, "/usr/local/bin/my-custom-hook --flag");
+        // Stale squad entry at Stop[0] must have been rewritten to new_bin
+        let squad_cmd = settings["hooks"]["Stop"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            squad_cmd.starts_with(new_bin),
+            "squad entry should be rewritten to new_bin, got: {squad_cmd}"
+        );
+        assert!(
+            !squad_cmd.contains("/nope/squad-station"),
+            "old stale path should be gone, got: {squad_cmd}"
+        );
     }
 
     #[test]

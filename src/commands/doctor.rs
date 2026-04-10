@@ -295,7 +295,7 @@ fn check_hooks(config_result: Option<&ConfigResult>) -> CheckResult {
         format!("{n} hook binaries stale (first: {first_loc})")
     };
     let detail = format!(
-        "{first_loc} points to non-existent binary {first_path}. Run squad-station init to regenerate hooks, or manually update the path."
+        "{first_loc} points to stale binary {first_path}. Run squad-station init to regenerate hooks, or manually update the path."
     );
     CheckResult::fail_detail("Hooks", message, detail)
 }
@@ -624,6 +624,10 @@ mod tests {
             detail.contains("/Users/tranthien/.cargo/bin/squad-station"),
             "detail should contain the stale path, got: {detail}"
         );
+        assert!(
+            detail.contains("stale"),
+            "detail should contain 'stale', got: {detail}"
+        );
     }
 
     #[test]
@@ -645,7 +649,7 @@ mod tests {
             {"matcher":"","hooks":[{"type":"command","command":"/nope/squad-station signal a 2>/dev/null"}]},
             {"matcher":"","hooks":[{"type":"command","command":"/also/nope/squad-station signal b 2>/dev/null"}]}
         ]}}"#;
-        write_settings(&tmp.path(), two_stale);
+        write_settings(tmp.path(), two_stale);
 
         let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
         let config_result = (cfg, tmp.path().to_path_buf());
@@ -693,7 +697,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         // Use .claude/settings.json but with AfterAgent event (simulates the scan path)
         let f4_gemini = r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal arg"}]}],"AfterAgent":[{"matcher":"","hooks":[{"type":"command","command":"/stale/squad-station signal \"$AGENT\" >/dev/null 2>&1; printf '{}'"}]}]}}"#;
-        write_settings(&tmp.path(), f4_gemini);
+        write_settings(tmp.path(), f4_gemini);
 
         let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
         let config_result = (cfg, tmp.path().to_path_buf());
@@ -703,6 +707,10 @@ mod tests {
         assert!(
             detail.contains("AfterAgent[0]"),
             "detail should mention AfterAgent[0], got: {detail}"
+        );
+        assert!(
+            detail.contains("stale"),
+            "detail should contain 'stale', got: {detail}"
         );
     }
 }

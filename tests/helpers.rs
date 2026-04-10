@@ -6,6 +6,7 @@ use sqlx::SqlitePool;
 /// Note: SQLite WAL mode is silently downgraded to DELETE journal mode for ":memory:" databases
 /// (SQLite limitation — WAL requires a real file). The pool is configured identically to production
 /// (max_connections=1, single writer) to catch deadlocks and serialization issues.
+#[allow(dead_code)]
 pub async fn setup_test_db() -> SqlitePool {
     // Use a unique temp file per call so each test gets its own isolated DB (SAFE-01 compliance).
     let tmp = tempfile::NamedTempFile::new().expect("failed to create tempfile");
