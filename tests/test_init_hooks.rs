@@ -975,3 +975,74 @@ fn test_hooks_unknown_provider_returns_false() {
     let result = squad_station::commands::init::auto_install_hooks_pub("unknown-provider");
     assert!(!result.unwrap(), "Unknown provider must return Ok(false)");
 }
+
+// ============================================================
+// Stale hook binary path healing — integration tests
+// ============================================================
+
+/// F1 — stale absolute path (real bug reproduction)
+fn f1_stale_json() -> &'static str {
+    r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"/Users/tranthien/.cargo/bin/squad-station signal \"$(tmux display-message -p '#S')\" 2>/dev/null"}]}]}}"#
+}
+
+/// F2 — mixed squad + third-party
+fn f2_mixed_json() -> &'static str {
+    r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"/nope/squad-station signal \"$AGENT\" 2>/dev/null"}]},{"matcher":"","hooks":[{"type":"command","command":"/usr/local/bin/my-custom-hook --flag"}]}]}}"#
+}
+
+#[test]
+fn install_claude_hooks_heals_stale_path_before_upsert() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let claude_dir = tmp.path().join(".claude");
+    std::fs::create_dir_all(&claude_dir).unwrap();
+    let settings_file = claude_dir.join("settings.json");
+    std::fs::write(&settings_file, f1_stale_json()).unwrap();
+
+    install_claude_hooks_pub(settings_file.to_str().unwrap()).unwrap();
+
+    let content = std::fs::read_to_string(&settings_file).unwrap();
+    // Old stale path must not appear anywhere in the result
+    assert!(
+        !content.contains("/Users/tranthien/.cargo/bin/squad-station"),
+        "Stale path must be removed after heal: {content}"
+    );
+    // Signal hook must be present with the new (or bare) path
+    assert!(
+        content.contains("squad-station signal"),
+        "Signal hook must still be present: {content}"
+    );
+}
+
+#[test]
+fn install_claude_hooks_heals_preserves_non_squad_entries() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let claude_dir = tmp.path().join(".claude");
+    std::fs::create_dir_all(&claude_dir).unwrap();
+    let settings_file = claude_dir.join("settings.json");
+    std::fs::write(&settings_file, f2_mixed_json()).unwrap();
+
+    install_claude_hooks_pub(settings_file.to_str().unwrap()).unwrap();
+
+    let content = std::fs::read_to_string(&settings_file).unwrap();
+    let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+    // Find the third-party entry — it must be byte-exact unchanged
+    let stop_hooks = settings["hooks"]["Stop"].as_array().unwrap();
+    let third_party = stop_hooks.iter().find(|e| {
+        e["hooks"][0]["command"]
+            .as_str()
+            .map(|cmd| cmd.contains("/usr/local/bin/my-custom-hook"))
+            .unwrap_or(false)
+    });
+    assert!(
+        third_party.is_some(),
+        "Third-party hook entry must be preserved: {content}"
+    );
+    let third_party_cmd = third_party.unwrap()["hooks"][0]["command"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        third_party_cmd, "/usr/local/bin/my-custom-hook --flag",
+        "Third-party command must be byte-exact: got {third_party_cmd}"
+    );
+}
