@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.9.1 — Stale Hook Binary Detection & Self-Healing (2026-04-10)
+
+Detect and auto-repair stale squad-station hook binary paths in `.claude/settings.json`. Resolves a class of failures where hooks point to moved or deleted binaries (e.g. after upgrading from `~/.cargo/bin` to `~/.squad/bin` in v0.8.17).
+
+### Added
+- New `src/hook_parser.rs` module: `extract_binary_path`, `is_stale`, `heal_stale_squad_paths`
+- `squad-station doctor` Hooks check now has a phase-2 scan that validates each hook's binary exists and is executable; reports `[FAIL]` with location (`Stop[0]`, `AfterAgent[0]`, etc.) and remediation hint
+- `squad-station init` auto-heals stale squad-station hook paths before upserting — wired into Claude, Codex, and Gemini install functions. Non-squad hook entries and command arguments are preserved byte-exact
+- 25 new tests (parser, predicate, heal walker, doctor integration, install-flow integration) — 408 tests total
+
+### Fixed
+- Doctor no longer reports `[PASS]` when hook commands point at deleted/non-executable binaries — the original CompetitorIQ regression is now caught
+- `tests/helpers.rs::setup_test_db` dead-code warning that was blocking `cargo clippy --all-targets -- -D warnings`
+
+---
+
 ## v0.9.0 — SDD Playbook Validation & Doctor Command (2026-04-10)
 
 Health-check tooling for squad-station projects: validate SDD playbooks during init, and diagnose setup issues with the new doctor subcommand.
