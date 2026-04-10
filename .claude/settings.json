@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/tranthien/.cargo/bin/squad-station notify-telegram --project-root \"/Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station\" 2>/dev/null; true"
+            "command": "squad-station notify-telegram --project-root \"/Users/tranthien/Documents/2.DEV/2.PRIVATE/squad-station\" 2>/dev/null; true"
           }
         ]
       }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/tranthien/.cargo/bin/squad-station context --inject"
+            "command": "squad-station context --inject"
           }
         ]
       }
