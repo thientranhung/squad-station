@@ -4,5 +4,6 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod db;
+pub mod hook_parser;
 pub mod providers;
 pub mod tmux;

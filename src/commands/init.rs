@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use owo_colors::OwoColorize;
 use owo_colors::Stream;
 
-use crate::{config, db, tmux};
+use crate::{config, db, hook_parser, tmux};
 
 pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 1. Parse squad.yml
@@ -697,7 +697,10 @@ pub fn run_health_check(
 
 /// Validate that all declared SDD playbooks are physically present in the project.
 /// Accumulates ALL failures before returning so the user can fix everything at once.
-pub(crate) fn validate_sdd_playbooks(playbooks: &[String], project_root: &Path) -> anyhow::Result<()> {
+pub(crate) fn validate_sdd_playbooks(
+    playbooks: &[String],
+    project_root: &Path,
+) -> anyhow::Result<()> {
     if playbooks.is_empty() {
         return Ok(());
     }
@@ -793,21 +796,10 @@ fn check_superpowers_mcp_at(settings_path: &Path) -> Result<bool, String> {
     let content = match std::fs::read_to_string(settings_path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(e) => {
-            return Err(format!(
-                "cannot read '{}': {}",
-                settings_path.display(),
-                e
-            ))
-        }
+        Err(e) => return Err(format!("cannot read '{}': {}", settings_path.display(), e)),
     };
-    let json: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
-        format!(
-            "'{}' is malformed JSON: {}",
-            settings_path.display(),
-            e
-        )
-    })?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("'{}' is malformed JSON: {}", settings_path.display(), e))?;
     let mcp_servers = match json.get("mcpServers") {
         Some(v) => v,
         None => return Ok(false),
@@ -817,7 +809,11 @@ fn check_superpowers_mcp_at(settings_path: &Path) -> Result<bool, String> {
         None => return Ok(false),
     };
     // If the entry has a "disabled" field set to true, treat as not present
-    if server.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if server
+        .get("disabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         return Ok(false);
     }
     Ok(true)
@@ -1030,8 +1026,15 @@ fn replace_hook_entries(
 /// Install Claude Code hooks: Stop (signal) + Notification (notify) + PostToolUse (AskUserQuestion)
 fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_name_subshell();
     let bin = resolve_binary_path();
+
+    // Heal stale squad-station binary paths before upserting new entries.
+    let healed = hook_parser::heal_stale_squad_paths(&mut settings, &bin);
+    if healed > 0 {
+        eprintln!("squad-station: healed {healed} stale hook binary path(s) in {settings_file}");
+    }
+
+    let resolve = agent_name_subshell();
 
     // Claude Code: stdout is ignored, stderr goes to /dev/null. Always exit 0.
     // signal.rs handles its own logging internally via log_signal() — no shell redirect needed.
@@ -1100,8 +1103,15 @@ fn install_claude_hooks(settings_file: &str) -> anyhow::Result<bool> {
 ///   tool call, causing duplicate [SQUAD INPUT NEEDED] signals to the orchestrator.
 fn install_codex_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_name_subshell();
     let bin = resolve_binary_path();
+
+    // Heal stale squad-station binary paths before upserting new entries.
+    let healed = hook_parser::heal_stale_squad_paths(&mut settings, &bin);
+    if healed > 0 {
+        eprintln!("squad-station: healed {healed} stale hook binary path(s) in {settings_file}");
+    }
+
+    let resolve = agent_name_subshell();
 
     // Codex: stdout is not required to be JSON. exit 0 = success. Same as Claude Code.
     let signal_cmd = format!(r#"{bin} signal "{}" 2>/dev/null"#, resolve);
@@ -1187,8 +1197,15 @@ fn ensure_codex_feature_flag(hooks_file: &str) -> anyhow::Result<()> {
 /// - Uses ${AGENT:-__none__} to avoid shell short-circuit skipping printf
 fn install_gemini_hooks(settings_file: &str) -> anyhow::Result<bool> {
     let mut settings = read_or_create_settings(settings_file)?;
-    let resolve = agent_name_subshell();
     let bin = resolve_binary_path();
+
+    // Heal stale squad-station binary paths before upserting new entries.
+    let healed = hook_parser::heal_stale_squad_paths(&mut settings, &bin);
+    if healed > 0 {
+        eprintln!("squad-station: healed {healed} stale hook binary path(s) in {settings_file}");
+    }
+
+    let resolve = agent_name_subshell();
 
     // Gemini CLI: ALL signal output redirected to /dev/null. stdout MUST be valid JSON.
     // signal.rs handles its own logging internally — shell redirect only suppresses output.

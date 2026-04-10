@@ -1,4 +1,4 @@
-use crate::{config, db};
+use crate::{config, db, hook_parser};
 use anyhow::Result;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -136,27 +136,20 @@ async fn check_database(config_result: Option<&ConfigResult>) -> CheckResult {
     };
 
     if !db_path.exists() {
-        return CheckResult::fail(
-            "Database",
-            format!("file not found: {}", db_path.display()),
-        );
+        return CheckResult::fail("Database", format!("file not found: {}", db_path.display()));
     }
 
     match db::connect(&db_path).await {
         Err(e) => CheckResult::fail("Database", format!("cannot open: {e}")),
         Ok(pool) => {
             // Check WAL mode
-            let journal_mode: Result<String, _> =
-                sqlx::query_scalar("PRAGMA journal_mode")
-                    .fetch_one(&pool)
-                    .await;
+            let journal_mode: Result<String, _> = sqlx::query_scalar("PRAGMA journal_mode")
+                .fetch_one(&pool)
+                .await;
             match journal_mode {
                 Err(e) => return CheckResult::fail("Database", format!("PRAGMA failed: {e}")),
                 Ok(mode) if mode != "wal" => {
-                    return CheckResult::fail(
-                        "Database",
-                        format!("expected WAL mode, got: {mode}"),
-                    )
+                    return CheckResult::fail("Database", format!("expected WAL mode, got: {mode}"))
                 }
                 _ => {}
             }
@@ -168,9 +161,7 @@ async fn check_database(config_result: Option<&ConfigResult>) -> CheckResult {
                     .await;
             match migration_count {
                 Err(e) => CheckResult::fail("Database", format!("cannot query migrations: {e}")),
-                Ok(n) => {
-                    CheckResult::pass("Database", format!("healthy ({n} migrations applied)"))
-                }
+                Ok(n) => CheckResult::pass("Database", format!("healthy ({n} migrations applied)")),
             }
         }
     }
@@ -215,6 +206,10 @@ fn signal_hook_installed(settings_path: &Path) -> Result<bool, String> {
 }
 
 /// Check 5: Hook installation (checks .claude/settings.json)
+///
+/// Two-phase check:
+/// - Phase 1: signal hook presence → fail if missing
+/// - Phase 2: scan all hook commands for stale binary paths → fail if any found
 fn check_hooks(config_result: Option<&ConfigResult>) -> CheckResult {
     let settings_path = match config_result {
         Some((_, root)) => root.join(".claude/settings.json"),
@@ -222,27 +217,87 @@ fn check_hooks(config_result: Option<&ConfigResult>) -> CheckResult {
     };
 
     if !settings_path.exists() {
-        return CheckResult::fail(
-            "Hooks",
-            format!("{} not found", settings_path.display()),
-        );
+        return CheckResult::fail("Hooks", format!("{} not found", settings_path.display()));
     }
 
+    // Phase 1: signal hook presence
     match signal_hook_installed(&settings_path) {
-        Err(e) => CheckResult::fail_detail(
-            "Hooks",
-            format!("cannot read {}", settings_path.display()),
-            e,
-        ),
-        Ok(true) => CheckResult::pass("Hooks", "Claude Code hooks installed"),
-        Ok(false) => CheckResult::fail(
-            "Hooks",
-            format!(
-                "squad-station signal hook missing in {}",
-                settings_path.display()
-            ),
-        ),
+        Err(e) => {
+            return CheckResult::fail_detail(
+                "Hooks",
+                format!("cannot read {}", settings_path.display()),
+                e,
+            )
+        }
+        Ok(false) => {
+            return CheckResult::fail(
+                "Hooks",
+                format!(
+                    "squad-station signal hook missing in {}",
+                    settings_path.display()
+                ),
+            )
+        }
+        Ok(true) => {} // phase 1 OK, continue to phase 2
     }
+
+    // Phase 2: scan for stale binary paths
+    let content = match std::fs::read_to_string(&settings_path) {
+        Err(e) => {
+            return CheckResult::fail_detail(
+                "Hooks",
+                format!("cannot read {}", settings_path.display()),
+                e.to_string(),
+            )
+        }
+        Ok(c) => c,
+    };
+    let settings: serde_json::Value = match serde_json::from_str(&content) {
+        Err(e) => {
+            return CheckResult::fail_detail("Hooks", "invalid JSON in settings", e.to_string())
+        }
+        Ok(v) => v,
+    };
+
+    // Collect stale entries: (location, stale_path)
+    let mut stale: Vec<(String, String)> = Vec::new();
+
+    if let Some(hooks_obj) = settings.get("hooks").and_then(|h| h.as_object()) {
+        for (event, event_val) in hooks_obj {
+            if let Some(event_arr) = event_val.as_array() {
+                for (idx, entry) in event_arr.iter().enumerate() {
+                    if let Some(inner_hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
+                        for inner in inner_hooks {
+                            if let Some(cmd) = inner.get("command").and_then(|c| c.as_str()) {
+                                if let Some(path) = hook_parser::extract_binary_path(cmd) {
+                                    if hook_parser::is_stale(&path) {
+                                        let location = format!("{event}[{idx}]");
+                                        stale.push((location, path));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if stale.is_empty() {
+        return CheckResult::pass("Hooks", "Claude Code hooks installed");
+    }
+
+    let n = stale.len();
+    let (first_loc, first_path) = &stale[0];
+    let message = if n == 1 {
+        format!("1 hook binary stale (first: {first_loc})")
+    } else {
+        format!("{n} hook binaries stale (first: {first_loc})")
+    };
+    let detail = format!(
+        "{first_loc} points to non-existent binary {first_path}. Run squad-station init to regenerate hooks, or manually update the path."
+    );
+    CheckResult::fail_detail("Hooks", message, detail)
 }
 
 /// Check 6: Binary version (always Info)
@@ -423,7 +478,10 @@ mod tests {
     #[test]
     fn check_tmux_runs_without_panic() {
         let result = check_tmux();
-        assert!(matches!(result.status, CheckStatus::Pass | CheckStatus::Fail));
+        assert!(matches!(
+            result.status,
+            CheckStatus::Pass | CheckStatus::Fail
+        ));
     }
 
     #[test]
@@ -525,5 +583,126 @@ mod tests {
         let result = check_database(Some(&config_result)).await;
         assert_eq!(result.status, CheckStatus::Pass);
         assert!(result.message.contains("healthy"));
+    }
+
+    // ── Phase-2: stale hook binary tests ─────────────────────────────────────
+
+    /// F1 — stale absolute path (real bug reproduction)
+    fn f1_stale_settings_json() -> &'static str {
+        r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"/Users/tranthien/.cargo/bin/squad-station signal \"$(tmux display-message -p '#S')\" 2>/dev/null"}]}]}}"#
+    }
+
+    /// F3 — bare PATH-relative
+    fn f3_bare_settings_json() -> &'static str {
+        r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal \"$AGENT\""}]}]}}"#
+    }
+
+    fn write_settings(tmp_path: &Path, content: &str) -> std::path::PathBuf {
+        let claude_dir = tmp_path.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let path = claude_dir.join("settings.json");
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn check_hooks_stale_binary_returns_fail() {
+        let tmp = TempDir::new().unwrap();
+        write_settings(tmp.path(), f1_stale_settings_json());
+
+        let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
+        let config_result = (cfg, tmp.path().to_path_buf());
+        let result = check_hooks(Some(&config_result));
+        assert_eq!(result.status, CheckStatus::Fail);
+        // Should mention stale
+        let detail = result.detail.unwrap_or_default();
+        assert!(
+            detail.contains("Stop[0]"),
+            "detail should mention Stop[0], got: {detail}"
+        );
+        assert!(
+            detail.contains("/Users/tranthien/.cargo/bin/squad-station"),
+            "detail should contain the stale path, got: {detail}"
+        );
+    }
+
+    #[test]
+    fn check_hooks_bare_name_passes() {
+        let tmp = TempDir::new().unwrap();
+        write_settings(tmp.path(), f3_bare_settings_json());
+
+        let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
+        let config_result = (cfg, tmp.path().to_path_buf());
+        let result = check_hooks(Some(&config_result));
+        // bare squad-station is not stale → phase 2 passes; phase 1 passes too
+        assert_eq!(result.status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn check_hooks_multiple_stale_reports_count() {
+        let tmp = TempDir::new().unwrap();
+        let two_stale = r#"{"hooks":{"Stop":[
+            {"matcher":"","hooks":[{"type":"command","command":"/nope/squad-station signal a 2>/dev/null"}]},
+            {"matcher":"","hooks":[{"type":"command","command":"/also/nope/squad-station signal b 2>/dev/null"}]}
+        ]}}"#;
+        write_settings(&tmp.path(), two_stale);
+
+        let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
+        let config_result = (cfg, tmp.path().to_path_buf());
+        let result = check_hooks(Some(&config_result));
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert!(
+            result.message.contains('2'),
+            "message should contain count '2', got: {}",
+            result.message
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_hooks_fresh_install_passes() {
+        use std::os::unix::fs::PermissionsExt;
+        // Create a healthy executable file named `squad-station` (path ends with /squad-station)
+        let tmp = TempDir::new().unwrap();
+        let bin_dir = tmp.path().join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let bin_file = bin_dir.join("squad-station");
+        std::fs::write(&bin_file, b"#!/bin/sh\n").unwrap();
+        let mut perms = std::fs::metadata(&bin_file).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin_file, perms).unwrap();
+
+        let healthy_path = bin_file.to_str().unwrap();
+        // Command must contain "squad-station signal" for phase 1 to pass
+        let settings_content = format!(
+            r#"{{"hooks":{{"Stop":[{{"matcher":"","hooks":[{{"type":"command","command":"{healthy_path} signal arg 2>/dev/null"}}]}}]}}}}"#
+        );
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(claude_dir.join("settings.json"), &settings_content).unwrap();
+
+        let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
+        let config_result = (cfg, tmp.path().to_path_buf());
+        let result = check_hooks(Some(&config_result));
+        // Healthy binary → phase 1 passes (command contains "squad-station signal") and phase 2 passes
+        assert_eq!(result.status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn check_hooks_stale_in_gemini_afteragent_reports_correct_location() {
+        let tmp = TempDir::new().unwrap();
+        // Use .claude/settings.json but with AfterAgent event (simulates the scan path)
+        let f4_gemini = r#"{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"squad-station signal arg"}]}],"AfterAgent":[{"matcher":"","hooks":[{"type":"command","command":"/stale/squad-station signal \"$AGENT\" >/dev/null 2>&1; printf '{}'"}]}]}}"#;
+        write_settings(&tmp.path(), f4_gemini);
+
+        let cfg: config::SquadConfig = serde_saphyr::from_str(minimal_squad_yml()).unwrap();
+        let config_result = (cfg, tmp.path().to_path_buf());
+        let result = check_hooks(Some(&config_result));
+        assert_eq!(result.status, CheckStatus::Fail);
+        let detail = result.detail.unwrap_or_default();
+        assert!(
+            detail.contains("AfterAgent[0]"),
+            "detail should mention AfterAgent[0], got: {detail}"
+        );
     }
 }
