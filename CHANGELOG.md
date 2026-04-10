@@ -2,6 +2,22 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.9.0 — SDD Playbook Validation & Doctor Command (2026-04-10)
+
+Health-check tooling for squad-station projects: validate SDD playbooks during init, and diagnose setup issues with the new doctor subcommand.
+
+### Added
+- `squad-station doctor` subcommand — runs 6 health checks (config, SDD playbooks, tmux, database, hooks, version) with `--json` support
+- `sdd-playbook` config field in squad.yml — declare required SDD playbooks (bmad, superpowers, gsd, openspec)
+- SDD playbook validation during `squad-station init` — blocks init if declared playbooks are not installed
+- Actionable error messages with fix instructions for each missing SDD
+
+### Changed
+- Doctor command refactored from minimal wrapper to self-contained health checker
+- Exit code 1 when any doctor check fails
+
+---
+
 ## v0.8.22 — Fix PATH setup for non-interactive shells (2026-04-07)
 
 Fix PATH auto-setup to use `.zshenv` instead of `.zshrc` so Claude Code agents in tmux sessions can find the `squad-station` binary. Non-interactive shells (used by Claude Code's Bash tool) only source `.zshenv`, not `.zshrc`.
