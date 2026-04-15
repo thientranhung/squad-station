@@ -1,0 +1,136 @@
+description = "Đọc handoff file từ Obsidian vault và phục hồi context làm việc"
+prompt = """
+# Onboard with Obsidian
+
+Phục hồi context làm việc từ handoff file đã lưu trong Obsidian vault. Dùng sau khi bạn đã pause session trước bằng `/handoff-with-obsidian`.
+
+## Quy trình bắt buộc
+
+### Bước 1 — Xác định Obsidian project folder
+
+**Obsidian base path (CỐ ĐỊNH):**
+```
+/Users/tranthien/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/1-Projects
+```
+
+**Logic tự động detect project folder:**
+
+1. Lấy tên repo/dir hiện tại:
+   ```bash
+   basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+   ```
+
+2. Liệt kê folders trong base path:
+   ```bash
+   ls "/Users/tranthien/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/1-Projects"
+   ```
+
+3. **Fuzzy match** — tìm folder có độ tương đồng cao nhất với tên repo:
+   - Exact match (case-insensitive) nếu có
+   - Nếu không, chọn folder có overlap nhiều nhất về mặt ngữ nghĩa/ký tự với tên repo
+   - Dùng judgment linh hoạt, không cần thuật toán cứng
+
+4. **Xử lý kết quả:**
+   - **1 match duy nhất** → dùng ngay, thông báo user
+   - **Không có match** → hỏi user: "Không tìm thấy Obsidian folder match với repo '<tên>'. Chọn folder nào?" (show list)
+   - **Nhiều match** → hỏi user chọn
+
+### Bước 2 — Liệt kê handoff files
+
+1. Tìm tất cả files match pattern `HANDOFF-*.md` trong project folder:
+   ```bash
+   ls -t "<project_folder>"/HANDOFF-*.md 2>/dev/null
+   ```
+
+2. Parse filename để hiển thị user-friendly:
+   - Format filename: `HANDOFF-YYYY-MM-DD-<topic>.md`
+   - Sort theo ngày (mới nhất trước)
+
+3. Hiển thị top 10 files cho user theo format:
+   ```
+   1. 2026-04-10 — ASI-bugs
+   2. 2026-04-08 — refactor-auth
+   3. ...
+   ```
+
+### Bước 3 — User chọn file
+
+- **Nếu user truyền argument** (VD: `/onboard-with-obsidian ASI-bugs`): fuzzy match với topic hoặc date, chọn match tốt nhất
+- **Nếu không có argument**: hỏi user chọn số thứ tự (1, 2, 3, ...)
+- **Nếu chỉ có 1 file**: auto-select và confirm với user
+
+### Bước 4 — Đọc file và phục hồi context
+
+1. Read toàn bộ file handoff
+2. **Hiểu kỹ** tất cả các section:
+   - Original Request (toàn bộ tasks, kể cả chưa bắt đầu)
+   - Investigation Findings (root causes, evidence)
+   - Done (những gì đã xong)
+   - Pending (đang dở)
+   - Blockers (lý do pause)
+   - Resume Checklist (bước tiếp theo)
+
+3. **Check state thực tế** so với handoff:
+   ```bash
+   git status
+   git branch --show-current
+   gh pr list --state open 2>/dev/null
+   ```
+
+4. **So sánh** state thực tế với state trong handoff:
+   - Branches còn đúng như trong handoff không?
+   - PRs đã merge hay chưa?
+   - Có thay đổi nào đáng chú ý không?
+
+### Bước 5 — Tóm tắt và xác nhận với user
+
+Trình bày cho user **bằng tiếng Việt** theo format:
+
+```
+## 📄 Context đã phục hồi từ: <filename>
+
+### 🎯 Nhiệm vụ gốc
+<Tóm tắt ngắn original request>
+
+### ✅ Đã hoàn thành
+<Bullet points>
+
+### ⏳ Đang dở / Chưa làm
+<Bullet points>
+
+### 🚫 Blocker cuối cùng
+<Lý do pause session trước>
+
+### ⚠️ State thực tế so với handoff
+<Nếu có lệch: liệt kê điểm khác. Nếu không: "Khớp với handoff">
+
+### 📋 Bước tiếp theo theo Resume Checklist
+1. <Step 1>
+2. <Step 2>
+...
+
+---
+
+**Bạn muốn bắt đầu từ bước nào?** Hoặc có thay đổi/bổ sung gì so với kế hoạch cũ không?
+```
+
+### Bước 6 — Chờ user confirm
+
+- **KHÔNG tự ý hành động** ngay sau khi đọc file
+- **KHÔNG jump thẳng vào** Step 1 trong Resume Checklist
+- Phải có confirmation từ user trước khi thực hiện bất kỳ action nào
+
+---
+
+## Quy tắc nghiêm ngặt
+
+1. **LUÔN trả lời bằng tiếng Việt** khi tương tác với user
+2. **ĐỌC KỸ** toàn bộ handoff file, không lướt qua
+3. **KHÔNG tự ý hành động** ngay sau khi đọc — phải summary và hỏi user
+4. **LUÔN check state thực tế** (git, PR, branches) trước khi resume — để phát hiện lệch
+5. **CẢNH BÁO user** nếu state thực tế lệch với handoff, giải thích rõ điểm khác biệt
+6. **Nếu không tìm thấy handoff file nào**: báo user và suggest dùng `/handoff-with-obsidian` để tạo mới
+7. **Nếu Obsidian folder không tồn tại**: hỏi user xem có nhầm project không, hoặc cần tạo folder mới
+
+{{args}}
+"""
