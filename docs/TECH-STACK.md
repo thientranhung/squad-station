@@ -29,8 +29,6 @@
 ║                                                              ║
 ║  clap 4          — CLI parsing (derive macros)               ║
 ║  sqlx 0.8        — Async SQLite (compile-time SQL)           ║
-║  ratatui 0.26+   — TUI dashboard                            ║
-║  crossterm       — Terminal backend for ratatui              ║
 ║  serde + serde-saphyr — YAML config parsing                  ║
 ║  tokio           — Async runtime for sqlx                    ║
 ║  anyhow          — Error handling (commands layer)           ║
@@ -64,7 +62,7 @@
 squad-station/
 ├── src/
 │   ├── main.rs              ← Entry point + SIGPIPE handler
-│   ├── cli.rs               ← clap Parser (15 subcommands)
+│   ├── cli.rs               ← clap Parser (18 subcommands)
 │   ├── config.rs            ← squad.yml parsing, validation, DB path resolution
 │   ├── tmux.rs              ← Tmux adapter (send_keys, inject_body, session mgmt)
 │   ├── lib.rs               ← Re-exports for test access
@@ -76,15 +74,17 @@ squad-station/
 │   │   ├── notify.rs        ← Mid-task HITL notification (no status change)
 │   │   ├── peek.rs          ← Pending task check (priority-ordered)
 │   │   ├── list.rs          ← Message list + filters
-│   │   ├── register.rs      ← Dynamic agent registration
 │   │   ├── agents.rs        ← Agent list (with tmux reconciliation)
 │   │   ├── context.rs       ← Generate orchestrator context; --inject for SessionStart hook
 │   │   ├── status.rs        ← Squad overview
-│   │   ├── ui.rs            ← TUI dashboard (ratatui)
-│   │   ├── view.rs          ← Split tmux layout
+│   │   ├── reconcile.rs     ← Detect and fix stuck agents
+│   │   ├── watch.rs         ← Watchdog daemon (liveness monitor)
+│   │   ├── update.rs        ← Re-apply squad.yml at runtime
+│   │   ├── uninstall.rs     ← Remove hooks, files, sessions
+│   │   ├── doctor.rs        ← 6-check health diagnostics
 │   │   ├── clean.rs         ← Kill all squad tmux sessions + delete DB
-│   │   ├── reset.rs         ← Clean + optionally relaunch (re-init)
 │   │   ├── freeze.rs        ← Freeze/unfreeze agent task dispatch
+│   │   ├── notify_telegram.rs ← Telegram notification support
 │   │   └── helpers.rs       ← Shared: colorize, format_status, reconcile
 │   └── db/
 │       ├── mod.rs           ← connect() + migrations

@@ -1,5 +1,7 @@
 # Codebase Concerns
 
+> **STALE — Pre-v1.0 snapshot (2026-03-08).** Many concerns listed here have since been resolved (e.g. reconciliation duplication, `view.rs`/`register.rs` references). Review against current code before acting on any item.
+
 **Analysis Date:** 2026-03-08
 
 ## Tech Debt

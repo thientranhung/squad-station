@@ -1,5 +1,7 @@
 # Codebase Structure
 
+> **STALE — Pre-v1.0 snapshot (2026-03-08).** References removed modules (`ui.rs`, `view.rs`, `register.rs`, `reset.rs`) and old binary path (`~/.cargo/bin`). Do not use as source of truth. Read `src/cli.rs` and `src/commands/` directly for current structure.
+
 **Analysis Date:** 2026-03-08
 
 ## Directory Layout

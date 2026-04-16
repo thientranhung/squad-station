@@ -7,7 +7,7 @@ A step-by-step guide to orchestrating AI agent squads with squad-station.
 ## Prerequisites
 
 - **tmux** installed and available in PATH
-- **squad-station** binary built and available in PATH (`cargo build --release`, symlinked at `~/.cargo/bin/squad-station`)
+- **squad-station** binary built and available in PATH (`cargo build --release`, installed at `~/.squad/bin/squad-station`)
 - At least one AI coding tool: Claude Code (`claude`) or Gemini CLI (`gemini`)
 
 ---
@@ -315,34 +315,21 @@ squad-station list --limit 5
 squad-station list --agent my-app-backend --status completed --json
 ```
 
-### Interactive TUI dashboard
+### Status overview
 
 ```bash
-squad-station ui
+squad-station status           # Project + agent summary
+squad-station agents           # Roster with live status (idle/busy/dead)
+squad-station list --agent my-app-backend --limit 10   # Recent messages
 ```
 
-Controls:
-- `j`/`k` or arrow keys — navigate agents
-- `Tab` — switch between agent and message panels
-- `q` or `Esc` — quit
-
-The dashboard auto-refreshes every 3 seconds.
-
-### Interactive monitor (created by init)
+### Attach directly to an agent session
 
 ```bash
-tmux attach -t my-app-monitor
+tmux attach -t my-app-implement
 ```
 
-The monitor session is created automatically during `squad-station init`. It contains interactive tiled panes — one per agent (orchestrator + workers). You can type directly into any pane. Killed and recreated on each `init` or `clean`.
-
-### tmux tiled view (read-only)
-
-```bash
-squad-station view
-```
-
-Opens a tiled tmux layout showing all live agent sessions side by side.
+Switch between sessions with `Ctrl-b s` (tmux session switcher).
 
 ---
 
@@ -399,15 +386,14 @@ squad-station clean -y
 
 Kills all squad tmux sessions (agents + monitor) and deletes the database. Shows killed/skipped counts and DB deletion status.
 
-### Full reset (clean + relaunch)
+### Uninstall (remove hooks, files, sessions)
 
 ```bash
-# Kill sessions, delete DB, then relaunch
-squad-station reset
-
-# Kill sessions, delete DB, don't relaunch
-squad-station reset --no-relaunch
+squad-station uninstall        # Prompts for confirmation
+squad-station uninstall -y     # Skip confirmation
 ```
+
+Removes hook entries from `settings.json`, deletes `.squad/`, kills tmux sessions, and removes the generated context files.
 
 ---
 
@@ -468,21 +454,15 @@ The `--inject` flag outputs the content to stdout for hook consumption instead o
 
 ---
 
-## 13. Register Agents at Runtime
+## 13. Update Squad at Runtime
 
-Add agents without restarting the squad:
-
-```bash
-squad-station register reviewer --role worker --tool claude-code
-```
-
-This registers the agent in the database but does **not** launch a tmux session. Use this for agents managed externally.
-
-If no `squad.yml` is available, you can point to the database directly:
+Add or change agents without a full teardown:
 
 ```bash
-SQUAD_STATION_DB=/path/to/station.db squad-station register my-agent --tool claude-code
+squad-station update           # Re-apply squad.yml: launch new agents, restart changed, skip running
 ```
+
+This is the safe way to add a new worker or change a model after `init` — running agents are not interrupted.
 
 ---
 
@@ -527,14 +507,16 @@ SQUAD_STATION_DB=/path/to/station.db squad-station register my-agent --tool clau
 | `notify --body <msg>` | Mid-task notification to orchestrator | `--body`, `--agent`, `--json` |
 | `peek <agent>` | View next pending task | `--json` |
 | `list` | List messages | `--agent`, `--status`, `--limit`, `--json` |
-| `register <name>` | Register agent at runtime | `--role`, `--tool`, `--json` |
 | `agents` | List agents with status | `--json` |
 | `status` | Project overview | `--json` |
 | `context` | Generate orchestrator context | `--inject` |
-| `ui` | Interactive TUI dashboard | — |
-| `view` | tmux tiled view | `--json` |
-| `clean [config]` | Kill all sessions + delete DB | `-y`/`--yes`, `--json` |
-| `reset [config]` | Clean + relaunch | `--no-relaunch`, `--json` |
+| `reconcile [config]` | Fix stuck agents | `--dry-run`, `--json` |
+| `update [config]` | Re-apply squad.yml at runtime | `--json` |
+| `watch` | Watchdog health monitor | `--daemon`, `--stop`, `--interval` |
+| `doctor` | Health check (6 checks) | `--json` |
+| `uninstall [config]` | Remove hooks, files, sessions | `-y`/`--yes` |
+| `clean [config]` | Kill all sessions + delete DB | `-y`/`--yes`, `--all` |
+| `freeze` / `unfreeze` | Block or allow orchestrator dispatch | `--json` |
 
 All commands support `--json` for machine-readable output and `--help` for usage details.
 
@@ -564,4 +546,4 @@ This is expected behavior. With `provider: antigravity`, the orchestrator has no
 The watchdog should auto-heal this. Check if the watchdog is running: look for `.squad/watch.pid`. If the PID file is missing or stale, the next `signal` or `send` command will respawn it. You can also manually run `squad-station watch --daemon`. Check `.squad/log/watch.log` for HEAL entries.
 
 **Full reset when things go wrong**
-Run `squad-station reset` to kill all sessions, delete the database, and start fresh.
+Run `squad-station clean -y` to kill all sessions and delete the database, then `squad-station init` to start fresh.

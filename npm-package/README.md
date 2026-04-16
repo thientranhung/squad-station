@@ -83,12 +83,14 @@ agents:
 | `squad-station list` | List messages (`--agent`, `--status`, `--limit`) |
 | `squad-station agents` | List agents with live status |
 | `squad-station status` | Project and agent summary |
-| `squad-station ui` | Interactive TUI dashboard |
-| `squad-station view` | Tiled tmux view of all agent sessions |
+| `squad-station peek <agent>` | Show agent's next pending task |
+| `squad-station reconcile` | Detect and fix stuck agents (`--dry-run` to preview) |
 | `squad-station doctor` | Health check for diagnosing issues |
 | `squad-station watch --daemon` | Start watchdog health monitor |
-| `squad-station reset` | Kill sessions, delete DB, relaunch |
+| `squad-station update` | Re-apply `squad.yml`: launch new agents, restart changed ones |
+| `squad-station uninstall` | Remove hooks, files, and sessions from this project |
 | `squad-station clean` | Kill sessions and delete DB (`--all` includes logs) |
+| `squad-station freeze` / `unfreeze` | Block or allow orchestrator task dispatch |
 
 All commands support `--json` for machine-readable output.
 
