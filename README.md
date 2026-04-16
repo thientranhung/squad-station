@@ -104,7 +104,7 @@ Switch to the orchestrator's tmux session and invoke the playbook:
 /squad-orchestrator
 
 # Gemini CLI:
-@squad-orchestrator
+/squad-orchestrator
 ```
 
 The orchestrator reads its playbook and begins coordinating agents via `squad-station send`.
@@ -115,8 +115,8 @@ The orchestrator reads its playbook and begins coordinating agents via `squad-st
 squad-station status           # Agent overview: statuses, pending tasks
 squad-station list             # List recent messages
 squad-station agents           # Agent roster with live status
-squad-station ui               # Interactive TUI dashboard
-squad-station view             # Tiled tmux view of all agent panes
+squad-station doctor           # Health check: config, hooks, tmux, DB
+squad-station peek <agent>     # Show agent's next pending task
 ```
 
 ## CLI Reference
@@ -132,12 +132,11 @@ squad-station view             # Tiled tmux view of all agent panes
 | `agents` | List agents with reconciled status |
 | `status` | Project and agent status summary |
 | `context` | Regenerate orchestrator playbook file |
-| `ui` | Interactive TUI dashboard |
-| `view` | Tiled tmux view of all live sessions |
 | `reconcile` | Detect and fix stuck agents (`--dry-run` supported) |
 | `watch` | Watchdog health monitor (`--daemon`, `--stop`, `--interval`) |
+| `update [config]` | Re-apply `squad.yml`: launch new agents, restart changed ones |
 | `doctor` | Health check to diagnose operational issues |
-| `reset [config]` | Kill sessions, delete database, relaunch |
+| `uninstall [config]` | Remove hooks, files, and sessions from this project (`-y` to skip confirm) |
 | `clean [config]` | Kill sessions and delete database (`--all` includes logs) |
 | `freeze` / `unfreeze` | Block or allow orchestrator task dispatch |
 
@@ -202,7 +201,7 @@ agents:
   - name: frontend
     provider: gemini-cli
     role: worker
-    model: gemini-2.5-pro
+    model: gemini-3.1-pro-preview
     description: Frontend implementation
 ```
 
