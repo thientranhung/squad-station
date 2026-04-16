@@ -41,8 +41,8 @@ Update any that don't match. **Triple-check all 4 before proceeding.** This is t
 
 - [ ] `cargo build --release`
 - [ ] `cargo test` — all tests must pass
-- [ ] Verify the symlink works: `squad-station --version` must output `$ARGUMENTS`
-- [ ] If version doesn't match, check `~/.cargo/bin/squad-station` symlink points to `target/release/squad-station`
+- [ ] Verify version from build output: `target/release/squad-station --version` must output `$ARGUMENTS`
+- [ ] **DO NOT** copy binary to `~/.squad/bin/` or create symlinks in `~/.cargo/bin/` — the release only produces a git tag + GitHub release. Users install via `npx squad-station install` which downloads the binary independently.
 
 ## 5. GIT
 
