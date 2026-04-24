@@ -715,14 +715,12 @@ pub(crate) fn validate_sdd_playbooks(
 
     for name in playbooks {
         match name.as_str() {
-            "bmad" => {
-                if !project_root.join("bmad").is_dir() {
-                    failures.push((
-                        "bmad".into(),
-                        "directory 'bmad/' not found in project root".into(),
-                        "clone the BMAD playbook into your project root".into(),
-                    ));
-                }
+            "bmad" if !project_root.join("bmad").is_dir() => {
+                failures.push((
+                    "bmad".into(),
+                    "directory 'bmad/' not found in project root".into(),
+                    "clone the BMAD playbook into your project root".into(),
+                ));
             }
             "superpowers" => {
                 match check_superpowers_mcp() {
@@ -743,14 +741,12 @@ pub(crate) fn validate_sdd_playbooks(
                     }
                 }
             }
-            "gsd" => {
-                if !project_root.join(".claude/commands/gsd").is_dir() {
-                    failures.push((
-                        "gsd".into(),
-                        "directory '.claude/commands/gsd/' not found in project root".into(),
-                        "install the GSD playbook commands into .claude/commands/gsd/".into(),
-                    ));
-                }
+            "gsd" if !project_root.join(".claude/commands/gsd").is_dir() => {
+                failures.push((
+                    "gsd".into(),
+                    "directory '.claude/commands/gsd/' not found in project root".into(),
+                    "install the GSD playbook commands into .claude/commands/gsd/".into(),
+                ));
             }
             "openspec" => {
                 let openspec_dir = project_root.join("openspec");
