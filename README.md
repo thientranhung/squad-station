@@ -80,6 +80,9 @@ agents:
     description: Technical lead, planning, analysis, code reviews
 ```
 
+Valid model IDs for each provider are listed in `.squad/models.md` after installation.
+Running `squad-station init` validates your model values and prints acceptable IDs if an unknown model is detected.
+
 ### 2. Initialize
 
 ```bash

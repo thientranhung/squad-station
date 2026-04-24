@@ -8,20 +8,65 @@ const VALID_PROVIDERS: &[&str] = &["claude-code", "codex", "gemini-cli"];
 /// Known SDD playbook names for validation
 pub const KNOWN_SDD_PLAYBOOKS: &[&str] = &["bmad", "superpowers", "gsd", "openspec"];
 
-/// Valid model identifiers per provider (provider → allowed model slugs)
+/// Valid model identifiers per provider (provider → allowed model slugs).
+///
+/// Sources (fetched 2026-04-24):
+///   Claude Code — docs.anthropic.com/en/docs/about-claude/models/overview
+///   Codex       — developers.openai.com/codex/models + github.com/openai/codex issue #486
+///   Gemini CLI  — github.com/google-gemini/gemini-cli packages/core/src/config/models.ts
+///
+/// Tier shortnames for claude-code (`opus`, `sonnet`, `haiku`) are not in the official
+/// API docs but are present in the existing codebase and accepted by Claude Code CLI.
+/// They are kept for backward compatibility; verify with `claude --help` if uncertain.
+///
+/// Update this list when providers release new models. See .squad/models.md for the
+/// human-readable reference with capability summaries.
 fn valid_models_for(provider: &str) -> Option<&'static [&'static str]> {
     match provider {
-        "claude-code" => Some(&["opus", "sonnet", "haiku"]),
+        "claude-code" => Some(&[
+            // Tier shortnames (backward compat — not in API docs, kept for existing configs)
+            "opus",
+            "sonnet",
+            "haiku",
+            // Claude 4.x current
+            "claude-opus-4-7",
+            "claude-sonnet-4-6",
+            "claude-haiku-4-5-20251001",
+            "claude-haiku-4-5",
+            // Claude 4.x legacy (still valid per Anthropic docs)
+            "claude-opus-4-6",
+            "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4-5",
+            "claude-opus-4-5-20251101",
+            "claude-opus-4-5",
+            "claude-opus-4-1-20250805",
+            "claude-opus-4-1",
+        ]),
         "codex" => Some(&[
+            "gpt-5.5", // ChatGPT sign-in only; not available with API key auth
             "gpt-5.4",
             "gpt-5.4-mini",
             "gpt-5.3-codex",
-            "gpt-5.2-codex",
+            "gpt-5.3-codex-spark", // ChatGPT Pro only; research preview
             "gpt-5.2",
-            "gpt-5.1-codex-max",
-            "gpt-5.1-codex-mini",
+            "o4-mini", // confirmed default (openai/codex issue #486; not in official docs)
         ]),
-        "gemini-cli" => Some(&["gemini-3.1-pro-preview", "gemini-3-flash-preview"]),
+        "gemini-cli" => Some(&[
+            // Stable defaults (DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_FLASH_MODEL, etc.)
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            // Preview (PREVIEW_GEMINI_* constants)
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3-flash-preview",
+            "gemini-3-pro-preview",
+            // CLI shorthand aliases (GEMINI_MODEL_ALIAS_* constants)
+            "auto",
+            "pro",
+            "flash",
+            "flash-lite",
+        ]),
         _ => None, // no model validation for providers that don't support a model override
     }
 }
@@ -184,12 +229,16 @@ fn validate_agent_config(label: &str, agent: &AgentConfig) -> Result<()> {
     if let Some(model) = &agent.model {
         if let Some(valid_models) = valid_models_for(&agent.provider) {
             if !valid_models.contains(&model.as_str()) {
+                let provider = agent.provider.as_str();
+                let bullets = valid_models
+                    .iter()
+                    .map(|m| format!("  • {m}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
                 bail!(
-                    "Invalid model '{}' for provider '{}' (agent '{}'). Valid models are: {}.",
-                    model,
-                    agent.provider,
-                    label,
-                    valid_models.join(", ")
+                    "Agent '{label}' has an invalid model '{model}' for provider '{provider}'.\n\n\
+                     Valid model IDs for {provider}:\n{bullets}\n\n\
+                     See .squad/models.md for the full reference with capability summaries."
                 );
             }
         }
@@ -341,30 +390,114 @@ mod tests {
 
     #[test]
     fn valid_model_accepted() {
+        // Tier shortnames (backward compat)
+        assert!(validate_agent_config("a", &make_agent("claude-code", Some("opus"))).is_ok());
         assert!(validate_agent_config("a", &make_agent("claude-code", Some("sonnet"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("claude-code", Some("haiku"))).is_ok());
+        // Full API model IDs
+        assert!(
+            validate_agent_config("a", &make_agent("claude-code", Some("claude-opus-4-7"))).is_ok()
+        );
+        assert!(
+            validate_agent_config("a", &make_agent("claude-code", Some("claude-sonnet-4-6")))
+                .is_ok()
+        );
+        assert!(validate_agent_config(
+            "a",
+            &make_agent("claude-code", Some("claude-haiku-4-5-20251001"))
+        )
+        .is_ok());
+        // Codex
         assert!(validate_agent_config("a", &make_agent("codex", Some("gpt-5.4"))).is_ok());
         assert!(validate_agent_config("a", &make_agent("codex", Some("gpt-5.3-codex"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("codex", Some("o4-mini"))).is_ok());
+        // Gemini CLI
+        assert!(
+            validate_agent_config("a", &make_agent("gemini-cli", Some("gemini-2.5-flash"))).is_ok()
+        );
+        assert!(
+            validate_agent_config("a", &make_agent("gemini-cli", Some("gemini-2.5-pro"))).is_ok()
+        );
         assert!(validate_agent_config(
             "a",
             &make_agent("gemini-cli", Some("gemini-3-flash-preview"))
         )
         .is_ok());
+        assert!(validate_agent_config(
+            "a",
+            &make_agent("gemini-cli", Some("gemini-3-pro-preview"))
+        )
+        .is_ok());
+        // Gemini CLI shorthand aliases (GEMINI_MODEL_ALIAS_* constants)
+        assert!(validate_agent_config("a", &make_agent("gemini-cli", Some("flash"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("gemini-cli", Some("pro"))).is_ok());
+        assert!(validate_agent_config("a", &make_agent("gemini-cli", Some("auto"))).is_ok());
     }
 
     #[test]
     fn invalid_model_rejected() {
         let err = validate_agent_config("a", &make_agent("claude-code", Some("claude-code-2")))
             .unwrap_err();
-        assert!(err.to_string().contains("opus, sonnet, haiku"));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("• opus"),
+            "expected bullet for opus, got: {msg}"
+        );
+        assert!(
+            msg.contains("• sonnet"),
+            "expected bullet for sonnet, got: {msg}"
+        );
+        assert!(
+            msg.contains("• claude-opus-4-7"),
+            "expected bullet for claude-opus-4-7, got: {msg}"
+        );
 
         let err = validate_agent_config("a", &make_agent("codex", Some("gpt-4o"))).unwrap_err();
-        assert!(err.to_string().contains("gpt-5.4"));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("• gpt-5.4"),
+            "expected bullet for gpt-5.4, got: {msg}"
+        );
+        assert!(
+            msg.contains("• o4-mini"),
+            "expected bullet for o4-mini, got: {msg}"
+        );
 
         let err =
             validate_agent_config("a", &make_agent("gemini-cli", Some("gemini-pro"))).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("gemini-3.1-pro-preview, gemini-3-flash-preview"));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("• gemini-2.5-flash"),
+            "expected bullet for gemini-2.5-flash, got: {msg}"
+        );
+        assert!(
+            msg.contains("• gemini-3.1-pro-preview"),
+            "expected bullet for gemini-3.1-pro-preview, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn invalid_model_error_format() {
+        let err = validate_agent_config(
+            "implement",
+            &make_agent("claude-code", Some("claude-4-turbo")),
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        // Must identify the agent and what was wrong
+        assert!(msg.contains("implement"), "agent name missing: {msg}");
+        assert!(msg.contains("claude-code"), "provider missing: {msg}");
+        assert!(
+            msg.contains("claude-4-turbo"),
+            "invalid model missing: {msg}"
+        );
+        // Must have bulleted list
+        assert!(msg.contains("  •"), "bulleted list missing: {msg}");
+        // Must point to reference file
+        assert!(
+            msg.contains(".squad/models.md"),
+            "models.md reference missing: {msg}"
+        );
     }
 
     #[test]
