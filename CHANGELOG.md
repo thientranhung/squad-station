@@ -2,6 +2,25 @@
 
 All notable changes to Squad Station are documented in this file.
 
+## v0.10.0 — Model ID Validation & Reference (2026-04-24)
+
+Validate agent model IDs at `squad-station init` against a provider-scoped whitelist, and ship a human-readable `.squad/models.md` reference so users can discover and pick valid IDs without guessing. Addresses the class of silent failures where an invalid model in `squad.yml` would only surface at runtime.
+
+### Added
+- `valid_models_for(provider)` whitelist in `src/config.rs` covering Claude Code, Codex, and Gemini CLI with verified model IDs (sourced from official docs; speculative IDs removed after verification)
+- `.squad/models.md` — embedded at compile time via `include_str!` and auto-written on `init` if the file doesn't already exist; lists valid IDs with capability summaries and source URLs inline
+- `!.squad/models.md` exception in `.gitignore` so contributors who clone the repo get the reference file
+- Actionable error UX: when `init` detects an invalid model, it now prints a bulleted list of valid IDs for the provider and points users to `.squad/models.md`
+- `GEMINI.md` — project context file for Gemini CLI onboarding
+
+### Fixed
+- `validate_sdd_playbooks` now uses match guards (instead of nested `if`) to satisfy Rust 1.95.0's stricter `collapsible_match` lint — unblocks CI on newer toolchains
+
+### Changed
+- Obsidian assistant commands (`handoff-with-obsidian`, `onboard-with-obsidian`) gain `name` + `disable-model-invocation: true` frontmatter so Claude Code treats them as user-invoked slash commands rather than auto-invokable tools
+
+---
+
 ## v0.9.1 — Stale Hook Binary Detection & Self-Healing (2026-04-10)
 
 Detect and auto-repair stale squad-station hook binary paths in `.claude/settings.json`. Resolves a class of failures where hooks point to moved or deleted binaries (e.g. after upgrading from `~/.cargo/bin` to `~/.squad/bin` in v0.8.17).
