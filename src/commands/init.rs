@@ -6,6 +6,8 @@ use owo_colors::Stream;
 
 use crate::{config, db, hook_parser, tmux};
 
+const MODELS_MD: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/.squad/models.md"));
+
 pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     // 1. Parse squad.yml
     let config = config::load_config(&config_path)?;
@@ -163,13 +165,13 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
     //    Print warnings for failed launches but continue to hook setup and instructions.
 
     // 9a. Create .squad/log/ directory for signal and watchdog logs
+    let squad_dir = db_path.parent().unwrap_or(std::path::Path::new(".squad"));
     {
-        let log_dir = db_path
-            .parent()
-            .unwrap_or(std::path::Path::new(".squad"))
-            .join("log");
-        let _ = std::fs::create_dir_all(&log_dir);
+        let _ = std::fs::create_dir_all(squad_dir.join("log"));
     }
+
+    // Write .squad/models.md (model ID reference) if not already present
+    let models_md_created = write_models_md_if_absent(squad_dir);
 
     // 9. Hook setup: auto-install for ALL providers used in the squad (not just orchestrator).
     // In JSON mode, skip stdout instructions (to preserve machine-parseable output).
@@ -300,6 +302,10 @@ pub async fn run(config_path: PathBuf, json: bool) -> anyhow::Result<()> {
                     }
                 }
             }
+        }
+
+        if models_md_created {
+            println!("  Model reference: .squad/models.md");
         }
 
         // 9c. Telegram notification hooks
@@ -1697,6 +1703,17 @@ fn install_sdd_rules(
     Ok(installed)
 }
 
+/// Write `.squad/models.md` into `squad_dir` if the file does not already exist.
+/// Returns true if the file was newly created, false if it already existed.
+/// Silently no-ops on write errors rather than failing init.
+fn write_models_md_if_absent(squad_dir: &Path) -> bool {
+    let path = squad_dir.join("models.md");
+    if path.exists() {
+        return false;
+    }
+    std::fs::write(&path, MODELS_MD).is_ok()
+}
+
 fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
     let bin = resolve_binary_path();
     println!(
@@ -2860,6 +2877,45 @@ mod tests {
         assert!(
             !tg_cmd.contains("cd "),
             "hook command must not use cd: {tg_cmd}"
+        );
+    }
+
+    #[test]
+    fn write_models_md_creates_when_absent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let squad_dir = tmp.path();
+        assert!(!squad_dir.join("models.md").exists());
+
+        let created = write_models_md_if_absent(squad_dir);
+
+        assert!(created, "should return true when file was newly created");
+        let content = std::fs::read_to_string(squad_dir.join("models.md")).unwrap();
+        // Spot-check key IDs from all three providers
+        assert!(
+            content.contains("gemini-2.5-flash"),
+            "Gemini stable ID missing"
+        );
+        assert!(
+            content.contains("claude-opus-4-7"),
+            "Claude current ID missing"
+        );
+        assert!(content.contains("gpt-5.4"), "Codex ID missing");
+    }
+
+    #[test]
+    fn write_models_md_leaves_existing_file_untouched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let squad_dir = tmp.path();
+        let path = squad_dir.join("models.md");
+        std::fs::write(&path, "custom content").unwrap();
+
+        let created = write_models_md_if_absent(squad_dir);
+
+        assert!(!created, "should return false when file already exists");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "custom content",
+            "existing file must not be overwritten"
         );
     }
 }
