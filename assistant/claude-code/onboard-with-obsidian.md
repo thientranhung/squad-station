@@ -1,5 +1,7 @@
 ---
+name: onboard-with-obsidian
 description: Đọc handoff file từ Obsidian vault và phục hồi context làm việc
+disable-model-invocation: true
 ---
 
 # Onboard with Obsidian

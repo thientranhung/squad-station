@@ -1,5 +1,7 @@
 ---
+name: handoff-with-obsidian
 description: Lưu context session hiện tại vào Obsidian vault dưới dạng handoff file để phục hồi sau
+disable-model-invocation: true
 ---
 
 # Handoff with Obsidian
