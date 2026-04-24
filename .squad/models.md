@@ -28,7 +28,7 @@ docs; verify with `claude --help` if you hit issues.
 
 ## Codex CLI (`provider: codex`)
 
-Source: https://developers.openai.com/codex/models (fetched 2026-04-24)
+Source: https://developers.openai.com/codex/models (fetched 2026-04-24; URL may not be canonical — re-verify against https://platform.openai.com/docs/models if broken)
 Source: https://github.com/openai/codex issue #486 (default model confirmation)
 
 | Model ID | Tier | Notes |

@@ -1704,14 +1704,20 @@ fn install_sdd_rules(
 }
 
 /// Write `.squad/models.md` into `squad_dir` if the file does not already exist.
-/// Returns true if the file was newly created, false if it already existed.
+/// Returns true if the file was newly created, false if it already existed or the write failed.
 /// Silently no-ops on write errors rather than failing init.
+///
+/// Note: on upgrade, users keep their existing file. The validation whitelist
+/// in `valid_models_for()` (src/config.rs) is always current; this file is a
+/// human reference only and may be out of date after a version upgrade.
 fn write_models_md_if_absent(squad_dir: &Path) -> bool {
     let path = squad_dir.join("models.md");
-    if path.exists() {
-        return false;
-    }
-    std::fs::write(&path, MODELS_MD).is_ok()
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .and_then(|mut f| f.write_all(MODELS_MD.as_bytes()))
+        .is_ok()
 }
 
 fn print_hook_instructions(settings_path: &str, event: &str, matcher: &str) {
