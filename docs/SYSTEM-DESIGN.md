@@ -712,7 +712,7 @@ src/
 | v0.5.1 | First public release: npm package, colored init, provider-agnostic hooks, full messaging pipeline |
 | v0.5.3 | PostToolUse hook (AskUserQuestion), elicitation_dialog support, orchestrator resolution fix |
 | v0.5.5 | Context auto-inject (SessionStart hook), /clear management, simplified CLI (close removed, clean = kill + delete) |
-| v0.6.8 | Lean SDD Playbooks: trimmed 84%, added OpenSpec playbook |
+| v0.6.8 | Lean SDD Playbooks: trimmed 84% |
 | v0.6.9 | Watchdog simplified: removed idle nudge, stuck-agent detection only (tiered: log 10m, heal 30m, alert 60m) |
 | v0.8.0 | Telegram notifications (interactive setup during init, agent filter via `notify_agents`, `topic_id` for forum threads), session name dedup (`build_session_name` prevents prefix duplication), UX improvements (clearer prompts, "Get Started" section) |
 

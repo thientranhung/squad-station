@@ -93,8 +93,8 @@ Mỗi skill chứa:
 ```
 .agent/
 ├── commands/          ← (trống)
-├── skills/            ← 4 OpenSpec skills (SKILL.md chuẩn)
-└── workflows/         ← 4 workflows → /opsx-* slash commands
+├── skills/            ← (trống)
+└── workflows/         ← (trống)
 
 assistant/antigravity/
 ├── assistant-squad-station.md   ← @ mention reference

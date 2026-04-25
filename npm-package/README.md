@@ -17,12 +17,10 @@ This downloads the `squad-station` binary for your platform and scaffolds projec
 ├── sdd/                              # SDD methodology playbooks
 │   ├── gsd-playbook.md
 │   ├── bmad-playbook.md
-│   ├── openspec-playbook.md
 │   └── superpowers-playbook.md
 ├── rules/                            # Git workflow rule templates
 │   ├── git-workflow-get-shit-done.md
 │   ├── git-workflow-bmad-method.md
-│   ├── git-workflow-openspec.md
 │   └── git-workflow-superpowers.md
 └── examples/                         # Example squad.yml configs
     ├── orchestrator-claude.yml

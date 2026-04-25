@@ -7,7 +7,7 @@ Squad Station is a stateless Rust CLI that routes tasks between an AI orchestrat
 ## Features
 
 - **Provider-agnostic** — Mix and match Claude Code, Gemini CLI, or any terminal-based AI tool in a single squad
-- **SDD workflow orchestration** — Plug in structured development methodologies (Get Shit Done, BMad Method, OpenSpec, Superpowers) as playbooks that define how the orchestrator delegates work
+- **SDD workflow orchestration** — Plug in structured development methodologies (Get Shit Done, BMad Method, Superpowers) as playbooks that define how the orchestrator delegates work
 - **Automatic signal hooks** — Agent completion hooks auto-installed for each provider; the orchestrator is notified without polling
 - **Orchestrator bootstrap** — Survives `/clear` and context compaction; the orchestrator always knows its role
 - **Tiered tool restrictions** — Orchestrator acts as a PM: reads dashboards and status files, delegates all code work to agents
@@ -24,7 +24,7 @@ npx squad-station@latest install
 ```
 
 This downloads the native binary for your platform and scaffolds starter files:
-- `.squad/sdd/` — SDD playbook templates (GSD, BMad, OpenSpec, Superpowers)
+- `.squad/sdd/` — SDD playbook templates (GSD, BMad, Superpowers)
 - `.squad/rules/` — Git workflow rule templates per SDD methodology
 - `.squad/examples/` — Example `squad.yml` configs for Claude and Gemini setups
 
@@ -214,7 +214,6 @@ agents:
 |----------|------|-------------|
 | Get Shit Done | `.squad/sdd/gsd-playbook.md` | Fast iteration, minimal ceremony |
 | BMad Method | `.squad/sdd/bmad-playbook.md` | Structured agile with defined roles |
-| OpenSpec | `.squad/sdd/openspec-playbook.md` | Spec-driven: propose, apply, archive |
 | Superpowers | `.squad/sdd/superpowers-playbook.md` | Full-stack autonomous development |
 
 ### Environment Variables

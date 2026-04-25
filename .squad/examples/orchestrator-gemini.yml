@@ -10,8 +10,6 @@ sdd:
   #   playbook: ".squad/sdd/bmad-playbook.md"
   # - name: superpowers
   #   playbook: ".squad/sdd/superpowers-playbook.md"
-  # - name: openspec
-  #   playbook: ".squad/sdd/openspec-playbook.md"
 
 # Telegram notifications (credentials go in .env.squad, auto-created by init)
 # telegram:

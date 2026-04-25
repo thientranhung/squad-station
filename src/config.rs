@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 const VALID_PROVIDERS: &[&str] = &["claude-code", "codex", "gemini-cli"];
 
 /// Known SDD playbook names for validation
-pub const KNOWN_SDD_PLAYBOOKS: &[&str] = &["bmad", "superpowers", "gsd", "openspec"];
+pub const KNOWN_SDD_PLAYBOOKS: &[&str] = &["bmad", "superpowers", "gsd"];
 
 /// Valid model identifiers per provider (provider → allowed model slugs).
 ///
@@ -706,7 +706,7 @@ agents: []
 project: test
 sdd-playbook:
   - bmad
-  - openspec
+  - gsd
 orchestrator:
   provider: claude-code
   role: orchestrator
@@ -714,7 +714,7 @@ agents: []
 "#;
         let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
         config.validate().unwrap();
-        assert_eq!(config.sdd_playbook, vec!["bmad", "openspec"]);
+        assert_eq!(config.sdd_playbook, vec!["bmad", "gsd"]);
     }
 
     #[test]
@@ -750,7 +750,7 @@ agents: []
         let config: SquadConfig = serde_saphyr::from_str(yaml).unwrap();
         let err = config.validate().unwrap_err();
         assert!(err.to_string().contains("unknown-playbook"));
-        assert!(err.to_string().contains("bmad, superpowers, gsd, openspec"));
+        assert!(err.to_string().contains("bmad, superpowers, gsd"));
     }
 
     /// Verify that `find_project_root` prefers the main repo when in a worktree.

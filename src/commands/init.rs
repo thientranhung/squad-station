@@ -748,23 +748,6 @@ pub(crate) fn validate_sdd_playbooks(
                     "install the GSD playbook commands into .claude/commands/gsd/".into(),
                 ));
             }
-            "openspec" => {
-                let openspec_dir = project_root.join("openspec");
-                let config_file = openspec_dir.join("config.yaml");
-                if !openspec_dir.is_dir() {
-                    failures.push((
-                        "openspec".into(),
-                        "directory 'openspec/' not found in project root".into(),
-                        "create the openspec/ directory in your project root".into(),
-                    ));
-                } else if !config_file.is_file() {
-                    failures.push((
-                        "openspec".into(),
-                        "file 'openspec/config.yaml' not found".into(),
-                        "ensure openspec/ directory contains config.yaml".into(),
-                    ));
-                }
-            }
             _ => {} // unknown names already rejected in config.validate()
         }
     }
@@ -2307,16 +2290,16 @@ mod tests {
         let rules_dir = root.join(".squad").join("rules");
         std::fs::create_dir_all(&rules_dir).unwrap();
         std::fs::write(
-            rules_dir.join("git-workflow-openspec.md"),
-            "# OpenSpec Git Workflow",
+            rules_dir.join("git-workflow-bmad.md"),
+            "# BMAD Git Workflow",
         )
         .unwrap();
 
         let providers = vec!["claude-code".to_string()];
 
         // Run twice — should not fail
-        let first = install_sdd_rules("openspec", root, &providers).unwrap();
-        let second = install_sdd_rules("openspec", root, &providers).unwrap();
+        let first = install_sdd_rules("bmad", root, &providers).unwrap();
+        let second = install_sdd_rules("bmad", root, &providers).unwrap();
         assert_eq!(first.len(), 1);
         assert_eq!(second.len(), 1);
     }
@@ -2730,31 +2713,6 @@ mod tests {
     }
 
     #[test]
-    fn sdd_playbook_openspec_missing_dir_fails() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let err = validate_sdd_playbooks(&["openspec".into()], tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("openspec"));
-        assert!(err.to_string().contains("openspec/"));
-    }
-
-    #[test]
-    fn sdd_playbook_openspec_dir_but_no_config_fails() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::create_dir(tmp.path().join("openspec")).unwrap();
-        let err = validate_sdd_playbooks(&["openspec".into()], tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("openspec/config.yaml"));
-    }
-
-    #[test]
-    fn sdd_playbook_openspec_complete_passes() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let openspec_dir = tmp.path().join("openspec");
-        std::fs::create_dir(&openspec_dir).unwrap();
-        std::fs::write(openspec_dir.join("config.yaml"), "").unwrap();
-        assert!(validate_sdd_playbooks(&["openspec".into()], tmp.path()).is_ok());
-    }
-
-    #[test]
     fn check_superpowers_mcp_at_file_not_found_returns_false() {
         let tmp = tempfile::TempDir::new().unwrap();
         let result = check_superpowers_mcp_at(&tmp.path().join("nonexistent.json"));
@@ -2815,11 +2773,11 @@ mod tests {
     fn sdd_playbook_multiple_failures_reported_together() {
         let tmp = tempfile::TempDir::new().unwrap();
         let err =
-            validate_sdd_playbooks(&["bmad".into(), "openspec".into()], tmp.path()).unwrap_err();
+            validate_sdd_playbooks(&["bmad".into(), "gsd".into()], tmp.path()).unwrap_err();
         let msg = err.to_string();
         // Both failures should appear in the same error message
         assert!(msg.contains("bmad"), "bmad missing from: {msg}");
-        assert!(msg.contains("openspec"), "openspec missing from: {msg}");
+        assert!(msg.contains("gsd"), "gsd missing from: {msg}");
         assert!(
             msg.contains("Resolve the above issues"),
             "footer missing: {msg}"

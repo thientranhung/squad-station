@@ -3,7 +3,7 @@
 ## Project Overview
 **Squad Station** is a provider-agnostic, stateless Rust CLI application designed for message routing and orchestration among multiple AI agents (e.g., Claude Code, Gemini CLI). It coordinates a "squad" of AI agents using a central orchestrator, local `tmux` sessions for execution, and a local SQLite database (`.squad/station.db`) for tracking state, tasks, and messages.
 
-It allows users to plug in structured development methodologies (SDD) like "Get Shit Done", "BMad Method", "OpenSpec", or "Superpowers" as playbooks. The tool automatically hooks into agent completion signals and manages session lifecycles using a watchdog monitor. 
+It allows users to plug in structured development methodologies (SDD) like "Get Shit Done", "BMad Method", or "Superpowers" as playbooks. The tool automatically hooks into agent completion signals and manages session lifecycles using a watchdog monitor. 
 
 The project contains a core Rust application (`src/`) and is also distributed via an npm wrapper (`package.json`, `bin/run.js`) for easy installation.
 
