@@ -135,8 +135,7 @@ Lệnh này thực hiện hàng loạt tác vụ đằng sau hậu trường:
 - Đăng ký Orchestrator và các Agents vào SQLite (`.squad/station.db`)
 - Khởi tạo các **tmux session** riêng biệt cho từng agent
 - Cài đặt **signal hooks** vào `.claude/settings.json` / `.gemini/settings.json` để agent tự báo cáo hoàn thành task
-- Generate file playbook tại `.claude/commands/squad-orchestrator.md` (hoặc `.gemini/commands/squad-orchestrator.toml`)
-- Inject bootstrap block vào `CLAUDE.md` / `GEMINI.md` để Orchestrator không mất vai trò sau `/clear`
+- Generate file playbook tại `.claude/commands/squad-orchestrator.md` (hoặc `.gemini/commands/squad-orchestrator.toml`) - Orchestrator có thể gọi lệnh này để nạp lại vai trò sau khi `/clear`
 - Copy SDD git workflow rules vào `.claude/rules/` hoặc `.gemini/rules/`
 - Tự khởi động Watchdog daemon ngầm (30s interval) để theo dõi liveness của các session
 - Chạy post-init health check và in kết quả ra terminal

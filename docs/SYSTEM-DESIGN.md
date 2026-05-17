@@ -675,7 +675,7 @@ src/
 │                       session management, view creation, pane-to-session resolution
 ├── commands/
 │   ├── mod.rs       ← module declarations
-│   ├── init.rs      ← bootstrap: config → DB → register agents → tmux sessions → hooks → context
+│   ├── init.rs      ← setup: config → DB → register agents → tmux sessions → hooks → context
 │   ├── send.rs      ← task dispatch: validate → DB write → agent busy → tmux inject
 │   ├── signal.rs    ← hook handler: guard chain → mark complete → notify orchestrator
 │   ├── notify.rs    ← mid-task HITL notification (no status change)

@@ -9,7 +9,7 @@ Squad Station is a stateless Rust CLI that routes tasks between an AI orchestrat
 - **Provider-agnostic** — Mix and match Claude Code, Gemini CLI, or any terminal-based AI tool in a single squad
 - **SDD workflow orchestration** — Plug in structured development methodologies (Get Shit Done, BMad Method, Superpowers) as playbooks that define how the orchestrator delegates work
 - **Automatic signal hooks** — Agent completion hooks auto-installed for each provider; the orchestrator is notified without polling
-- **Orchestrator bootstrap** — Survives `/clear` and context compaction; the orchestrator always knows its role
+- **Context resilience** — Slash command encapsulation ensures the orchestrator can instantly recover its role after `/clear` or compaction
 - **Tiered tool restrictions** — Orchestrator acts as a PM: reads dashboards and status files, delegates all code work to agents
 - **Health monitor watchdog** — Background daemon checks tmux session liveness, marks dead agents, revives recovered sessions
 - **Interactive TUI** — Real-time dashboard showing agent status and message flow
@@ -93,8 +93,7 @@ This:
 - Registers all agents in the SQLite database
 - Launches tmux sessions for the orchestrator and each worker
 - Installs provider-specific signal and notification hooks (Claude Code `.claude/settings.json`, Gemini CLI `.gemini/settings.json`)
-- Generates the orchestrator playbook at `.claude/commands/squad-orchestrator.md` (or `.gemini/commands/squad-orchestrator.toml`)
-- Injects a bootstrap block into project-root `CLAUDE.md` / `GEMINI.md` so the orchestrator survives `/clear` and context compaction
+- Generates the orchestrator playbook at `.claude/commands/squad-orchestrator.md` (or `.gemini/commands/squad-orchestrator.toml`) — call this to reload context after `/clear`
 - Copies SDD git workflow rules into `.claude/rules/` or `.gemini/rules/`
 - Starts the watchdog health monitor daemon
 
